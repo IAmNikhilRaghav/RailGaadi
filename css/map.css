@@ -1,0 +1,278 @@
+/* ==========================================================================
+   RailGaadi Map View Styles
+   MapLibre GL Integration, Custom Markers, Glowing Routes
+   ========================================================================== */
+
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+@media (min-width: 1200px) {
+  .map-wrapper {
+    height: 720px;
+  }
+}
+
+.map-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Floating Map Overlay Controls */
+.map-controls-floating {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.map-control-btn {
+  width: 42px;
+  height: 42px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) ease;
+}
+
+.map-control-btn:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-hover);
+  transform: translateY(-1px);
+}
+
+.map-control-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+/* Floating Status Pill over Map */
+.map-floating-status {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+}
+
+.floating-speed-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+}
+
+/* Recenter Button when user pans away */
+.map-recenter-btn {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-xl);
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.map-recenter-btn.visible {
+  display: flex;
+  animation: bounceUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bounceUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+/* Custom Marker Styles */
+.train-custom-marker {
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.train-marker-inner {
+  width: 34px;
+  height: 34px;
+  background: #1e40af;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.45);
+  transition: transform 0.3s ease;
+  z-index: 2;
+}
+
+.train-marker-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.35);
+  animation: trainGlow 2.5s infinite;
+  z-index: 1;
+}
+
+@keyframes trainGlow {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Station Markers */
+.station-map-marker {
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border: 3px solid #64748b;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.station-map-marker:hover {
+  transform: scale(1.5);
+  border-color: #1e40af;
+}
+
+.station-map-marker.passed {
+  border-color: #94a3b8;
+  background: #cbd5e1;
+}
+
+.station-map-marker.current-hub {
+  width: 20px;
+  height: 20px;
+  border-color: #15803d;
+  background: #bbf7d0;
+}
+
+/* MapLibre Popup Styling */
+.maplibregl-popup-content {
+  border-radius: var(--radius-lg) !important;
+  padding: var(--space-4) !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+}
+
+.maplibregl-popup-close-button {
+  padding: 4px 8px;
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+/* Fallback Container */
+.map-fallback-view {
+  display: none;
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+}
+
+.map-fallback-view.active {
+  display: block;
+}
+
+/* Map overlay when no train selected or loading */
+.map-empty-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Dark map style: invert the floating status pill */
+[data-map-style="dark"] .map-floating-status {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255,255,255,0.1);
+  color: #f8fafc;
+}
+
+[data-map-style="dark"] .map-floating-status span {
+  color: #f1f5f9;
+}
+
+[data-map-style="dark"] .map-control-btn {
+  background: rgba(15, 23, 42, 0.88);
+  border-color: rgba(255,255,255,0.12);
+  color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+  .map-wrapper {
+    height: 420px;
+    border-radius: var(--radius-lg);
+  }
+
+  .map-floating-status {
+    top: var(--space-2);
+    left: var(--space-2);
+    padding: 6px 12px;
+    max-width: calc(100% - 70px);
+  }
+}
+
+@media (max-width: 480px) {
+  .map-wrapper {
+    height: 350px;
+  }
+}
+

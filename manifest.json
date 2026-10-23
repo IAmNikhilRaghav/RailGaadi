@@ -1,0 +1,21 @@
+{
+  "name": "RailGaadi — Live India Train Tracker",
+  "short_name": "RailGaadi",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "description": "Premium India train-tracking combining running status, route maps, journey analytics, weather, and geographic context.",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop&crop=faces",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=512&h=512&fit=crop&crop=faces",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

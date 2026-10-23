@@ -1,0 +1,667 @@
+/* ==========================================================================
+   RailGaadi Phase 2 Styles
+   Dark Mode, Fav Drawer, Map Style Picker, Station Board, Notification Bell
+   ========================================================================== */
+
+/* ── Dark mode body background ────────────────────────────── */
+[data-theme="dark"] body {
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .card-panel,
+[data-theme="dark"] .analytics-metric-card,
+[data-theme="dark"] .elevation-card,
+[data-theme="dark"] .weather-card,
+[data-theme="dark"] .poi-card,
+[data-theme="dark"] .modal-card {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .app-header {
+  background: var(--color-bg-glass);
+  border-bottom-color: var(--color-border);
+}
+
+[data-theme="dark"] .search-hero-section {
+  background: var(--color-bg-surface);
+  border-bottom-color: var(--color-border);
+}
+
+[data-theme="dark"] .search-input-wrapper {
+  background: var(--color-bg-canvas);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .search-input {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .search-dropdown {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .search-result-item:hover,
+[data-theme="dark"] .search-result-item.selected {
+  background: var(--color-bg-subtle);
+}
+
+[data-theme="dark"] .view-tabs-container {
+  background: var(--color-bg-surface);
+  border-bottom-color: var(--color-border);
+}
+
+[data-theme="dark"] .segmented-control {
+  background: var(--color-bg-canvas);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .segmented-btn {
+  color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .segmented-btn.active {
+  background: var(--color-bg-surface);
+  color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .header-btn {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark"] .header-btn:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-hover);
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .maplibregl-ctrl,
+[data-theme="dark"] .maplibregl-ctrl-group {
+  background: var(--color-bg-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .events-table th {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border-bottom-color: var(--color-border);
+}
+
+[data-theme="dark"] .events-table td {
+  border-bottom-color: var(--color-border-subtle);
+}
+
+[data-theme="dark"] .events-table tr:hover {
+  background: var(--color-bg-subtle);
+}
+
+[data-theme="dark"] .current-row {
+  background: var(--color-accent-subtle) !important;
+}
+
+[data-theme="dark"] .quick-chip {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark"] .quick-chip:hover,
+[data-theme="dark"] .quick-chip.active {
+  background: var(--color-accent-subtle);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent);
+}
+
+/* ── Map Style Picker ─────────────────────────────────────── */
+.map-style-picker-wrap {
+  position: relative;
+}
+
+.map-style-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.map-style-label-text {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .map-style-label-text {
+    display: inline;
+  }
+}
+
+.map-style-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 160px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  z-index: 100;
+  animation: dropdownIn 0.15s var(--ease-spring);
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.map-style-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  text-align: left;
+}
+
+.map-style-option:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.map-style-option.active {
+  color: var(--color-accent);
+  font-weight: 700;
+  background: var(--color-accent-subtle);
+}
+
+.map-style-option svg {
+  margin-left: auto;
+  color: var(--color-accent);
+}
+
+/* ── Dark Mode Toggle ─────────────────────────────────────── */
+.dark-toggle-btn {
+  transition: background var(--duration-normal), border-color var(--duration-normal);
+}
+
+.dark-toggle-btn.active {
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+.header-btn-label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .header-btn-label {
+    display: inline;
+  }
+}
+
+/* ── Notification Bell ────────────────────────────────────── */
+.notif-btn {
+  position: relative;
+}
+
+.notif-btn.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-subtle);
+}
+
+.notif-active-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid var(--color-bg-surface);
+  animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.25); opacity: 0.7; }
+}
+
+/* ── Fav Header Button ────────────────────────────────────── */
+.fav-header-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fav-count-badge {
+  font-size: 10px;
+  font-weight: 800;
+  background: #f59e0b;
+  color: white;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  line-height: 1.4;
+  font-family: var(--font-mono);
+}
+
+/* ── Favourites Drawer ────────────────────────────────────── */
+.fav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-overlay);
+  z-index: 200;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.fav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  background: var(--color-bg-surface);
+  border-left: 1px solid var(--color-border);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl);
+  animation: slideInRight 0.28s var(--ease-spring);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+.fav-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.fav-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) 0;
+}
+
+.fav-drawer-section {
+  margin-bottom: var(--space-4);
+}
+
+.fav-drawer-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding: 8px var(--space-5) 4px;
+}
+
+.fav-train-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-5);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  border-radius: 0;
+}
+
+.fav-train-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.fav-train-row.active {
+  background: var(--color-accent-subtle);
+  border-left: 3px solid var(--color-accent);
+}
+
+.fav-train-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fav-train-number-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent-border);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.fav-train-meta {
+  min-width: 0;
+}
+
+.fav-train-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-train-route {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.fav-train-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fav-type-tag {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.fav-unstar-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: all var(--duration-fast);
+}
+
+.fav-unstar-btn:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-hover);
+}
+
+.fav-drawer-empty {
+  padding: var(--space-6) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ── Station Board ────────────────────────────────────────── */
+.board-container {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  margin: var(--space-4);
+}
+
+.board-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--color-bg-surface) 0%, var(--color-accent-subtle) 100%);
+}
+
+.board-station-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.board-station-selector {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.board-stn-btn {
+  padding: 6px 14px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.board-stn-btn:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.board-stn-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.board-mode-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.board-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.board-mode-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle);
+}
+
+.board-mode-btn.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+  background: var(--color-bg-surface);
+}
+
+.board-table-wrapper {
+  overflow-x: auto;
+}
+
+.board-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.board-table th {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.board-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
+}
+
+.board-train-row {
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.board-train-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.board-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.board-badge.on-time {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.board-badge.delayed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+.board-badge.early {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.board-badge.neutral {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.board-track-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  white-space: nowrap;
+}
+
+.board-track-btn:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+/* ── Speed History Chip (analytics) ─────────────────────── */
+.speed-history-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 40px;
+  padding: 4px 0;
+}
+
+.speed-bar-col {
+  flex: 1;
+  background: var(--color-accent);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  min-height: 4px;
+}
+
+.speed-bar-col:hover {
+  opacity: 1;
+}
+
+/* ── Map wrapper responsive (Phase 2 station board tab) ─── */
+@media (max-width: 768px) {
+  .board-container {
+    margin: var(--space-2);
+    border-radius: var(--radius-md);
+  }
+
+  .board-table th:nth-child(4),
+  .board-table td:nth-child(4) {
+    display: none; /* hide Platform on mobile */
+  }
+}
+
+/* ── Segmented control 4-tab adaptation ────────────────── */
+.segmented-control {
+  gap: 2px;
+}
+
+@media (max-width: 480px) {
+  .segmented-btn span {
+    display: none;
+  }
+
+  .segmented-btn {
+    padding: 8px 12px;
+  }
+}

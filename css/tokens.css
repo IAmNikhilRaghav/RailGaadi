@@ -1,0 +1,168 @@
+/* ==========================================================================
+   RailGaadi Design System Tokens
+   White-first, Linear/Stripe/Apple Maps aesthetic
+   ========================================================================== */
+
+:root {
+  /* Color Palette - White Canvas & Slate Precision */
+  --color-bg-canvas: #f8fafc;
+  --color-bg-surface: #ffffff;
+  --color-bg-subtle: #f1f5f9;
+  --color-bg-muted: #e2e8f0;
+  --color-bg-overlay: rgba(15, 23, 42, 0.65);
+  --color-bg-glass: rgba(255, 255, 255, 0.92);
+
+  /* Primary Railway Accent (Restrained Deep Royal Blue) */
+  --color-accent: #1e40af;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-subtle: #eff6ff;
+  --color-accent-border: #bfdbfe;
+  --color-accent-glow: rgba(30, 64, 175, 0.25);
+
+  /* Semantic Status Colors */
+  --color-success: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+
+  --color-stale: #64748b;
+  --color-stale-bg: #f8fafc;
+  --color-stale-border: #cbd5e1;
+
+  /* Typography Colors */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #ffffff;
+
+  /* Borders & Dividers */
+  --color-border-subtle: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+  --color-border-strong: #94a3b8;
+
+  /* Spacing Scale (4/8-pt grid) */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Border Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.05), 0 10px 24px -4px rgba(15, 23, 42, 0.04);
+
+  /* Typography Scale */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: 'Outfit', 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, monospace;
+
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.84375rem;  /* 13.5px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-md: 1rem;        /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+
+  /* Transitions */
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+  --duration-slow: 350ms;
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout dimensions */
+  --header-height: 64px;
+  --bottom-nav-height: 64px;
+  --sidebar-width: 440px;
+}
+
+/* Dark Map / App Context */
+[data-map-style="dark"] {
+  --color-map-route-completed: #3b82f6;
+  --color-map-route-glow: rgba(59, 130, 246, 0.6);
+  --color-map-train-pulse: #60a5fa;
+}
+
+/* ============================================================
+   Full Dark App Theme — activated via [data-theme="dark"]
+   on <html> or <body>
+   ============================================================ */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --color-bg-canvas:  #0f172a;
+  --color-bg-surface: #1e293b;
+  --color-bg-subtle:  #1e293b;
+  --color-bg-muted:   #334155;
+  --color-bg-overlay: rgba(0, 0, 0, 0.72);
+  --color-bg-glass:   rgba(15, 23, 42, 0.92);
+
+  /* Accent remains blue but lighter for dark bg */
+  --color-accent:         #60a5fa;
+  --color-accent-hover:   #93c5fd;
+  --color-accent-subtle:  #1e3a5f;
+  --color-accent-border:  #1e40af;
+  --color-accent-glow:    rgba(96, 165, 250, 0.3);
+
+  /* Semantic status colors (slightly brighter for dark) */
+  --color-success:        #34d399;
+  --color-success-bg:     #064e3b;
+  --color-success-border: #065f46;
+
+  --color-warning:        #fbbf24;
+  --color-warning-bg:     #451a03;
+  --color-warning-border: #78350f;
+
+  --color-danger:         #f87171;
+  --color-danger-bg:      #450a0a;
+  --color-danger-border:  #7f1d1d;
+
+  --color-stale:          #94a3b8;
+  --color-stale-bg:       #1e293b;
+  --color-stale-border:   #334155;
+
+  /* Text */
+  --color-text-primary:   #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted:     #64748b;
+  --color-text-inverse:   #0f172a;
+
+  /* Borders */
+  --color-border-subtle:  #1e293b;
+  --color-border:         #334155;
+  --color-border-hover:   #475569;
+  --color-border-strong:  #64748b;
+
+  /* Shadows — more prominent in dark for depth */
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 10px 24px -4px rgba(0, 0, 0, 0.4);
+}
