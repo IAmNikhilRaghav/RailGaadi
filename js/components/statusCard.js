@@ -7,6 +7,77 @@
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 
+/* ── Running Days Calendar ────────────────────────────────── */
+
+const DAY_LABELS_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const DAY_LABELS_SHORT = ["S","M","T","W","T","F","S"];
+const TODAY_DAY_IDX = new Date().getDay(); // 0=Sun … 6=Sat
+
+/** Parse any running-days format into a 7-element boolean array [Sun…Sat] */
+function parseRunningDays(raw) {
+  if (!raw) return null; // null = unknown (don't show calendar)
+  if (typeof raw === "string" && raw.length === 7) {
+    return raw.split("").map(c => c === "Y" || c === "1" || c === "y" || c === "T" || c === "t");
+  }
+  if (typeof raw === "number") {
+    return DAY_LABELS_SHORT.map((_, i) => !!(raw & (1 << i)));
+  }
+  if (Array.isArray(raw)) {
+    const lc = raw.map(d => String(d).toLowerCase().trim());
+    return [
+      ["sun","sunday","0"].some(a => lc.includes(a)),
+      ["mon","monday","1"].some(a => lc.includes(a)),
+      ["tue","tuesday","2"].some(a => lc.includes(a)),
+      ["wed","wednesday","3"].some(a => lc.includes(a)),
+      ["thu","thursday","4"].some(a => lc.includes(a)),
+      ["fri","friday","5"].some(a => lc.includes(a)),
+      ["sat","saturday","6"].some(a => lc.includes(a)),
+    ];
+  }
+  if (typeof raw === "object") {
+    return [
+      !!(raw.sun || raw.sunday    || raw[0]),
+      !!(raw.mon || raw.monday    || raw[1]),
+      !!(raw.tue || raw.tuesday   || raw[2]),
+      !!(raw.wed || raw.wednesday || raw[3]),
+      !!(raw.thu || raw.thursday  || raw[4]),
+      !!(raw.fri || raw.friday    || raw[5]),
+      !!(raw.sat || raw.saturday  || raw[6]),
+    ];
+  }
+  return null;
+}
+
+function renderRunningDaysCalendar(raw) {
+  const days = parseRunningDays(raw);
+  if (!days) return ""; // Don't show if we have no data
+
+  const runsToday = days[TODAY_DAY_IDX];
+
+  return `
+    <div class="sc-days-calendar" aria-label="Running days schedule">
+      <div class="sc-days-header">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>
+        </svg>
+        <span>Runs on</span>
+        <span class="sc-days-today-tag ${runsToday ? "sc-days-today-tag--yes" : "sc-days-today-tag--no"}">
+          ${runsToday ? "✓ Running today" : "✗ Not today"}
+        </span>
+      </div>
+      <div class="sc-days-pills">
+        ${DAY_LABELS_SHORT.map((label, i) => `
+          <span
+            class="sc-day-pill ${days[i] ? "sc-day-pill--on" : "sc-day-pill--off"} ${i === TODAY_DAY_IDX ? "sc-day-pill--today" : ""}"
+            title="${DAY_LABELS_FULL[i]}${days[i] ? "" : " (no service)"}"
+            aria-label="${DAY_LABELS_FULL[i]}${days[i] ? " (runs)" : " (no service)"}"
+          >${label}</span>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 /* ── helpers ─────────────────────────────────────────────── */
 
 function fmt(val, unit = "", fallback = "Unavailable") {
@@ -223,6 +294,9 @@ export function renderStatusCard() {
           <span style="color:var(--color-text-muted)">→</span>
           <span>${train.destination || route?.stations?.[route?.stations?.length - 1]?.name || "Destination"}</span>
         </div>
+
+        <!-- Running Days Calendar -->
+        ${renderRunningDaysCalendar(liveStatus?.runningDays || train?.runningDays || liveStatus?.days || train?.days)}
       </div>
 
       <!-- Progress -->

@@ -118,6 +118,13 @@ class StationDataService {
   }
 
   /**
+   * Returns all trains in the catalog (used for between-station filtering)
+   */
+  async getAllTrains() {
+    return this.loadTrainsCatalog();
+  }
+
+  /**
    * Searches local trains catalog (covers mail, express, passenger, EMU/MEMU locals)
    */
   async searchCatalog(query, limit = 15) {

@@ -1,0 +1,899 @@
+/* ==========================================================================
+   RailGaadi — Route Search (Station A → Station B) + Week Calendar Styles
+   Inspired by "Where is My Train" app UI
+   ========================================================================== */
+
+.rs-section {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-3) 0 var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Hero Container ──────────────────────────────────────────────────────── */
+
+.rs-hero-card {
+  background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  color: white;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: visible;
+}
+
+.rs-hero-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.rs-hero-title h2 {
+  color: #ffffff !important;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.rs-hero-subtitle {
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-4);
+  line-height: 1.4;
+}
+
+/* ── White Input Box Inside Hero ─────────────────────────────────────────── */
+
+.rs-card {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  position: relative;
+  overflow: visible;
+  padding: var(--space-2) 0 var(--space-3);
+}
+
+.rs-fields {
+  padding: var(--space-2) var(--space-4);
+  position: relative;
+}
+
+.rs-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.rs-from-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rs-field-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.rs-from-icon {
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.rs-to-icon {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.rs-field-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rs-field-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.rs-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.rs-field-input {
+  font-family: var(--font-sans);
+  font-size: 16px !important; /* Prevents iOS auto-zoom */
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  padding: 2px 28px 2px 0;
+}
+
+.rs-field-input::placeholder {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: var(--text-sm);
+}
+
+.rs-field-clear {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rs-station-code-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-accent-border);
+}
+
+/* Connector row & swap button */
+.rs-connector-row {
+  display: flex;
+  align-items: center;
+  height: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.rs-connector-line {
+  position: absolute;
+  left: 17px;
+  top: -14px;
+  bottom: -14px;
+  width: 1.5px;
+  border-left: 2px dashed #94a3b8;
+}
+
+.rs-swap-btn {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 50%;
+  color: #1e40af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  touch-action: manipulation;
+  transition: all var(--duration-fast);
+}
+
+.rs-swap-btn:hover {
+  background: #1e40af;
+  color: white;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.rs-swap-btn:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+/* ── Green Find Trains Button (Where is My Train signature) ──────────────── */
+
+.rs-find-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: calc(100% - var(--space-8));
+  margin: var(--space-2) var(--space-4) var(--space-1);
+  height: 48px;
+  background: #15803d; /* Distinct green */
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.35);
+  transition: all var(--duration-fast);
+}
+
+.rs-find-btn:hover:not(:disabled) {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+.rs-find-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.rs-find-btn--loading {
+  background: #059669;
+  cursor: not-allowed;
+}
+
+.rs-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: rsSpin 0.6s linear infinite;
+}
+
+@keyframes rsSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Popular Route Chips ─────────────────────────────────────────────────── */
+
+.rs-popular-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.rs-popular-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: var(--space-2);
+}
+
+.rs-popular-chips {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.rs-popular-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.rs-popular-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all var(--duration-fast);
+  backdrop-filter: blur(8px);
+}
+
+.rs-popular-chip small {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.rs-popular-chip:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.rs-popular-chip:active {
+  transform: scale(0.96);
+}
+
+/* ── Autocomplete Dropdowns ──────────────────────────────────────────────── */
+
+.rs-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: var(--space-4);
+  right: var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl);
+  z-index: 150;
+  max-height: 240px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rs-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border-subtle);
+  touch-action: manipulation;
+}
+
+.rs-dropdown-item:hover,
+.rs-dropdown-item:active {
+  background: var(--color-accent-subtle);
+}
+
+.rs-dropdown-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-accent-border);
+  min-width: 44px;
+  text-align: center;
+}
+
+.rs-dropdown-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Filter Bar (All Dates dropdown like Where is My Train) ──────────────── */
+
+.rs-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  flex-wrap: wrap;
+}
+
+.rs-filter-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rs-filter-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.rs-filter-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rs-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--color-bg-surface);
+  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 6px 28px 6px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  outline: none;
+}
+
+.rs-select-arrow {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  color: var(--color-accent);
+}
+
+.rs-filter-count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ── Route Summary Card ──────────────────────────────────────────────────── */
+
+.rs-route-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.rs-summary-stn {
+  display: flex;
+  flex-direction: column;
+}
+
+.rs-summary-stn--right {
+  align-items: flex-end;
+}
+
+.rs-summary-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+.rs-summary-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.rs-summary-divider {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 0 var(--space-4);
+}
+
+.rs-summary-line {
+  width: 100%;
+  height: 2px;
+  background: var(--color-accent-border);
+}
+
+.rs-summary-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* ── Result Cards (Where is My Train Style) ──────────────────────────────── */
+
+.rs-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rs-result-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: all var(--duration-fast);
+  cursor: pointer;
+}
+
+.rs-result-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.rs-result-card--not-today {
+  opacity: 0.85;
+}
+
+/* Train identity */
+.rs-result-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.rs-result-identity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.rs-result-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.rs-result-name {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+/* Running today badge */
+.rs-runs-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rs-runs-badge--today {
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.rs-runs-badge--not-today {
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+/* Timings row */
+.rs-result-timing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rs-time-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.rs-time-block--right {
+  align-items: flex-end;
+}
+
+.rs-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.rs-time-stn-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.rs-duration-line {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0 var(--space-4);
+}
+
+.rs-duration-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.rs-duration-track {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.rs-duration-bar {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border);
+}
+
+.rs-duration-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rs-duration-dot--start {
+  background: var(--color-accent);
+}
+
+.rs-duration-dot--end {
+  background: #059669;
+}
+
+/* ── Week Calendar Routine Row (S M T W T F S) ─────────────────────────── */
+
+.rs-calendar-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--color-border-subtle);
+  flex-wrap: wrap;
+}
+
+.rs-calendar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rs-days-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.rs-day-pill {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+
+.rs-day-on {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1.5px solid #bfdbfe;
+}
+
+.rs-day-off {
+  background: var(--color-bg-subtle);
+  color: #94a3b8;
+  border: 1px solid var(--color-border);
+  opacity: 0.5;
+}
+
+/* Today's running pill highlighted */
+.rs-day-today {
+  background: #1e40af !important;
+  color: #ffffff !important;
+  border-color: #1e40af !important;
+  box-shadow: 0 2px 6px rgba(30, 64, 175, 0.4);
+}
+
+/* ── Footer with Type Tag + Track Button ─────────────────────────────────── */
+
+.rs-result-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.rs-train-type-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-subtle);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border);
+}
+
+.rs-platform-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  padding: 3px 7px;
+  border-radius: var(--radius-xs);
+}
+
+.rs-track-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--color-accent);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all var(--duration-fast);
+}
+
+.rs-track-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.rs-track-btn:active {
+  transform: scale(0.96);
+}
+
+/* Empty state */
+.rs-empty {
+  text-align: center;
+  padding: var(--space-10) var(--space-4);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.rs-empty-icon {
+  font-size: 36px;
+  margin-bottom: var(--space-2);
+}
+
+.rs-empty-title {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.rs-empty-sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.rs-no-filter-match {
+  text-align: center;
+  padding: var(--space-6);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.rs-reset-filter-btn {
+  margin-top: var(--space-2);
+  padding: 6px 14px;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Shimmer skeleton */
+.rs-results-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rs-skeleton-card {
+  height: 110px;
+  background: linear-gradient(90deg, var(--color-bg-subtle) 25%, var(--color-bg-muted) 50%, var(--color-bg-subtle) 75%);
+  background-size: 200% 100%;
+  animation: rsShimmer 1.2s infinite;
+  border-radius: var(--radius-lg);
+}
+
+@keyframes rsShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Shake animation */
+@keyframes rsInputShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.rs-input-shake {
+  animation: rsInputShake 0.3s ease;
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .rs-card {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .rs-popular-chip {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .rs-day-on {
+  background: #1e3a5f;
+  color: #60a5fa;
+  border-color: #2563eb;
+}
+
+[data-theme="dark"] .rs-day-off {
+  background: #0f172a;
+  color: #475569;
+  border-color: #334155;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .rs-hero-card {
+    padding: var(--space-4) var(--space-3) var(--space-3);
+    border-radius: var(--radius-lg);
+  }
+
+  .rs-fields {
+    padding: var(--space-1) var(--space-3);
+  }
+
+  .rs-time {
+    font-size: var(--text-lg);
+  }
+
+  .rs-duration-line {
+    padding: 0 var(--space-2);
+  }
+
+  .rs-result-card {
+    padding: var(--space-3);
+  }
+
+  .rs-result-name {
+    font-size: var(--text-sm);
+  }
+
+  .rs-day-pill {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+}

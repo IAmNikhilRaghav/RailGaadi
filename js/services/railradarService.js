@@ -629,3 +629,228 @@ export function invalidateStatusCache(trainId, date) {
   statusCache.delete(`${strId}:${date || "current"}`);
   statusCache.delete(`${strId}:today`);
 }
+
+/* ── Between-Station Search cache ────────────────────────────────────────── */
+const betweenCache = new Map();
+const BETWEEN_CACHE_TTL = 10 * 60_000; // 10 minutes
+
+/**
+ * Find all trains running between two Indian stations.
+ * Strategy:
+ *   1. Try RailRadar /trains/between?from=XXX&to=YYY
+ *   2. Fall back to local 5,208-train catalog filtered by matching origin/destination substrings
+ *   3. Enrich each result with running days from train detail endpoint where available
+ *
+ * @param {string} fromCode  – Station code e.g. "JP"
+ * @param {string} toCode    – Station code e.g. "MTJ"
+ * @returns {Promise<Array>} – Array of train objects with running days
+ */
+export async function searchTrainsBetweenStations(fromCode, toCode) {
+  const from = safeStr(fromCode).toUpperCase().trim();
+  const to   = safeStr(toCode).toUpperCase().trim();
+  if (!from || !to || from === to) return [];
+
+  const cacheKey = `${from}:${to}`;
+  const cached = betweenCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < BETWEEN_CACHE_TTL) return cached.data;
+
+  // Resolve station names for catalog fallback matching
+  const fromStn  = stationDataService.stationsMap.get(from);
+  const toStn    = stationDataService.stationsMap.get(to);
+  const fromName = (fromStn?.name || from).toUpperCase();
+  const toName   = (toStn?.name   || to).toUpperCase();
+
+  // 1 ── Live RailRadar station timetable intersection
+  let apiTrains = [];
+  try {
+    const [fromRes, toRes] = await Promise.all([
+      apiFetch(`/stations/${from}/trains`, {}, 7000).catch(() => null),
+      apiFetch(`/stations/${to}/trains`, {}, 7000).catch(() => null)
+    ]);
+
+    const fromRaw = fromRes?.data?.trains || fromRes?.trains || [];
+    const toRaw   = toRes?.data?.trains   || toRes?.trains   || [];
+
+    if (fromRaw.length > 0 && toRaw.length > 0) {
+      const toMap = new Map();
+      toRaw.forEach(item => {
+        const num = String(item.train?.number || item.number || "").trim();
+        if (num) toMap.set(num, item);
+      });
+
+      fromRaw.forEach(item => {
+        const num = String(item.train?.number || item.number || "").trim();
+        const toItem = toMap.get(num);
+        if (!toItem) return;
+
+        const fromSeq = item.stop?.sequence ?? item.sequence ?? 0;
+        const toSeq   = toItem.stop?.sequence ?? toItem.sequence ?? 0;
+
+        // Ensure train travels from 'from' station to 'to' station
+        if (fromSeq < toSeq) {
+          const tInfo = item.train || item;
+          const fromStop = item.stop || item;
+          const toStop   = toItem.stop || toItem;
+
+          const dep = safeStr(fromStop.departure || fromStop.arrival, "—");
+          const arr = safeStr(toStop.arrival || toStop.departure, "—");
+
+          // Compute duration
+          let duration = null;
+          if (dep !== "—" && arr !== "—") {
+            try {
+              const [dh, dm] = dep.split(":").map(Number);
+              const [ah, am] = arr.split(":").map(Number);
+              const dayDiff = Math.max(0, (toStop.arrivalDay || 1) - (fromStop.departureDay || 1));
+              let mins = (ah * 60 + am) - (dh * 60 + dm) + (dayDiff * 1440);
+              if (mins < 0) mins += 1440;
+              duration = mins;
+            } catch (_) {}
+          }
+
+          apiTrains.push({
+            trainId:        num,
+            number:         num,
+            name:           safeStr(tInfo.name, `Train ${num}`),
+            origin:         safeStr(tInfo.source?.name || tInfo.source?.code || tInfo.source || ""),
+            destination:    safeStr(tInfo.destination?.name || tInfo.destination?.code || tInfo.destination || ""),
+            type:           safeStr(tInfo.type, "Express"),
+            departureTime:  dep,
+            arrivalTime:    arr,
+            durationMinutes: duration,
+            fromCode:       from,
+            toCode:         to,
+            runningDays:    tInfo.runDays || tInfo.runningDays || tInfo.days || null,
+            platform:       safeStr(fromStop.platform || "")
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("[RailRadar] station intersection between-stations failed:", err.message);
+  }
+
+  // 2 ── Catalog fallback: load all trains and filter those whose route passes both stations
+  let catalogTrains = [];
+  try {
+    const catalog = await stationDataService.getAllTrains();
+    if (catalog && catalog.length > 0) {
+      // Try to match trains whose origin/destination implies they pass through both stations
+      // This is a fuzzy match — the route detail call confirms exact stops
+      catalogTrains = catalog.filter(t => {
+        const tOrigin = (t.origin || "").toUpperCase();
+        const tDest   = (t.destination || "").toUpperCase();
+        const tName   = (t.name || "").toUpperCase();
+        // Match if either station code appears in origin/destination/name
+        // or if the names match
+        const passesFROM = tOrigin.includes(fromName.slice(0,4)) ||
+                           tDest.includes(fromName.slice(0,4))   ||
+                           from === "ALL" || tName.includes(fromName.slice(0,5));
+        const passesTO   = tOrigin.includes(toName.slice(0,4)) ||
+                           tDest.includes(toName.slice(0,4))   ||
+                           to === "ALL"   || tName.includes(toName.slice(0,5));
+        return passesFROM && passesTO;
+      }).slice(0, 30);
+    }
+  } catch (err) {
+    console.warn("[RailRadar] catalog between-stations fallback failed:", err.message);
+  }
+
+  // Merge, de-duplicate, prioritise API results
+  const seen   = new Set();
+  const merged = [];
+  [...apiTrains, ...catalogTrains].forEach(t => {
+    const num = String(t.number || t.trainId || "").trim();
+    if (num && !seen.has(num)) {
+      seen.add(num);
+      merged.push(t);
+    }
+  });
+
+  // Sort by departure time ascending
+  merged.sort((a, b) => {
+    const timeA = (a.departureTime || "").replace("—", "99:99");
+    const timeB = (b.departureTime || "").replace("—", "99:99");
+    return timeA.localeCompare(timeB);
+  });
+
+  // 3 ── Enrich with running days for top 10 results (one concurrent batch)
+  await enrichRunningDays(merged.slice(0, 10));
+
+  betweenCache.set(cacheKey, { ts: Date.now(), data: merged });
+  return merged;
+}
+
+/** Normalize a raw between-stations API result */
+function normalizeBetweenResult(raw = {}, fromCode = "", toCode = "") {
+  const num  = safeStr(raw.number || raw.train_no || raw.trainNo || raw.id);
+  const name = safeStr(raw.name   || raw.train_name || raw.trainName, `Train ${num}`);
+  const dep  = safeStr(raw.departureTime || raw.departure || raw.dep_time || raw.from_time || "—");
+  const arr  = safeStr(raw.arrivalTime   || raw.arrival   || raw.arr_time || raw.to_time   || "—");
+
+  // Duration in minutes
+  let duration = raw.durationMinutes || raw.duration || raw.travel_time || null;
+  if (!duration && dep !== "—" && arr !== "—") {
+    // Compute from times if possible
+    try {
+      const [dh, dm] = dep.split(":").map(Number);
+      const [ah, am] = arr.split(":").map(Number);
+      let mins = (ah * 60 + am) - (dh * 60 + dm);
+      if (mins < 0) mins += 24 * 60; // crosses midnight
+      duration = mins;
+    } catch (_) {}
+  }
+
+  // Running days — try various API field names
+  const days = raw.runningDays || raw.days || raw.running_days || raw.daysOfOperation || null;
+
+  return {
+    trainId:        num,
+    number:         num,
+    name,
+    origin:         safeStr(raw.sourceName   || raw.source?.name   || raw.from_stn_name || raw.origin),
+    destination:    safeStr(raw.destName     || raw.dest?.name     || raw.to_stn_name   || raw.destination),
+    type:           safeStr(raw.type         || raw.train_type     || raw.category, "Express"),
+    departureTime:  dep,
+    arrivalTime:    arr,
+    durationMinutes: duration,
+    fromCode,
+    toCode,
+    runningDays:    days,
+    platform:       safeStr(raw.platform || ""),
+  };
+}
+
+/**
+ * For each train without running days, try fetching from the detail endpoint.
+ * Runs in parallel batches of 4 to stay within rate limits.
+ */
+async function enrichRunningDays(trains) {
+  const needsEnrich = trains.filter(t => !t.runningDays);
+  if (needsEnrich.length === 0) return;
+
+  const BATCH = 4;
+  for (let i = 0; i < needsEnrich.length; i += BATCH) {
+    const batch = needsEnrich.slice(i, i + BATCH);
+    await Promise.all(batch.map(async t => {
+      try {
+        const json = await apiFetch(`/trains/${t.number}`, {}, 4000);
+        if (json) {
+          t.runningDays = json.runningDays || json.days || json.running_days
+                       || json.daysOfOperation || json.schedule?.days || null;
+          if (!t.departureTime || t.departureTime === "—") {
+            // If detail has timing for the from station
+            const stop = (json.stations || json.stops || []).find(
+              s => (s.stationCode || s.code || "").toUpperCase() === t.fromCode
+            );
+            if (stop) {
+              t.departureTime = stop.scheduledDeparture || stop.departure || stop.dep || t.departureTime;
+            }
+          }
+        }
+      } catch (_) {
+        // Silently skip — running days will default to "all days" in UI
+      }
+    }));
+  }
+}

@@ -1,6 +1,7 @@
+
 /**
  * RailGaadi Application Bootstrap & Controller — Phase 2 (Mobile-First)
- * 4 tabs: tracking, analytics, companion, board
+ * 5 tabs: tracking, routes (A→B search + calendar), analytics, companion, board
  * Bottom nav on mobile, segmented control on desktop
  * Dark mode, fav drawer, notification integration
  */
@@ -17,6 +18,7 @@ import { renderCompanionSection, attachCompanionEvents } from "./components/comp
 import { renderShareModal, attachShareModalEvents } from "./components/shareModal.js";
 import { renderStationBoard, attachStationBoardEvents } from "./components/stationBoard.js";
 import { renderFavDrawer, attachFavDrawerEvents } from "./components/favDrawer.js";
+import { renderRouteSearch, attachRouteSearchEvents } from "./components/routeSearch.js";
 
 // ── Tab definitions (used for both desktop segmented-control & mobile bottom nav) ──
 
@@ -25,6 +27,11 @@ const TABS = [
     id: "tracking",
     label: "Live Map",
     icon: `<rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>`,
+  },
+  {
+    id: "routes",
+    label: "Routes",
+    icon: `<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-8a3.5 3.5 0 0 1 0-7H12"/>`,
   },
   {
     id: "analytics",
@@ -94,7 +101,7 @@ function syncTabActiveState(activeTabId) {
 
 function renderApp(changedKeys = []) {
   const changed = new Set(changedKeys);
-  const state   = store.getState();
+  const state = store.getState();
 
   // --- Countdown text swap only ---
   if (changedKeys.length === 1 && changed.has("countdownSeconds")) {
@@ -188,7 +195,7 @@ function renderApp(changedKeys = []) {
     const favBtn = document.getElementById("headerFavBtn");
     if (favBtn) {
       const fCount = state.favourites.length;
-      const badge  = favBtn.querySelector(".fav-count-badge");
+      const badge = favBtn.querySelector(".fav-count-badge");
       if (badge) badge.textContent = fCount;
     }
   }
@@ -235,13 +242,14 @@ function renderApp(changedKeys = []) {
         attachStationBoardEvents();
       }
     }
+    // routes tab is self-managed (no live-data dependency)
   }
 }
 
 // ── Full initial render ────────────────────────────────────────────────────
 
 function fullRender() {
-  const root  = document.getElementById("root");
+  const root = document.getElementById("root");
   if (!root) return;
   const state = store.getState();
 
@@ -322,6 +330,9 @@ function renderViewContainer() {
   } else if (state.activeTab === "board") {
     container.innerHTML = `<div id="stationBoardRoot">${renderStationBoard()}</div>`;
     attachStationBoardEvents();
+  } else if (state.activeTab === "routes") {
+    container.innerHTML = `<div id="routeSearchRoot">${renderRouteSearch()}</div>`;
+    attachRouteSearchEvents();
   }
 }
 
@@ -345,7 +356,7 @@ window.addEventListener("resize", () => {
 /* ── Deep-link hashchange ───────────────────────────────── */
 
 window.addEventListener("hashchange", () => {
-  const params  = new URLSearchParams(window.location.hash.replace("#", "?"));
+  const params = new URLSearchParams(window.location.hash.replace("#", "?"));
   const trainId = params.get("train");
   if (trainId && trainId !== store.getState().activeTrainId) {
     trackerService.loadTrain(trainId);
@@ -371,7 +382,7 @@ if ("serviceWorker" in navigator) {
 function boot() {
   fullRender();
 
-  const params  = new URLSearchParams(window.location.hash.replace("#", "?"));
+  const params = new URLSearchParams(window.location.hash.replace("#", "?"));
   const trainId = params.get("train");
   if (trainId) {
     trackerService.loadTrain(trainId);
