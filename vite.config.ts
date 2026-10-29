@@ -9,11 +9,10 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api/railradar': {
-        target: 'https://api.railradar.in/v1',
+        target: 'https://railradar.in/api/v1',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/railradar/, '')
       }
     }
   }
 });
-

@@ -1,6 +1,7 @@
 /**
- * RailGaadi Application Bootstrap & Controller — Phase 2
+ * RailGaadi Application Bootstrap & Controller — Phase 2 (Mobile-First)
  * 4 tabs: tracking, analytics, companion, board
+ * Bottom nav on mobile, segmented control on desktop
  * Dark mode, fav drawer, notification integration
  */
 
@@ -17,10 +18,79 @@ import { renderShareModal, attachShareModalEvents } from "./components/shareModa
 import { renderStationBoard, attachStationBoardEvents } from "./components/stationBoard.js";
 import { renderFavDrawer, attachFavDrawerEvents } from "./components/favDrawer.js";
 
+// ── Tab definitions (used for both desktop segmented-control & mobile bottom nav) ──
+
+const TABS = [
+  {
+    id: "tracking",
+    label: "Live Map",
+    icon: `<rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>`,
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    icon: `<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>`,
+  },
+  {
+    id: "companion",
+    label: "Weather",
+    icon: `<circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m4.93 19.07 4.24-4.24"/>`,
+  },
+  {
+    id: "board",
+    label: "Station",
+    icon: `<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>`,
+  },
+];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 function setInnerHTML(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
 }
+
+/** Render the mobile bottom navigation bar HTML */
+function renderBottomNav() {
+  const state = store.getState();
+  return `
+    <nav class="bottom-nav" id="bottomNav" role="tablist" aria-label="Main navigation">
+      ${TABS.map((tab) => `
+        <button
+          class="bottom-nav-item ${state.activeTab === tab.id ? "active" : ""}"
+          data-tab="${tab.id}"
+          role="tab"
+          aria-selected="${state.activeTab === tab.id}"
+          aria-label="${tab.label}"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            ${tab.icon}
+          </svg>
+          <span>${tab.label}</span>
+        </button>
+      `).join("")}
+    </nav>
+  `;
+}
+
+/** Update active state on both segmented-control (desktop) and bottom-nav (mobile) */
+function syncTabActiveState(activeTabId) {
+  // Desktop segmented control
+  document.querySelectorAll(".segmented-btn").forEach((btn) => {
+    const isActive = btn.getAttribute("data-tab") === activeTabId;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", String(isActive));
+  });
+  // Mobile bottom nav
+  document.querySelectorAll(".bottom-nav-item").forEach((btn) => {
+    const isActive = btn.getAttribute("data-tab") === activeTabId;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", String(isActive));
+  });
+}
+
+// ── Reactive render ────────────────────────────────────────────────────────
 
 function renderApp(changedKeys = []) {
   const changed = new Set(changedKeys);
@@ -60,7 +130,6 @@ function renderApp(changedKeys = []) {
 
   // --- Dark mode toggle — no DOM rebuild needed (CSS handles it) ---
   if (changedKeys.length === 1 && changed.has("darkMode")) {
-    // Re-render just the header to update the toggle icon
     const hdrWrapper = document.querySelector(".app-header");
     if (hdrWrapper) {
       const fullHeader = renderHeader();
@@ -90,7 +159,6 @@ function renderApp(changedKeys = []) {
     if (state.activeTab === "tracking") {
       initOrUpdateMap();
     }
-    // Refresh header to update style picker icon
     const hdrWrapper = document.querySelector(".app-header");
     if (hdrWrapper) {
       const fullHeader = renderHeader();
@@ -103,12 +171,9 @@ function renderApp(changedKeys = []) {
 
   // --- Tab switch ---
   if (changed.has("activeTab")) {
-    document.querySelectorAll(".segmented-btn").forEach(btn => {
-      const tab    = btn.getAttribute("data-tab");
-      const isActive = tab === state.activeTab;
-      btn.classList.toggle("active", isActive);
-      btn.setAttribute("aria-selected", String(isActive));
-    });
+    syncTabActiveState(state.activeTab);
+    // Scroll to top on tab switch (mobile UX)
+    window.scrollTo({ top: 0, behavior: "smooth" });
     renderViewContainer();
     return;
   }
@@ -116,12 +181,10 @@ function renderApp(changedKeys = []) {
   // --- Quick chips update on favourites/recents or active train change ---
   if (changed.has("favourites") || changed.has("recentSearches") || changed.has("activeTrainId")) {
     updateQuickChips();
-    // Also refresh fav drawer if it's open
     if (state.isFavDrawerOpen) {
       setInnerHTML("favDrawerRoot", renderFavDrawer());
       attachFavDrawerEvents();
     }
-    // Refresh header fav count badge
     const favBtn = document.getElementById("headerFavBtn");
     if (favBtn) {
       const fCount = state.favourites.length;
@@ -134,19 +197,17 @@ function renderApp(changedKeys = []) {
   const dataKeys = [
     "liveStatus", "liveRoute", "isLoadingStatus", "isLoadingRoute",
     "statusError", "routeError", "activeTrain", "activeTrainId",
-    "isStale", "lastUpdatedAt", "favourites", "followTrain"
+    "isStale", "lastUpdatedAt", "favourites", "followTrain",
   ];
 
-  const hasDataChange = dataKeys.some(k => changed.has(k));
+  const hasDataChange = dataKeys.some((k) => changed.has(k));
 
   if (hasDataChange) {
-    // Track speed history for analytics chart
     const status = state.liveStatus;
     if (status?.speedKmh != null) {
       store.recordSpeed(status.speedKmh);
     }
 
-    // Fire delay notifications
     if (state.notificationsEnabled && status) {
       notificationService.checkAndNotify(status, state.activeTrain);
     }
@@ -177,17 +238,12 @@ function renderApp(changedKeys = []) {
   }
 }
 
+// ── Full initial render ────────────────────────────────────────────────────
+
 function fullRender() {
   const root  = document.getElementById("root");
   if (!root) return;
   const state = store.getState();
-
-  const tabs = [
-    { id: "tracking",  label: "Live Map",    icon: `<rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>` },
-    { id: "analytics", label: "Analytics",   icon: `<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>` },
-    { id: "companion", label: "Companion",   icon: `<circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m4.93 19.07 4.24-4.24"/>` },
-    { id: "board",     label: "Station",     icon: `<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>` }
-  ];
 
   root.innerHTML = `
     <div class="app-container" data-map-style="${state.mapStyle}">
@@ -196,15 +252,15 @@ function fullRender() {
       <main class="main-content">
         <div id="searchSectionRoot">${renderSearchSection()}</div>
 
-        <!-- Segmented Tab Navigation -->
+        <!-- Desktop Segmented Tab Navigation (hidden on mobile via CSS) -->
         <div class="view-tabs-container">
           <nav class="segmented-control" role="tablist" aria-label="View Mode">
-            ${tabs.map(tab => `
+            ${TABS.map((tab) => `
               <button class="segmented-btn ${state.activeTab === tab.id ? "active" : ""}"
                 data-tab="${tab.id}" role="tab"
                 aria-selected="${state.activeTab === tab.id}"
                 id="tab-${tab.id}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${tab.icon}</svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${tab.icon}</svg>
                 <span>${tab.label}</span>
               </button>
             `).join("")}
@@ -215,6 +271,9 @@ function fullRender() {
         <div id="viewContainer"></div>
       </main>
 
+      <!-- Mobile Bottom Navigation (shown on mobile via CSS) -->
+      ${renderBottomNav()}
+
       <!-- Toast -->
       <div class="toast-container" id="toastContainer">
         ${state.toast ? `<div class="toast" role="alert"><span>${state.toast}</span></div>` : ""}
@@ -222,6 +281,9 @@ function fullRender() {
 
       <!-- Share Modal -->
       <div id="shareModalRoot">${renderShareModal()}</div>
+
+      <!-- Favourites Drawer -->
+      <div id="favDrawerRoot">${renderFavDrawer()}</div>
     </div>
   `;
 
@@ -229,9 +291,9 @@ function fullRender() {
   attachHeaderEvents();
   attachSearchEvents();
   attachShareModalEvents();
+  attachFavDrawerEvents();
   attachTabAndViewEvents();
 }
-
 
 function renderViewContainer() {
   const container = document.getElementById("viewContainer");
@@ -264,7 +326,12 @@ function renderViewContainer() {
 }
 
 function attachTabAndViewEvents() {
-  document.querySelectorAll(".segmented-btn").forEach(btn => {
+  // Desktop segmented control
+  document.querySelectorAll(".segmented-btn").forEach((btn) => {
+    btn.addEventListener("click", () => store.setActiveTab(btn.getAttribute("data-tab")));
+  });
+  // Mobile bottom nav
+  document.querySelectorAll(".bottom-nav-item").forEach((btn) => {
     btn.addEventListener("click", () => store.setActiveTab(btn.getAttribute("data-tab")));
   });
 }
@@ -294,8 +361,8 @@ store.subscribe((state, changedKeys) => renderApp(changedKeys));
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js")
-      .then(reg => console.log("[RailGaadi] Service Worker registered:", reg.scope))
-      .catch(err => console.log("[RailGaadi] Service Worker registration skipped:", err.message));
+      .then((reg) => console.log("[RailGaadi] Service Worker registered:", reg.scope))
+      .catch((err) => console.log("[RailGaadi] Service Worker registration skipped:", err.message));
   });
 }
 

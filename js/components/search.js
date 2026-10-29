@@ -40,6 +40,7 @@ export function renderQuickChips() {
         ${c.isFav ? "⭐" : "🕒"} <strong>${c.number}</strong>${c.shortName ? ` · ${c.shortName}` : ""}
       </button>
     `).join("") : `
+      <button class="quick-chip ${activeTrainId === "12323" ? "active" : ""}" data-train-id="12323">⭐ <strong>12323</strong> · Barmer SF</button>
       <button class="quick-chip ${activeTrainId === "22436" ? "active" : ""}" data-train-id="22436">⭐ <strong>22436</strong> · Vande Bharat</button>
       <button class="quick-chip ${activeTrainId === "12301" ? "active" : ""}" data-train-id="12301">⭐ <strong>12301</strong> · Howrah Rajdhani</button>
       <button class="quick-chip ${activeTrainId === "12952" ? "active" : ""}" data-train-id="12952">⭐ <strong>12952</strong> · Tejas Rajdhani</button>

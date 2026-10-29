@@ -3,18 +3,26 @@
  * Normalizes live Indian Railways data from RailRadar into stable internal contracts.
  * Guaranteed 100% responsiveness: provides full route geometry, station schedules,
  * and live telemetry without ever crashing or locking out the user.
+ * 
+ * Supports:
+ * - Real live RailRadar API (https://railradar.in/api/v1)
+ * - All Indian trains (Vande Bharat, Rajdhani, Shatabdi, Superfast, Mail, Express, Passenger, and Local Suburban EMU/MEMU/MMTS)
+ * - Automatic Station Geocoding & Enrichment for 8,690+ Indian stations
+ * - Live Station Departure/Arrival Board
  */
 
 import { ENV } from "../config/env.js";
+import { stationDataService } from "./stationDataService.js";
 
-const BASE_URL = "https://api.railradar.in/v1";
+const BASE_URL = "https://railradar.in/api/v1";
 const SEARCH_CACHE_TTL = 15 * 60_000;    // 15 min
 const STATUS_CACHE_TTL = 20_000;         // 20 sec
 const ROUTE_CACHE_TTL  = 24 * 3600_000;  // 24 hours
+const BOARD_CACHE_TTL  = 60_000;         // 1 min
 
 const searchCache = new Map();
 const statusCache = new Map();
-const routeCache  = new Map();
+const boardCache  = new Map();
 
 /* ---------- safe string helpers (never throws on null/object) ---------- */
 function safeStr(val, fallback = "") {
@@ -25,66 +33,53 @@ function safeStr(val, fallback = "") {
   return String(val).trim();
 }
 
-const IS_BROWSER = typeof window !== "undefined";
-const IS_LOCAL_DEV = IS_BROWSER && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-/* ---------- fetch helper ---------- */
-async function apiFetch(path, params = {}, timeoutMs = 15000) {
-  // Prefer local Vite proxy when running dev server to completely eliminate CORS preflights
-  const primaryBase = IS_LOCAL_DEV ? "/api/railradar" : "https://api.railradar.in/v1";
-  
+/* ---------- fetch helper with edge proxy & direct fallback ---------- */
+async function apiFetch(path, params = {}, timeoutMs = 12000) {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v != null && v !== "") searchParams.set(k, String(v));
   });
 
   const queryStr = searchParams.toString() ? `?${searchParams.toString()}` : "";
-  const primaryUrl = `${primaryBase}${path}${queryStr}`;
 
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), timeoutMs);
+  // 1. Try local proxy / edge rewrite first (/api/railradar)
+  // 2. Direct production RailRadar URL (https://railradar.in/api/v1)
+  const candidateUrls = [
+    `/api/railradar${path}${queryStr}`,
+    `https://railradar.in/api/v1${path}${queryStr}`
+  ];
 
-  // Note: RailRadar CORS preflight allows 'Authorization' and 'Accept'.
-  // 'x-api-key' is rejected in browser CORS preflight, so we only pass Authorization Bearer.
   const headers = {
-    "Authorization": `Bearer ${ENV.RAILRADAR_API_KEY}`,
     "Accept": "application/json"
   };
 
-  try {
-    let res = await fetch(primaryUrl, {
-      headers,
-      signal: controller.signal
-    });
-
-    // If proxy failed with 404 or 502, attempt direct URL
-    if (!res.ok && IS_LOCAL_DEV && res.status >= 400 && res.status < 600) {
-      const directUrl = `https://api.railradar.in/v1${path}${queryStr}`;
-      try {
-        const fallbackRes = await fetch(directUrl, {
-          headers,
-          signal: controller.signal
-        });
-        if (fallbackRes.ok) {
-          res = fallbackRes;
-        }
-      } catch (directErr) {
-        // use original res error
-      }
-    }
-
-    clearTimeout(tid);
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const json = await res.json();
-    return json;
-  } catch (err) {
-    clearTimeout(tid);
-    throw err;
+  if (ENV.RAILRADAR_API_KEY) {
+    headers["Authorization"] = `Bearer ${ENV.RAILRADAR_API_KEY}`;
   }
+
+  let lastError = null;
+
+  for (const url of candidateUrls) {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal });
+      clearTimeout(tid);
+
+      if (res.ok) {
+        return await res.json();
+      }
+
+      // If proxy returned 404 or 502/504, loop will try direct RailRadar URL
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      clearTimeout(tid);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("RailRadar fetch failed");
 }
 
 
@@ -92,10 +87,10 @@ async function apiFetch(path, params = {}, timeoutMs = 15000) {
 
 function normalizeSearchResult(raw = {}) {
   const num    = safeStr(raw.number || raw.train_no || raw.trainNo || raw.id);
-  const name   = safeStr(raw.name || raw.train_name || raw.trainName, "Unknown Train");
-  const origin = safeStr(raw.sourceName || raw.source || raw.from_stn || raw.origin);
-  const dest   = safeStr(raw.destName || raw.destination || raw.dest || raw.to_stn);
-  const type   = safeStr(raw.type || raw.train_type, "Express");
+  const name   = safeStr(raw.name || raw.train_name || raw.trainName, `Train #${num}`);
+  const origin = safeStr(raw.sourceName || raw.source?.name || raw.source || raw.from_stn || raw.origin);
+  const dest   = safeStr(raw.destName || raw.destination?.name || raw.destination || raw.dest || raw.to_stn);
+  const type   = safeStr(raw.type || raw.train_type || raw.category, "Express");
 
   return {
     trainId: num,
@@ -108,7 +103,7 @@ function normalizeSearchResult(raw = {}) {
 }
 
 function normalizeRouteStation(raw = {}, idx = 0) {
-  const code = safeStr(raw.stationCode || raw.code || raw.station_code || raw.stationId, `STN_${idx}`);
+  const code = safeStr(raw.stationCode || raw.code || raw.station_code || raw.stationId, `STN_${idx}`).toUpperCase();
   const name = safeStr(raw.stationName || raw.name || raw.station_name, code);
   const lat  = parseFloat(raw.lat || raw.latitude || 0) || null;
   const lng  = parseFloat(raw.lng || raw.lon || raw.longitude || 0) || null;
@@ -134,7 +129,7 @@ function normalizeRouteStation(raw = {}, idx = 0) {
     coachPosition: raw.coachPosition || null,
     delayArrival: raw.delayArrival ?? 0,
     delayDeparture: raw.delayDeparture ?? 0,
-    elevationM:   null
+    elevationM:   raw.elevation_m || null
   };
 }
 
@@ -163,24 +158,27 @@ export const POPULAR_TRAINS = [
     ]
   },
   {
-    trainId: "22435",
-    number: "22435",
-    name: "Varanasi - New Delhi Vande Bharat Express",
-    origin: "Varanasi Jn",
-    destination: "New Delhi",
-    type: "Vande Bharat",
-    totalDistanceKm: 761,
+    trainId: "12323",
+    number: "12323",
+    name: "Barmer SF Express",
+    origin: "Howrah Jn",
+    destination: "Barmer",
+    type: "Superfast Express",
+    totalDistanceKm: 2281,
     stations: [
-      { sequence: 1, stationId: "BSB", code: "BSB", name: "Varanasi Jn", latitude: 25.3270, longitude: 82.9860, scheduledDep: "15:00", scheduledArr: "—", distanceKm: 0, platform: "1", haltMin: 0, isHalt: true },
-      { sequence: 2, stationId: "PRYJ", code: "PRYJ", name: "Prayagraj Jn", latitude: 25.4527, longitude: 81.8349, scheduledArr: "16:30", scheduledDep: "16:32", distanceKm: 126, platform: "6", haltMin: 2, isHalt: true },
-      { sequence: 3, stationId: "CNB", code: "CNB", name: "Kanpur Central", latitude: 26.4539, longitude: 80.3512, scheduledArr: "18:30", scheduledDep: "18:32", distanceKm: 321, platform: "5", haltMin: 2, isHalt: true },
-      { sequence: 4, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledArr: "23:00", scheduledDep: "—", distanceKm: 761, platform: "1", haltMin: 0, isHalt: true }
+      { sequence: 1, stationId: "HWH", code: "HWH", name: "Howrah Jn", latitude: 22.5841, longitude: 88.341, scheduledDep: "18:50", scheduledArr: "—", distanceKm: 0, platform: "14", haltMin: 0, isHalt: true },
+      { sequence: 2, stationId: "ASN", code: "ASN", name: "Asansol Jn", latitude: 23.6871, longitude: 86.9746, scheduledArr: "21:30", scheduledDep: "21:35", distanceKm: 200, platform: "4", haltMin: 5, isHalt: true },
+      { sequence: 3, stationId: "DHN", code: "DHN", name: "Dhanbad Jn", latitude: 23.7957, longitude: 86.4304, scheduledArr: "22:45", scheduledDep: "22:50", distanceKm: 259, platform: "3", haltMin: 5, isHalt: true },
+      { sequence: 4, stationId: "DDU", code: "DDU", name: "Pt DD Upadhyaya Jn", latitude: 25.2818, longitude: 83.1232, scheduledArr: "04:15", scheduledDep: "04:25", distanceKm: 663, platform: "6", haltMin: 10, isHalt: true },
+      { sequence: 5, stationId: "PRYJ", code: "PRYJ", name: "Prayagraj Jn", latitude: 25.4527, longitude: 81.8349, scheduledArr: "06:40", scheduledDep: "06:45", distanceKm: 816, platform: "1", haltMin: 5, isHalt: true },
+      { sequence: 6, stationId: "CNB", code: "CNB", name: "Kanpur Central", latitude: 26.4539, longitude: 80.3512, scheduledArr: "09:00", scheduledDep: "09:05", distanceKm: 1010, platform: "1", haltMin: 5, isHalt: true },
+      { sequence: 7, stationId: "DLI", code: "DLI", name: "Old Delhi Jn", latitude: 28.6608, longitude: 77.2272, scheduledArr: "15:20", scheduledDep: "15:40", distanceKm: 1445, platform: "10", haltMin: 20, isHalt: true },
+      { sequence: 8, stationId: "JU", code: "JU", name: "Jodhpur Jn", latitude: 26.2847, longitude: 73.0238, scheduledArr: "01:45", scheduledDep: "02:00", distanceKm: 2072, platform: "1", haltMin: 15, isHalt: true },
+      { sequence: 9, stationId: "BME", code: "BME", name: "Barmer", latitude: 25.7445, longitude: 71.3971, scheduledArr: "06:30", scheduledDep: "—", distanceKm: 2281, platform: "3", haltMin: 0, isHalt: true }
     ],
     routeCoordinates: [
-      [82.9860, 25.3270],[82.6345, 25.2504],[82.2616, 25.3339],[81.8349, 25.4527],[81.2800, 25.8200],
-      [80.8200, 26.1500],[80.3512, 26.4539],[79.9200, 26.5100],[79.4500, 26.6200],[79.0300, 26.7800],
-      [78.7850, 26.9120],[78.4394, 27.1291],[78.1929, 27.3231],[78.0778, 27.8844],[77.8862, 28.1270],
-      [77.7377, 28.3027],[77.5881, 28.4792],[77.4284, 28.6530],[77.3115, 28.6474],[77.2203, 28.6418]
+      [88.341, 22.5841],[86.9746, 23.6871],[86.4304, 23.7957],[83.1232, 25.2818],[81.8349, 25.4527],
+      [80.3512, 26.4539],[77.2272, 28.6608],[75.8200, 27.5000],[73.0238, 26.2847],[71.3971, 25.7445]
     ]
   },
   {
@@ -195,44 +193,15 @@ export const POPULAR_TRAINS = [
       { sequence: 1, stationId: "HWH", code: "HWH", name: "Howrah Jn", latitude: 22.5838, longitude: 88.3422, scheduledDep: "16:50", scheduledArr: "—", distanceKm: 0, platform: "9", haltMin: 0, isHalt: true },
       { sequence: 2, stationId: "ASN", code: "ASN", name: "Asansol Jn", latitude: 23.6871, longitude: 86.9746, scheduledArr: "18:57", scheduledDep: "19:00", distanceKm: 200, platform: "4", haltMin: 3, isHalt: true },
       { sequence: 3, stationId: "DHN", code: "DHN", name: "Dhanbad Jn", latitude: 23.7957, longitude: 86.4304, scheduledArr: "19:50", scheduledDep: "19:55", distanceKm: 259, platform: "3", haltMin: 5, isHalt: true },
-      { sequence: 4, stationId: "PNME", code: "PNME", name: "Parasnath", latitude: 23.9575, longitude: 86.0336, scheduledArr: "20:30", scheduledDep: "20:32", distanceKm: 306, platform: "3", haltMin: 2, isHalt: true },
-      { sequence: 5, stationId: "GAYA", code: "GAYA", name: "Gaya Jn", latitude: 24.8037, longitude: 84.9996, scheduledArr: "22:19", scheduledDep: "22:22", distanceKm: 458, platform: "1", haltMin: 3, isHalt: true },
-      { sequence: 6, stationId: "DDU", code: "DDU", name: "Pt DD Upadhyaya Jn", latitude: 25.2818, longitude: 83.1232, scheduledArr: "00:45", scheduledDep: "00:55", distanceKm: 663, platform: "6", haltMin: 10, isHalt: true },
-      { sequence: 7, stationId: "PRYJ", code: "PRYJ", name: "Prayagraj Jn", latitude: 25.4527, longitude: 81.8349, scheduledArr: "02:33", scheduledDep: "02:35", distanceKm: 816, platform: "1", haltMin: 2, isHalt: true },
-      { sequence: 8, stationId: "CNB", code: "CNB", name: "Kanpur Central", latitude: 26.4539, longitude: 80.3512, scheduledArr: "04:40", scheduledDep: "04:45", distanceKm: 1010, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 9, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledArr: "10:05", scheduledDep: "—", distanceKm: 1451, platform: "16", haltMin: 0, isHalt: true }
+      { sequence: 4, stationId: "GAYA", code: "GAYA", name: "Gaya Jn", latitude: 24.8037, longitude: 84.9996, scheduledArr: "22:19", scheduledDep: "22:22", distanceKm: 458, platform: "1", haltMin: 3, isHalt: true },
+      { sequence: 5, stationId: "DDU", code: "DDU", name: "Pt DD Upadhyaya Jn", latitude: 25.2818, longitude: 83.1232, scheduledArr: "00:45", scheduledDep: "00:55", distanceKm: 663, platform: "6", haltMin: 10, isHalt: true },
+      { sequence: 6, stationId: "PRYJ", code: "PRYJ", name: "Prayagraj Jn", latitude: 25.4527, longitude: 81.8349, scheduledArr: "02:33", scheduledDep: "02:35", distanceKm: 816, platform: "1", haltMin: 2, isHalt: true },
+      { sequence: 7, stationId: "CNB", code: "CNB", name: "Kanpur Central", latitude: 26.4539, longitude: 80.3512, scheduledArr: "04:40", scheduledDep: "04:45", distanceKm: 1010, platform: "1", haltMin: 5, isHalt: true },
+      { sequence: 8, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledArr: "10:05", scheduledDep: "—", distanceKm: 1451, platform: "16", haltMin: 0, isHalt: true }
     ],
     routeCoordinates: [
-      [88.3422, 22.5838],[87.8500, 23.2300],[86.9746, 23.6871],[86.4304, 23.7957],[86.0336, 23.9575],
-      [85.5000, 24.3000],[84.9996, 24.8037],[84.1000, 24.9500],[83.1232, 25.2818],[82.5000, 25.3500],
-      [81.8349, 25.4527],[81.1000, 25.9000],[80.3512, 26.4539],[79.5000, 26.8000],[78.8000, 27.2000],
-      [78.0778, 27.8844],[77.7377, 28.3027],[77.4284, 28.6530],[77.2203, 28.6418]
-    ]
-  },
-  {
-    trainId: "12302",
-    number: "12302",
-    name: "New Delhi - Howrah Rajdhani Express",
-    origin: "New Delhi",
-    destination: "Howrah Jn",
-    type: "Rajdhani",
-    totalDistanceKm: 1451,
-    stations: [
-      { sequence: 1, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledDep: "16:55", scheduledArr: "—", distanceKm: 0, platform: "16", haltMin: 0, isHalt: true },
-      { sequence: 2, stationId: "CNB", code: "CNB", name: "Kanpur Central", latitude: 26.4539, longitude: 80.3512, scheduledArr: "21:30", scheduledDep: "21:35", distanceKm: 440, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 3, stationId: "PRYJ", code: "PRYJ", name: "Prayagraj Jn", latitude: 25.4527, longitude: 81.8349, scheduledArr: "23:43", scheduledDep: "23:45", distanceKm: 635, platform: "4", haltMin: 2, isHalt: true },
-      { sequence: 4, stationId: "DDU", code: "DDU", name: "Pt DD Upadhyaya Jn", latitude: 25.2818, longitude: 83.1232, scheduledArr: "01:42", scheduledDep: "01:52", distanceKm: 788, platform: "2", haltMin: 10, isHalt: true },
-      { sequence: 5, stationId: "GAYA", code: "GAYA", name: "Gaya Jn", latitude: 24.8037, longitude: 84.9996, scheduledArr: "03:55", scheduledDep: "03:58", distanceKm: 993, platform: "1", haltMin: 3, isHalt: true },
-      { sequence: 6, stationId: "PNME", code: "PNME", name: "Parasnath", latitude: 23.9575, longitude: 86.0336, scheduledArr: "05:43", scheduledDep: "05:45", distanceKm: 1145, platform: "2", haltMin: 2, isHalt: true },
-      { sequence: 7, stationId: "DHN", code: "DHN", name: "Dhanbad Jn", latitude: 23.7957, longitude: 86.4304, scheduledArr: "06:33", scheduledDep: "06:38", distanceKm: 1192, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 8, stationId: "ASN", code: "ASN", name: "Asansol Jn", latitude: 23.6871, longitude: 86.9746, scheduledArr: "07:28", scheduledDep: "07:30", distanceKm: 1251, platform: "5", haltMin: 2, isHalt: true },
-      { sequence: 9, stationId: "HWH", code: "HWH", name: "Howrah Jn", latitude: 22.5838, longitude: 88.3422, scheduledArr: "09:55", scheduledDep: "—", distanceKm: 1451, platform: "9", haltMin: 0, isHalt: true }
-    ],
-    routeCoordinates: [
-      [77.2203, 28.6418],[77.4284, 28.6530],[77.7377, 28.3027],[78.0778, 27.8844],[78.8000, 27.2000],
-      [79.5000, 26.8000],[80.3512, 26.4539],[81.1000, 25.9000],[81.8349, 25.4527],[82.5000, 25.3500],
-      [83.1232, 25.2818],[84.1000, 24.9500],[84.9996, 24.8037],[85.5000, 24.3000],[86.0336, 23.9575],
-      [86.4304, 23.7957],[86.9746, 23.6871],[87.8500, 23.2300],[88.3422, 22.5838]
+      [88.3422, 22.5838],[86.9746, 23.6871],[86.4304, 23.7957],[84.9996, 24.8037],[83.1232, 25.2818],
+      [81.8349, 25.4527],[80.3512, 26.4539],[77.2203, 28.6418]
     ]
   },
   {
@@ -246,64 +215,14 @@ export const POPULAR_TRAINS = [
     stations: [
       { sequence: 1, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledDep: "16:55", scheduledArr: "—", distanceKm: 0, platform: "3", haltMin: 0, isHalt: true },
       { sequence: 2, stationId: "KOTA", code: "KOTA", name: "Kota Jn", latitude: 25.2241, longitude: 75.8815, scheduledArr: "21:30", scheduledDep: "21:40", distanceKm: 466, platform: "2", haltMin: 10, isHalt: true },
-      { sequence: 3, stationId: "NAD", code: "NAD", name: "Nagda Jn", latitude: 23.4562, longitude: 75.4125, scheduledArr: "23:57", scheduledDep: "23:59", distanceKm: 691, platform: "2", haltMin: 2, isHalt: true },
-      { sequence: 4, stationId: "RTM", code: "RTM", name: "Ratlam Jn", latitude: 23.3394, longitude: 75.0494, scheduledArr: "00:30", scheduledDep: "00:33", distanceKm: 732, platform: "4", haltMin: 3, isHalt: true },
-      { sequence: 5, stationId: "BRC", code: "BRC", name: "Vadodara Jn", latitude: 22.3107, longitude: 73.1812, scheduledArr: "03:40", scheduledDep: "03:50", distanceKm: 993, platform: "1", haltMin: 10, isHalt: true },
-      { sequence: 6, stationId: "ST", code: "ST", name: "Surat", latitude: 21.2052, longitude: 72.8407, scheduledArr: "05:13", scheduledDep: "05:18", distanceKm: 1123, platform: "2", haltMin: 5, isHalt: true },
-      { sequence: 7, stationId: "BVI", code: "BVI", name: "Borivali", latitude: 19.2288, longitude: 72.8569, scheduledArr: "07:40", scheduledDep: "07:42", distanceKm: 1358, platform: "7", haltMin: 2, isHalt: true },
-      { sequence: 8, stationId: "MMCT", code: "MMCT", name: "Mumbai Central", latitude: 18.9696, longitude: 72.8194, scheduledArr: "08:35", scheduledDep: "—", distanceKm: 1388, platform: "5", haltMin: 0, isHalt: true }
+      { sequence: 3, stationId: "RTM", code: "RTM", name: "Ratlam Jn", latitude: 23.3394, longitude: 75.0494, scheduledArr: "00:30", scheduledDep: "00:33", distanceKm: 732, platform: "4", haltMin: 3, isHalt: true },
+      { sequence: 4, stationId: "BRC", code: "BRC", name: "Vadodara Jn", latitude: 22.3106, longitude: 73.1812, scheduledArr: "03:50", scheduledDep: "03:58", distanceKm: 993, platform: "1", haltMin: 8, isHalt: true },
+      { sequence: 5, stationId: "ST", code: "ST", name: "Surat", latitude: 21.2049, longitude: 72.8407, scheduledArr: "05:13", scheduledDep: "05:18", distanceKm: 1122, platform: "2", haltMin: 5, isHalt: true },
+      { sequence: 6, stationId: "BVI", code: "BVI", name: "Borivali", latitude: 19.2291, longitude: 72.8573, scheduledArr: "07:35", scheduledDep: "07:37", distanceKm: 1358, platform: "7", haltMin: 2, isHalt: true },
+      { sequence: 7, stationId: "MMCT", code: "MMCT", name: "Mumbai Central", latitude: 18.9712, longitude: 72.8197, scheduledArr: "08:35", scheduledDep: "—", distanceKm: 1388, platform: "1", haltMin: 0, isHalt: true }
     ],
     routeCoordinates: [
-      [77.2203, 28.6418],[77.3000, 28.0000],[76.9000, 27.5000],[76.4000, 26.8000],[75.8815, 25.2241],
-      [75.6000, 24.3000],[75.4125, 23.4562],[75.0494, 23.3394],[74.2000, 22.8000],[73.1812, 22.3107],
-      [72.9500, 21.7000],[72.8407, 21.2052],[72.9000, 20.3000],[72.8569, 19.2288],[72.8194, 18.9696]
-    ]
-  },
-  {
-    trainId: "12951",
-    number: "12951",
-    name: "Mumbai Central - New Delhi Tejas Rajdhani",
-    origin: "Mumbai Central",
-    destination: "New Delhi",
-    type: "Rajdhani",
-    totalDistanceKm: 1388,
-    stations: [
-      { sequence: 1, stationId: "MMCT", code: "MMCT", name: "Mumbai Central", latitude: 18.9696, longitude: 72.8194, scheduledDep: "17:00", scheduledArr: "—", distanceKm: 0, platform: "2", haltMin: 0, isHalt: true },
-      { sequence: 2, stationId: "BVI", code: "BVI", name: "Borivali", latitude: 19.2288, longitude: 72.8569, scheduledArr: "17:22", scheduledDep: "17:24", distanceKm: 30, platform: "6", haltMin: 2, isHalt: true },
-      { sequence: 3, stationId: "ST", code: "ST", name: "Surat", latitude: 21.2052, longitude: 72.8407, scheduledArr: "19:43", scheduledDep: "19:48", distanceKm: 263, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 4, stationId: "BRC", code: "BRC", name: "Vadodara Jn", latitude: 22.3107, longitude: 73.1812, scheduledArr: "21:06", scheduledDep: "21:16", distanceKm: 393, platform: "2", haltMin: 10, isHalt: true },
-      { sequence: 5, stationId: "RTM", code: "RTM", name: "Ratlam Jn", latitude: 23.3394, longitude: 75.0494, scheduledArr: "00:25", scheduledDep: "00:28", distanceKm: 654, platform: "5", haltMin: 3, isHalt: true },
-      { sequence: 6, stationId: "NAD", code: "NAD", name: "Nagda Jn", latitude: 23.4562, longitude: 75.4125, scheduledArr: "01:08", scheduledDep: "01:10", distanceKm: 695, platform: "1", haltMin: 2, isHalt: true },
-      { sequence: 7, stationId: "KOTA", code: "KOTA", name: "Kota Jn", latitude: 25.2241, longitude: 75.8815, scheduledArr: "03:15", scheduledDep: "03:20", distanceKm: 920, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 8, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledArr: "08:32", scheduledDep: "—", distanceKm: 1388, platform: "3", haltMin: 0, isHalt: true }
-    ],
-    routeCoordinates: [
-      [72.8194, 18.9696],[72.8569, 19.2288],[72.9000, 20.3000],[72.8407, 21.2052],[72.9500, 21.7000],
-      [73.1812, 22.3107],[74.2000, 22.8000],[75.0494, 23.3394],[75.4125, 23.4562],[75.6000, 24.3000],
-      [75.8815, 25.2241],[76.4000, 26.8000],[76.9000, 27.5000],[77.3000, 28.0000],[77.2203, 28.6418]
-    ]
-  },
-  {
-    trainId: "12002",
-    number: "12002",
-    name: "New Delhi - Rani Kamlapati Shatabdi Express",
-    origin: "New Delhi",
-    destination: "Rani Kamlapati",
-    type: "Shatabdi",
-    totalDistanceKm: 708,
-    stations: [
-      { sequence: 1, stationId: "NDLS", code: "NDLS", name: "New Delhi", latitude: 28.6418, longitude: 77.2203, scheduledDep: "06:00", scheduledArr: "—", distanceKm: 0, platform: "1", haltMin: 0, isHalt: true },
-      { sequence: 2, stationId: "MTJ", code: "MTJ", name: "Mathura Jn", latitude: 27.4924, longitude: 77.6737, scheduledArr: "07:19", scheduledDep: "07:20", distanceKm: 141, platform: "1", haltMin: 1, isHalt: true },
-      { sequence: 3, stationId: "AGC", code: "AGC", name: "Agra Cantt", latitude: 27.1574, longitude: 77.9916, scheduledArr: "07:50", scheduledDep: "07:55", distanceKm: 195, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 4, stationId: "GWL", code: "GWL", name: "Gwalior Jn", latitude: 26.2183, longitude: 78.1828, scheduledArr: "09:23", scheduledDep: "09:28", distanceKm: 313, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 5, stationId: "VGLJ", code: "VGLJ", name: "VGL Jhansi Jn", latitude: 25.4484, longitude: 78.5685, scheduledArr: "10:45", scheduledDep: "10:50", distanceKm: 410, platform: "1", haltMin: 5, isHalt: true },
-      { sequence: 6, stationId: "BPL", code: "BPL", name: "Bhopal Jn", latitude: 23.2663, longitude: 77.4116, scheduledArr: "14:02", scheduledDep: "14:05", distanceKm: 702, platform: "1", haltMin: 3, isHalt: true },
-      { sequence: 7, stationId: "RKMP", code: "RKMP", name: "Rani Kamlapati", latitude: 23.2054, longitude: 77.4384, scheduledArr: "14:40", scheduledDep: "—", distanceKm: 708, platform: "5", haltMin: 0, isHalt: true }
-    ],
-    routeCoordinates: [
-      [77.2203, 28.6418],[77.3500, 28.1500],[77.6737, 27.4924],[77.9916, 27.1574],[78.0800, 26.7000],
-      [78.1828, 26.2183],[78.4500, 25.8500],[78.5685, 25.4484],[78.3500, 24.8000],[78.1800, 24.1800],
-      [77.8000, 23.8000],[77.4116, 23.2663],[77.4384, 23.2054]
+      [77.2203, 28.6418],[75.8815, 25.2241],[75.0494, 23.3394],[73.1812, 22.3106],[72.8407, 21.2049],[72.8573, 19.2291],[72.8197, 18.9712]
     ]
   }
 ];
@@ -318,7 +237,7 @@ function createFallbackTrainData(trainId, meta = null) {
   const known = POPULAR_TRAINS.find(t => t.trainId === strId || t.number === strId);
   if (known) {
     const stations = known.stations;
-    const curIdx = 1; // default to first en-route halt
+    const curIdx = Math.min(1, stations.length - 1);
     const curStn = stations[curIdx] || stations[0];
     const nextStn = stations[curIdx + 1] || stations[stations.length - 1];
 
@@ -353,20 +272,27 @@ function createFallbackTrainData(trainId, meta = null) {
     };
   }
 
-  // 2. Synthesize for any other train number
-  const name = meta?.name || `Express Train #${strId}`;
-  const origin = meta?.origin || "Origin Terminal";
-  const destination = meta?.destination || "Destination Terminal";
+  // 2. Synthesize for any other train number using station geo directory
+  const name = meta?.name || `Train #${strId}`;
+  const originName = meta?.origin || "Origin";
+  const destName = meta?.destination || "Destination";
+
+  const originStn = stationDataService.getStation(originName) || { lat: 28.6418, lon: 77.2203, name: originName, code: "ORG" };
+  const destStn = stationDataService.getStation(destName) || { lat: 19.0760, lon: 72.8777, name: destName, code: "DST" };
+
+  const midLat = (originStn.lat + destStn.lat) / 2;
+  const midLon = (originStn.lon + destStn.lon) / 2;
 
   const stations = [
-    { sequence: 1, stationId: "STN_1", code: "ORG", name: origin, latitude: 28.6418, longitude: 77.2203, scheduledDep: "08:00", scheduledArr: "—", distanceKm: 0, platform: "1", haltMin: 0, isHalt: true },
-    { sequence: 2, stationId: "STN_2", code: "MID", name: "En-Route Central", latitude: 26.8467, longitude: 80.9462, scheduledArr: "13:30", scheduledDep: "13:40", distanceKm: 480, platform: "2", haltMin: 10, isHalt: true },
-    { sequence: 3, stationId: "STN_3", code: "DST", name: destination, latitude: 25.5941, longitude: 85.1376, scheduledArr: "19:15", scheduledDep: "—", distanceKm: 990, platform: "1", haltMin: 0, isHalt: true }
+    { sequence: 1, stationId: originStn.code || "ORG", code: originStn.code || "ORG", name: originStn.name || originName, latitude: originStn.lat, longitude: originStn.lon, scheduledDep: "08:00", scheduledArr: "—", distanceKm: 0, platform: "1", haltMin: 0, isHalt: true },
+    { sequence: 2, stationId: "MID", code: "MID", name: "En-Route Junction", latitude: midLat, longitude: midLon, scheduledArr: "13:30", scheduledDep: "13:40", distanceKm: 480, platform: "2", haltMin: 10, isHalt: true },
+    { sequence: 3, stationId: destStn.code || "DST", code: destStn.code || "DST", name: destStn.name || destName, latitude: destStn.lat, longitude: destStn.lon, scheduledArr: "19:15", scheduledDep: "—", distanceKm: 990, platform: "1", haltMin: 0, isHalt: true }
   ];
 
   const routeCoordinates = [
-    [77.2203, 28.6418],[78.2000, 27.9000],[79.5000, 27.2000],[80.9462, 26.8467],
-    [82.5000, 26.1000],[83.8000, 25.8000],[85.1376, 25.5941]
+    [originStn.lon, originStn.lat],
+    [midLon, midLat],
+    [destStn.lon, destStn.lat]
   ];
 
   return {
@@ -376,7 +302,7 @@ function createFallbackTrainData(trainId, meta = null) {
       delayMinutes: 0,
       currentStation: stations[1],
       nextStation: stations[2],
-      position: { latitude: 26.8467, longitude: 80.9462 },
+      position: { latitude: midLat, longitude: midLon },
       distanceCoveredKm: 480,
       distanceRemainingKm: 510,
       speedKmh: 85,
@@ -393,8 +319,8 @@ function createFallbackTrainData(trainId, meta = null) {
       trainId: strId,
       number: strId,
       name,
-      origin,
-      destination,
+      origin: originName,
+      destination: destName,
       type: meta?.type || "Express"
     }
   };
@@ -403,7 +329,7 @@ function createFallbackTrainData(trainId, meta = null) {
 /* ---------- Public API ---------- */
 
 /**
- * Search all trains by number or name
+ * Search all trains across India by number or name (including suburban local trains)
  * Returns array of { trainId, number, name, origin, destination, type }
  */
 export async function searchTrainsAPI(query) {
@@ -414,40 +340,42 @@ export async function searchTrainsAPI(query) {
   const cached = searchCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < SEARCH_CACHE_TTL) return cached.data;
 
-  // Search popular dataset immediately for instant response
-  const localMatches = POPULAR_TRAINS
-    .filter(t => t.number.includes(q) || t.name.toLowerCase().includes(q))
-    .map(t => ({
-      trainId: t.trainId,
-      number: t.number,
-      name: t.name,
-      origin: t.origin,
-      destination: t.destination,
-      type: t.type
-    }));
+  // Search local all-India catalog asynchronously in parallel
+  const catalogPromise = stationDataService.searchCatalog(q, 15).catch(() => []);
 
+  // Search live RailRadar API
+  let apiResults = [];
   try {
-    const json = await apiFetch("/trains/search", { q: query.trim(), limit: 15 }, 4000);
+    const json = await apiFetch("/trains/search", { q: query.trim(), limit: 15 }, 4500);
     const raw = Array.isArray(json) ? json : (json.data || json.trains || json.results || []);
-    const apiResults = raw.map(normalizeSearchResult).filter(r => r.number);
-
-    // Merge API results with local matches (avoid duplicates)
-    const seen = new Set();
-    const merged = [];
-    [...apiResults, ...localMatches].forEach(item => {
-      if (!seen.has(item.trainId)) {
-        seen.add(item.trainId);
-        merged.push(item);
-      }
-    });
-
-    searchCache.set(cacheKey, { ts: Date.now(), data: merged });
-    return merged;
+    apiResults = raw.map(normalizeSearchResult).filter(r => r.number);
   } catch (err) {
     console.warn("[RailRadar] live search fallback to catalog:", err.message);
-    searchCache.set(cacheKey, { ts: Date.now(), data: localMatches });
-    return localMatches;
   }
+
+  const catalogResults = await catalogPromise;
+
+  // Merge results, prioritizing live API results, and appending catalog results
+  const seen = new Set();
+  const merged = [];
+
+  [...apiResults, ...catalogResults].forEach(item => {
+    const num = String(item.number || item.trainId || "").trim();
+    if (num && !seen.has(num)) {
+      seen.add(num);
+      merged.push({
+        trainId: num,
+        number:  num,
+        name:    item.name || `Train #${num}`,
+        origin:  item.origin || "",
+        destination: item.destination || "",
+        type:    item.type || "Express"
+      });
+    }
+  });
+
+  searchCache.set(cacheKey, { ts: Date.now(), data: merged });
+  return merged;
 }
 
 /**
@@ -467,7 +395,7 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
       geometry: "true",
       format: "geojson",
       includeCoordinates: "true"
-    }, 8000);
+    }, 9000);
 
     if (!json.success || !json.data) {
       throw new Error(json.error?.message || "Train data not available");
@@ -475,9 +403,10 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
 
     const data = json.data;
 
-    // 1. Parse Route Stops
+    // 1. Parse Route Stops & Enrich with exact Geo-Coordinates (8,690+ Stations)
     const rawRoute = Array.isArray(data.route) ? data.route : [];
-    const stations = rawRoute.map(normalizeRouteStation);
+    const normalizedStns = rawRoute.map(normalizeRouteStation);
+    const stations = stationDataService.enrichRouteStations(normalizedStns);
 
     // 2. Parse GIS Route Coordinates
     let routeCoordinates = null;
@@ -490,8 +419,8 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
     }
 
     const totalDistanceKm = stations.length > 0
-      ? stations[stations.length - 1].distanceKm || 0
-      : null;
+      ? (stations[stations.length - 1].distanceKm || data.train?.distance || 0)
+      : (data.train?.distance || null);
 
     // 3. Parse Running Status & Delays
     const delay = Number(data.delayMinutes ?? (data.currentLocation?.delayMinutes ?? 0));
@@ -514,24 +443,30 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
     const prevHalt = data.previousHalt || {};
     const nextHalt = data.nextHalt || {};
 
+    const curCode = safeStr(curLoc.stationCode || prevHalt.stationCode);
+    const curInfo = stationDataService.getStation(curCode);
+
     // Current Station details
     const curStation = {
-      stationId:        safeStr(curLoc.stationCode || prevHalt.stationCode),
-      name:             safeStr(curLoc.stationName || prevHalt.stationName),
-      latitude:         curLoc.coordinates?.lat || null,
-      longitude:        curLoc.coordinates?.lng || null,
+      stationId:        curCode,
+      name:             safeStr(curLoc.stationName || prevHalt.stationName || curInfo?.name),
+      latitude:         curLoc.coordinates?.lat || curInfo?.lat || null,
+      longitude:        curLoc.coordinates?.lng || curInfo?.lon || null,
       scheduledArrival: null,
       actualArrival:    null,
       platform:         null,
       haltMin:          0
     };
 
+    const nextCode = safeStr(nextHalt.stationCode);
+    const nextInfo = stationDataService.getStation(nextCode);
+
     // Next Station details
     const nextStation = {
-      stationId:        safeStr(nextHalt.stationCode),
-      name:             safeStr(nextHalt.stationName),
-      latitude:         null,
-      longitude:        null,
+      stationId:        nextCode,
+      name:             safeStr(nextHalt.stationName || nextInfo?.name),
+      latitude:         nextInfo?.lat || null,
+      longitude:        nextInfo?.lon || null,
       scheduledArrival: null,
       estimatedArrival: null,
       platform:         null,
@@ -540,7 +475,7 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
 
     // Enrich with station list data if available
     if (stations.length > 0) {
-      const matchCur = stations.find(s => s.code === curStation.stationId);
+      const matchCur = stations.find(s => s.code === curStation.stationId || s.stationId === curStation.stationId);
       if (matchCur) {
         curStation.latitude = curStation.latitude || matchCur.latitude;
         curStation.longitude = curStation.longitude || matchCur.longitude;
@@ -549,10 +484,10 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
         curStation.platform = matchCur.platform;
       }
 
-      const matchNext = stations.find(s => s.code === nextStation.stationId);
+      const matchNext = stations.find(s => s.code === nextStation.stationId || s.stationId === nextStation.stationId);
       if (matchNext) {
-        nextStation.latitude = matchNext.latitude;
-        nextStation.longitude = matchNext.longitude;
+        nextStation.latitude = nextStation.latitude || matchNext.latitude;
+        nextStation.longitude = nextStation.longitude || matchNext.longitude;
         nextStation.scheduledArrival = matchNext.scheduledArr;
         nextStation.estimatedArrival = matchNext.actualArr || matchNext.scheduledArr;
         nextStation.platform = matchNext.platform;
@@ -565,15 +500,17 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
       ? Math.max(0, Math.round(totalDistanceKm - coveredKm))
       : null;
 
+    const curPos = curLoc.coordinates?.lat && curLoc.coordinates?.lng
+      ? { latitude: curLoc.coordinates.lat, longitude: curLoc.coordinates.lng }
+      : (curStation.latitude && curStation.longitude ? { latitude: curStation.latitude, longitude: curStation.longitude } : null);
+
     const normalizedStatus = {
       trainId:            strId,
       status:             statusEnum,
       delayMinutes:       delay,
       currentStation:     curStation.name ? curStation : (stations[0] || null),
       nextStation:        nextStation.name ? nextStation : (stations[1] || null),
-      position:           curLoc.coordinates?.lat && curLoc.coordinates?.lng
-        ? { latitude: curLoc.coordinates.lat, longitude: curLoc.coordinates.lng }
-        : null,
+      position:           curPos,
       distanceCoveredKm:  coveredKm,
       distanceRemainingKm: remainingKm,
       speedKmh:           curLoc.speedKmh ?? null,
@@ -590,11 +527,11 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
 
     const normalizedTrain = {
       trainId:     strId,
-      number:      safeStr(data.trainNumber, strId),
-      name:        safeStr(data.trainName, meta?.name || `Train #${strId}`),
-      origin:      safeStr(data.train?.source || stations[0]?.name || meta?.origin),
-      destination: safeStr(data.train?.destination || stations[stations.length - 1]?.name || meta?.destination),
-      type:        safeStr(data.train?.type || meta?.type, "Express")
+      number:      safeStr(data.trainNumber || data.train?.number, strId),
+      name:        safeStr(data.trainName || data.train?.name, meta?.name || `Train #${strId}`),
+      origin:      safeStr(data.train?.source?.name || stations[0]?.name || meta?.origin),
+      destination: safeStr(data.train?.destination?.name || stations[stations.length - 1]?.name || meta?.destination),
+      type:        safeStr(data.train?.type || data.train?.category || meta?.type, "Express")
     };
 
     const result = {
@@ -623,6 +560,66 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
     fallback.status.source = "RailGaadi Timetable";
     statusCache.set(cacheKey, { ts: Date.now(), data: fallback });
     return fallback;
+  }
+}
+
+/**
+ * Fetch live station departures and arrivals for ANY Indian station
+ * Returns { station: { code, name, city, elevationM, lat, lng }, trains: [...] }
+ */
+export async function fetchStationBoardAPI(stationCode) {
+  const code = safeStr(stationCode).toUpperCase();
+  if (!code) return null;
+
+  const cached = boardCache.get(code);
+  if (cached && Date.now() - cached.ts < BOARD_CACHE_TTL) return cached.data;
+
+  try {
+    const json = await apiFetch(`/stations/${code}/trains`, {}, 8000);
+    if (!json.success || !json.data) return null;
+
+    const data = json.data;
+    const station = data.station || {};
+    const rawTrains = Array.isArray(data.trains) ? data.trains : [];
+
+    const trains = rawTrains.map(item => {
+      const t = item.train || {};
+      const s = item.stop || {};
+      return {
+        trainId:      safeStr(t.number),
+        number:       safeStr(t.number),
+        name:         safeStr(t.name, `Train #${t.number}`),
+        type:         safeStr(t.type, "Express"),
+        origin:       safeStr(t.source?.name, "Origin"),
+        destination:  safeStr(t.destination?.name, "Destination"),
+        scheduledArr: s.arrival || null,
+        scheduledDep: s.departure || null,
+        actualArr:    s.actualArrival || null,
+        actualDep:    s.actualDeparture || null,
+        platform:     safeStr(s.platform, "—"),
+        haltMin:      s.haltMinutes || 2,
+        delayMinutes: s.delayArrival ?? s.delayDeparture ?? 0,
+        stopIndex:    s.sequence || 1
+      };
+    });
+
+    const result = {
+      station: {
+        code: station.code || code,
+        name: station.name || code,
+        city: station.city || station.name || code,
+        elevationM: station.elevation_m || null,
+        lat: station.lat || null,
+        lng: station.lng || null
+      },
+      trains
+    };
+
+    boardCache.set(code, { ts: Date.now(), data: result });
+    return result;
+  } catch (err) {
+    console.warn(`[RailRadar] fetchStationBoardAPI failed for ${code}:`, err.message);
+    return null;
   }
 }
 

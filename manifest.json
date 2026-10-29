@@ -1,21 +1,42 @@
 {
   "name": "RailGaadi — Live India Train Tracker",
   "short_name": "RailGaadi",
+  "description": "Live Indian train tracking: running status, route maps, analytics, weather for all trains across India.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#1e40af",
-  "description": "Premium India train-tracking combining running status, route maps, journey analytics, weather, and geographic context.",
+  "lang": "en-IN",
+  "categories": ["travel", "utilities"],
   "icons": [
     {
-      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop&crop=faces",
+      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop&crop=center",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=512&h=512&fit=crop&crop=faces",
+      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=512&h=512&fit=crop&crop=center",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Track Train",
+      "short_name": "Track",
+      "description": "Search and track a live Indian train",
+      "url": "./#track",
+      "icons": [{ "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=96&h=96&fit=crop", "sizes": "96x96" }]
+    },
+    {
+      "name": "Station Board",
+      "short_name": "Board",
+      "description": "View live departures and arrivals",
+      "url": "./#board"
     }
   ]
 }

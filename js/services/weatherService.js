@@ -48,15 +48,15 @@ export class WeatherService {
     const cached = weatherCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) return cached.data;
 
-    // 1. Try free live Open-Meteo first (fast 100ms response, free, no key required)
-    const meteoData = await this.fetchOpenMeteo({ lat, lon }, cacheKey);
-    if (meteoData) return meteoData;
-
-    // 2. Fallback to OpenWeatherMap if key is available
+    // 1. Try OpenWeatherMap first if key is available
     if (ENV.OPENWEATHER_API_KEY) {
       const owmData = await this.fetchOpenWeather({ lat, lon }, cacheKey);
       if (owmData) return owmData;
     }
+
+    // 2. Fallback to free live Open-Meteo
+    const meteoData = await this.fetchOpenMeteo({ lat, lon }, cacheKey);
+    if (meteoData) return meteoData;
 
     // 3. Fallback to seasonal realistic baseline
     const fallback = this.getFallbackWeather({ lat, lon });

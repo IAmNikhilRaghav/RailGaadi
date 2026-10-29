@@ -40,6 +40,7 @@ function timeDiff(isoString) {
 
 function renderLanding() {
   const suggestions = [
+    { id: "12323", label: "12323 · Barmer SF Express" },
     { id: "12301", label: "12301 · Howrah Rajdhani" },
     { id: "12952", label: "12952 · Tejas Rajdhani" },
     { id: "22436", label: "22436 · Vande Bharat Express" },
