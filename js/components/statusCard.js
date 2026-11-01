@@ -113,15 +113,6 @@ function renderLanding() {
   const state   = store.getState();
   const recents = state.recentSearches || [];
 
-  const popularTrains = [
-    { id: "12404", number: "12404", name: "Prayagraj SF Express", route: "Lalgarh → Prayagraj" },
-    { id: "22436", number: "22436", name: "Vande Bharat Express", route: "New Delhi → Varanasi" },
-    { id: "12301", number: "12301", name: "Howrah Rajdhani", route: "Howrah → New Delhi" },
-    { id: "12952", number: "12952", name: "Tejas Rajdhani", route: "New Delhi → Mumbai Central" },
-    { id: "20490", number: "20490", name: "Barmer SF Express", route: "Mathura → Barmer" },
-    { id: "51974", number: "51974", name: "Jaipur - Mathura Passenger", route: "Jaipur → Mathura" }
-  ];
-
   return `
     <div class="card-panel landing-card-panel" style="padding:var(--space-4) var(--space-4);text-align:left;display:flex;flex-direction:column;gap:var(--space-3);">
 
@@ -179,27 +170,6 @@ function renderLanding() {
         </div>
       ` : ""}
 
-      <!-- Popular Indian Trains -->
-      <div class="landing-section-wrap" style="margin-top:var(--space-1);">
-        <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <span>Popular Trains</span>
-        </div>
-        <div class="landing-popular-grid" style="display:grid;grid-template-columns:1fr;gap:6px;">
-          ${popularTrains.map(t => `
-            <div class="landing-suggest-chip" data-train-id="${t.id}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);cursor:pointer;transition:background 0.15s ease;">
-              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:var(--color-accent);background:var(--color-accent-subtle);padding:3px 7px;border-radius:4px;flex-shrink:0;">${t.number}</span>
-                <div style="min-width:0;">
-                  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div>
-                  <div style="font-size:11px;color:var(--color-text-muted);">${t.route}</div>
-                </div>
-              </div>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2.4" style="flex-shrink:0;"><path d="m9 18 6-6-6-6"/></svg>
-            </div>
-          `).join("")}
-        </div>
-      </div>
     </div>
   `;
 }

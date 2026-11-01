@@ -33,19 +33,15 @@ export function renderQuickChips() {
     ...getChipLabel(id)
   }));
 
+  if (chips.length === 0) return "";
+
   return `
-    <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;white-space:nowrap;margin-right:4px;">Quick:</span>
-    ${chips.length > 0 ? chips.map(c => `
+    <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;white-space:nowrap;margin-right:4px;">Recent:</span>
+    ${chips.map(c => `
       <button class="quick-chip ${c.id === activeTrainId ? "active" : ""}" data-train-id="${c.id}" title="Load ${c.number}">
         ${c.isFav ? "⭐" : "🕒"} <strong>${c.number}</strong>${c.shortName ? ` · ${c.shortName}` : ""}
       </button>
-    `).join("") : `
-      <button class="quick-chip ${activeTrainId === "12323" ? "active" : ""}" data-train-id="12323">⭐ <strong>12323</strong> · Barmer SF</button>
-      <button class="quick-chip ${activeTrainId === "22436" ? "active" : ""}" data-train-id="22436">⭐ <strong>22436</strong> · Vande Bharat</button>
-      <button class="quick-chip ${activeTrainId === "12301" ? "active" : ""}" data-train-id="12301">⭐ <strong>12301</strong> · Howrah Rajdhani</button>
-      <button class="quick-chip ${activeTrainId === "12952" ? "active" : ""}" data-train-id="12952">⭐ <strong>12952</strong> · Tejas Rajdhani</button>
-      <button class="quick-chip ${activeTrainId === "12002" ? "active" : ""}" data-train-id="12002">⭐ <strong>12002</strong> · Shatabdi</button>
-    `}
+    `).join("")}
   `;
 }
 
@@ -82,7 +78,7 @@ export function renderSearchSection() {
             type="text"
             class="search-input"
             id="trainSearchInput"
-            placeholder="Search train no. or name (e.g. 12404)…"
+            placeholder="Search by train no. or name"
             autocomplete="off"
             spellcheck="false"
             aria-autocomplete="list"

@@ -33,21 +33,6 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const TODAY_IDX = new Date().getDay(); // 0=Sun, 1=Mon … 6=Sat
 const TOMORROW_IDX = (TODAY_IDX + 1) % 7;
 
-// ── Popular Sample Routes ─────────────────────────────────────────────────
-
-const POPULAR_ROUTES = [
-  { fromCode: "JP", fromName: "Jaipur Jn", toCode: "MTJ", toName: "Mathura Jn" },
-  { fromCode: "NDLS", fromName: "New Delhi", toCode: "CNB", toName: "Kanpur Central" },
-  { fromCode: "BME", fromName: "Barmer", toCode: "JU", toName: "Jodhpur Jn" },
-  { fromCode: "CSMT", fromName: "Mumbai CSMT", toCode: "PUNE", toName: "Pune Jn" },
-  { fromCode: "HWH", fromName: "Howrah Jn", toCode: "PNBE", toName: "Patna Jn" },
-  { fromCode: "MAS", fromName: "Chennai Central", toCode: "SBC", toName: "KSR Bengaluru" },
-  { fromCode: "ADI", fromName: "Ahmedabad Jn", toCode: "ST", toName: "Surat" },
-  { fromCode: "LKO", fromName: "Lucknow", toCode: "BSB", toName: "Varanasi Jn" },
-  { fromCode: "GHY", fromName: "Guwahati", toCode: "NJP", toName: "New Jalpaiguri" },
-  { fromCode: "HYB", fromName: "Hyderabad", toCode: "BZA", toName: "Vijayawada Jn" }
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 /** Parse a days-of-week bitmask/array/string into a 7-element boolean array */
@@ -188,7 +173,6 @@ export function renderRouteSearch() {
           </svg>
           <h2>Find Trains Between Stations</h2>
         </div>
-        <p class="rs-hero-subtitle">Check day-wise weekly running routine, timings & live status across India</p>
 
         <!-- From / To Card -->
         <div class="rs-card">
@@ -197,13 +181,13 @@ export function renderRouteSearch() {
             <!-- From field -->
             <div class="rs-field-row rs-from-row">
               <div class="rs-field-icon rs-from-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="7"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="8"/>
                 </svg>
               </div>
               <div class="rs-field-input-wrap" id="rsFromWrap">
                 <div class="rs-field-top">
-                  <label class="rs-field-label" for="rsFromInput">From Station</label>
+                  <label class="rs-field-label" for="rsFromInput">From station</label>
                   ${fromStation ? `<span class="rs-station-code-badge">${fromStation.code}</span>` : ""}
                 </div>
                 <input
@@ -213,7 +197,7 @@ export function renderRouteSearch() {
                   inputmode="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="Enter source station (e.g. JP, Jaipur)"
+                  placeholder="From station (e.g. NDLS, New Delhi)"
                   value="${fromStation ? fromStation.name : fromQuery}"
                   aria-label="Departure station"
                 />
@@ -229,9 +213,12 @@ export function renderRouteSearch() {
 
             <!-- Connector line + swap button -->
             <div class="rs-connector-row">
+              <div class="rs-connector-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
               <div class="rs-connector-line" aria-hidden="true"></div>
               <button class="rs-swap-btn" id="rsSwapBtn" aria-label="Swap from and to stations" title="Swap stations">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/>
                 </svg>
               </button>
@@ -240,14 +227,14 @@ export function renderRouteSearch() {
             <!-- To field -->
             <div class="rs-field-row rs-to-row">
               <div class="rs-field-icon rs-to-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
                   <circle cx="12" cy="10" r="3"/>
                 </svg>
               </div>
               <div class="rs-field-input-wrap" id="rsToWrap">
                 <div class="rs-field-top">
-                  <label class="rs-field-label" for="rsToInput">To Station</label>
+                  <label class="rs-field-label" for="rsToInput">To station</label>
                   ${toStation ? `<span class="rs-station-code-badge">${toStation.code}</span>` : ""}
                 </div>
                 <input
@@ -257,7 +244,7 @@ export function renderRouteSearch() {
                   inputmode="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="Enter destination station (e.g. MTJ, Mathura)"
+                  placeholder="To station (e.g. HWH, Howrah)"
                   value="${toStation ? toStation.name : toQuery}"
                   aria-label="Destination station"
                 />
@@ -313,21 +300,6 @@ export function renderRouteSearch() {
             `).join("")}
           </div>
         ` : ""}</div>
-
-        <!-- Popular Routes Quick Access -->
-        <div class="rs-popular-section">
-          <div class="rs-popular-label">Popular Indian Routes:</div>
-          <div class="rs-popular-chips">
-            ${POPULAR_ROUTES.map(r => `
-              <button class="rs-popular-chip" data-from-code="${r.fromCode}" data-from-name="${r.fromName}" data-to-code="${r.toCode}" data-to-name="${r.toName}">
-                <span>${r.fromCode}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                <span>${r.toCode}</span>
-                <small>(${r.fromName.split(" ")[0]} - ${r.toName.split(" ")[0]})</small>
-              </button>
-            `).join("")}
-          </div>
-        </div>
       </div>
 
       <!-- Results section -->
@@ -602,21 +574,6 @@ export function attachRouteSearchEvents() {
   document.getElementById("rsResetFilter")?.addEventListener("click", () => {
     dayFilter = "all";
     rerenderSection();
-  });
-
-  // Popular route chips click
-  document.querySelectorAll(".rs-popular-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const fromCode = chip.getAttribute("data-from-code");
-      const fromName = chip.getAttribute("data-from-name");
-      const toCode = chip.getAttribute("data-to-code");
-      const toName = chip.getAttribute("data-to-name");
-      fromStation = { code: fromCode, name: fromName };
-      toStation = { code: toCode, name: toName };
-      fromQuery = fromName;
-      toQuery = toName;
-      doSearch();
-    });
   });
 
   // From input — ONLY update dropdown slot, never rerenderSection while typing

@@ -187,10 +187,19 @@ html, body {
   }
 
   .search-input-wrapper {
-    height: 52px;
+    height: 50px;
+    padding: 0 6px 0 12px;
     border-radius: var(--radius-md);
     background: var(--color-bg-surface);
     border: 1.5px solid var(--color-border);
+  }
+
+  .search-submit-btn {
+    padding: 6px 11px;
+    font-size: 12px;
+    gap: 4px;
+    border-radius: 9999px;
+    margin-left: 4px;
   }
 
   .search-input-wrapper:focus-within {

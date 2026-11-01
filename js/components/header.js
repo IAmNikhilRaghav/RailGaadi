@@ -38,7 +38,7 @@ export function renderHeader() {
           </svg>
         </div>
         <div class="brand-text">
-          <h1>RailGaadi <span class="brand-badge">LIVE 2026</span></h1>
+          <h1>RailGaadi</h1>
         </div>
       </div>
 
