@@ -270,8 +270,8 @@ export function renderRouteSearch() {
           </button>
         </div>
 
-        <!-- Autocomplete dropdowns -->
-        ${fromDropOpen && fromSuggestions.length > 0 ? `
+        <!-- Autocomplete dropdown slots — updated surgically without re-rendering inputs -->
+        <div id="rsFromDropdownSlot">${fromDropOpen && fromSuggestions.length > 0 ? `
           <div class="rs-dropdown" id="rsFromDropdown" role="listbox" aria-label="Departure station suggestions">
             ${fromSuggestions.map(s => `
               <div class="rs-dropdown-item" data-code="${s.code}" data-name="${s.name}" data-field="from" role="option">
@@ -280,9 +280,9 @@ export function renderRouteSearch() {
               </div>
             `).join("")}
           </div>
-        ` : ""}
+        ` : ""}</div>
 
-        ${toDropOpen && toSuggestions.length > 0 ? `
+        <div id="rsToDropdownSlot">${toDropOpen && toSuggestions.length > 0 ? `
           <div class="rs-dropdown rs-dropdown-to" id="rsToDropdown" role="listbox" aria-label="Destination station suggestions">
             ${toSuggestions.map(s => `
               <div class="rs-dropdown-item" data-code="${s.code}" data-name="${s.name}" data-field="to" role="option">
@@ -291,7 +291,7 @@ export function renderRouteSearch() {
               </div>
             `).join("")}
           </div>
-        ` : ""}
+        ` : ""}</div>
 
         <!-- Popular Routes Quick Access -->
         <div class="rs-popular-section">
@@ -481,6 +481,42 @@ function rerenderSection() {
   attachRouteSearchEvents();
 }
 
+/**
+ * Surgically updates ONLY the autocomplete dropdown HTML for "from" or "to"
+ * without touching the input element — prevents focus/cursor loss while typing.
+ */
+function updateDropdownOnly(field) {
+  if (field === "from") {
+    const slot = document.getElementById("rsFromDropdownSlot");
+    if (!slot) return;
+    slot.innerHTML = fromDropOpen && fromSuggestions.length > 0
+      ? `<div class="rs-dropdown" id="rsFromDropdown" role="listbox" aria-label="Departure station suggestions">
+          ${fromSuggestions.map(s => `
+            <div class="rs-dropdown-item" data-code="${s.code}" data-name="${s.name}" data-field="from" role="option">
+              <span class="rs-dropdown-code">${s.code}</span>
+              <span class="rs-dropdown-name">${s.name}</span>
+            </div>
+          `).join("")}
+        </div>`
+      : "";
+  } else {
+    const slot = document.getElementById("rsToDropdownSlot");
+    if (!slot) return;
+    slot.innerHTML = toDropOpen && toSuggestions.length > 0
+      ? `<div class="rs-dropdown" id="rsToDropdown" role="listbox" aria-label="Destination station suggestions">
+          ${toSuggestions.map(s => `
+            <div class="rs-dropdown-item" data-code="${s.code}" data-name="${s.name}" data-field="to" role="option">
+              <span class="rs-dropdown-code">${s.code}</span>
+              <span class="rs-dropdown-name">${s.name}</span>
+            </div>
+          `).join("")}
+        </div>`
+      : "";
+  }
+  // Re-attach dropdown item click events after slot update
+  attachDropdownItemEvents();
+}
+
 async function doSearch() {
   if (!fromStation || !toStation) {
     const inp = !fromStation ? document.getElementById("rsFromInput") : document.getElementById("rsToInput");
@@ -559,7 +595,7 @@ export function attachRouteSearchEvents() {
     });
   });
 
-  // From input
+  // From input — ONLY update dropdown slot, never rerenderSection while typing
   const fromInput = document.getElementById("rsFromInput");
   fromInput?.addEventListener("input", e => {
     fromQuery = e.target.value;
@@ -568,8 +604,7 @@ export function attachRouteSearchEvents() {
     fromDebounce = setTimeout(async () => {
       fromSuggestions = await getStationSuggestions(fromQuery);
       fromDropOpen    = fromSuggestions.length > 0;
-      rerenderSection();
-      document.getElementById("rsFromInput")?.focus();
+      updateDropdownOnly("from");
     }, 200);
   });
 
@@ -586,10 +621,10 @@ export function attachRouteSearchEvents() {
         document.getElementById("rsToInput")?.focus();
       }
     }
-    if (e.key === "Escape") { fromDropOpen = false; rerenderSection(); }
+    if (e.key === "Escape") { fromDropOpen = false; updateDropdownOnly("from"); }
   });
 
-  // To input
+  // To input — ONLY update dropdown slot, never rerenderSection while typing
   const toInput = document.getElementById("rsToInput");
   toInput?.addEventListener("input", e => {
     toQuery = e.target.value;
@@ -598,8 +633,7 @@ export function attachRouteSearchEvents() {
     toDebounce = setTimeout(async () => {
       toSuggestions = await getStationSuggestions(toQuery);
       toDropOpen    = toSuggestions.length > 0;
-      rerenderSection();
-      document.getElementById("rsToInput")?.focus();
+      updateDropdownOnly("to");
     }, 200);
   });
 
@@ -616,30 +650,11 @@ export function attachRouteSearchEvents() {
         doSearch();
       }
     }
-    if (e.key === "Escape") { toDropOpen = false; rerenderSection(); }
+    if (e.key === "Escape") { toDropOpen = false; updateDropdownOnly("to"); }
   });
 
-  // Dropdown item click
-  document.querySelectorAll(".rs-dropdown-item").forEach(item => {
-    item.addEventListener("click", () => {
-      const code  = item.getAttribute("data-code");
-      const name  = item.getAttribute("data-name");
-      const field = item.getAttribute("data-field");
-      if (field === "from") {
-        fromStation  = { code, name };
-        fromQuery    = name;
-        fromDropOpen = false;
-        rerenderSection();
-        document.getElementById("rsToInput")?.focus();
-      } else {
-        toStation  = { code, name };
-        toQuery    = name;
-        toDropOpen = false;
-        rerenderSection();
-        doSearch();
-      }
-    });
-  });
+  // Attach dropdown item click events (called on initial attach and after slot update)
+  attachDropdownItemEvents();
 
   // Track buttons in results
   document.querySelectorAll(".rs-track-btn").forEach(btn => {
@@ -673,13 +688,37 @@ export function attachRouteSearchEvents() {
     const insideDropTo   = document.getElementById("rsToDropdown")?.contains(e.target);
     if (!insideFrom && !insideDropFrom && fromDropOpen) {
       fromDropOpen = false;
-      rerenderSection();
+      updateDropdownOnly("from");
     }
     if (!insideTo && !insideDropTo && toDropOpen) {
       toDropOpen = false;
-      rerenderSection();
+      updateDropdownOnly("to");
     }
   }, { capture: true, once: true });
+}
+
+/** Attach click events to dropdown items — called after surgical slot update */
+function attachDropdownItemEvents() {
+  document.querySelectorAll(".rs-dropdown-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const code  = item.getAttribute("data-code");
+      const name  = item.getAttribute("data-name");
+      const field = item.getAttribute("data-field");
+      if (field === "from") {
+        fromStation  = { code, name };
+        fromQuery    = name;
+        fromDropOpen = false;
+        rerenderSection();
+        document.getElementById("rsToInput")?.focus();
+      } else {
+        toStation  = { code, name };
+        toQuery    = name;
+        toDropOpen = false;
+        rerenderSection();
+        doSearch();
+      }
+    });
+  });
 }
 
 export { renderDaysBadges, parseDays };
