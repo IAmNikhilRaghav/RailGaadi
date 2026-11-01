@@ -897,3 +897,10 @@
     font-size: 10px;
   }
 }
+
+.rs-type-local {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  font-weight: 700;
+}

@@ -223,6 +223,18 @@ class Store {
     this.setState({ recentSearches: trimmed });
   }
 
+  clearRecentSearches() {
+    this.saveJSON(STORAGE_KEY_RECENTS, []);
+    this.setState({ recentSearches: [] });
+    this.showToast("Search history cleared 🗑");
+  }
+
+  removeRecentSearch(trainId) {
+    const trimmed = this.state.recentSearches.filter(id => id !== trainId);
+    this.saveJSON(STORAGE_KEY_RECENTS, trimmed);
+    this.setState({ recentSearches: trimmed });
+  }
+
   showToast(msg, ms = 3500) {
     this.setState({ toast: msg });
     setTimeout(() => { if (this.state.toast === msg) this.setState({ toast: null }); }, ms);

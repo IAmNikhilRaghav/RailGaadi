@@ -170,11 +170,32 @@ html, body {
   /* CRITICAL: input font-size ≥ 16px to prevent iOS auto-zoom on focus */
   .search-input {
     font-size: 16px !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .search-input:focus,
+  .search-input:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 
   .search-input-wrapper {
     height: 52px;
     border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    border: 1.5px solid var(--color-border);
+  }
+
+  .search-input-wrapper:focus-within {
+    border-color: var(--color-accent) !important;
+    box-shadow: 0 0 0 3px var(--color-accent-subtle) !important;
   }
 
   .search-dropdown {

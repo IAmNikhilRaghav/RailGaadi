@@ -82,7 +82,7 @@ export function renderSearchSection() {
             type="text"
             class="search-input"
             id="trainSearchInput"
-            placeholder="Search any Indian train by number or name (e.g. 12301, Rajdhani, Vande Bharat)…"
+            placeholder="Search train no. or name (e.g. 12404)…"
             autocomplete="off"
             spellcheck="false"
             aria-autocomplete="list"

@@ -141,6 +141,19 @@
   font-size: var(--text-md);
   font-weight: 500;
   color: var(--color-text-primary);
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+.search-input:focus,
+.search-input:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .search-input::placeholder {

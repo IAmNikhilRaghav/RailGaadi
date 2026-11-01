@@ -110,37 +110,93 @@ function timeDiff(isoString) {
 /* ── empty / landing state ──────────────────────────────── */
 
 function renderLanding() {
-  const suggestions = [
-    { id: "12323", label: "12323 · Barmer SF Express" },
-    { id: "12301", label: "12301 · Howrah Rajdhani" },
-    { id: "12952", label: "12952 · Tejas Rajdhani" },
-    { id: "22436", label: "22436 · Vande Bharat Express" },
-    { id: "12002", label: "12002 · Bhopal Shatabdi" }
+  const state   = store.getState();
+  const recents = state.recentSearches || [];
+
+  const popularTrains = [
+    { id: "12404", number: "12404", name: "Prayagraj SF Express", route: "Lalgarh → Prayagraj" },
+    { id: "22436", number: "22436", name: "Vande Bharat Express", route: "New Delhi → Varanasi" },
+    { id: "12301", number: "12301", name: "Howrah Rajdhani", route: "Howrah → New Delhi" },
+    { id: "12952", number: "12952", name: "Tejas Rajdhani", route: "New Delhi → Mumbai Central" },
+    { id: "20490", number: "20490", name: "Barmer SF Express", route: "Mathura → Barmer" },
+    { id: "51974", number: "51974", name: "Jaipur - Mathura Passenger", route: "Jaipur → Mathura" }
   ];
 
   return `
-    <div class="card-panel landing-card-panel" style="padding:var(--space-10) var(--space-6);text-align:center;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-4);">
-      <div style="width:68px;height:68px;background:var(--color-accent-subtle);border-radius:var(--radius-full);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 0 24px rgba(30,64,175,0.12);">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="16" height="16" x="4" y="3" rx="2"/>
-          <path d="M4 11h16"/><path d="M12 3v8"/>
-          <path d="m8 19-2 3"/><path d="m18 22-2-3"/>
-          <circle cx="8" cy="15" r="1"/><circle cx="16" cy="15" r="1"/>
-        </svg>
+    <div class="card-panel landing-card-panel" style="padding:var(--space-4) var(--space-4);text-align:left;display:flex;flex-direction:column;gap:var(--space-3);">
+
+      <!-- Quick Route Search Banner (Where is My Train style) -->
+      <div class="landing-route-banner" id="landingRouteBanner" role="button" tabindex="0" style="background:linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);border-radius:var(--radius-lg);padding:14px 16px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4px 14px rgba(30,64,175,0.25);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-8a3.5 3.5 0 0 1 0-7H12"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:14px;letter-spacing:-0.01em;">Find Trains Between Stations</div>
+            <div style="font-size:12px;opacity:0.85;">Station A → Station B &amp; Running Routine</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.22);padding:6px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+          <span>Find</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+        </div>
       </div>
 
-      <h2 style="font-size:clamp(1.25rem, 4vw, 1.6rem);font-weight:800;color:var(--color-text-primary);letter-spacing:-0.02em;">Track Any Indian Train, Live.</h2>
-      <p style="font-size:var(--text-sm);color:var(--color-text-secondary);max-width:380px;line-height:1.6;margin:0 auto;">
-        Real-time running status, GIS route maps, station timelines, elevation profiles, and journey weather across all Indian Railways.
-      </p>
-
-      <div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-2);margin-top:var(--space-2);width:100%;">
-        <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">Or choose a popular train:</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-          ${suggestions.map(s => `
-            <button class="landing-suggest-chip" data-train-id="${s.id}" style="background:var(--color-bg-subtle);border:1px solid var(--color-border);border-radius:var(--radius-full);padding:6px 14px;font-size:12px;font-weight:600;color:var(--color-text-primary);cursor:pointer;transition:all 0.15s ease;">
-              ⚡ ${s.label}
+      <!-- Search History Section -->
+      ${recents.length > 0 ? `
+        <div class="landing-section-wrap" style="margin-top:var(--space-1);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.04em;display:flex;align-items:center;gap:6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <span>Search History</span>
+            </div>
+            <button class="landing-clear-history-btn" id="clearSearchHistoryBtn" style="background:none;border:none;color:var(--color-danger, #ef4444);font-size:11px;font-weight:700;cursor:pointer;padding:3px 6px;border-radius:4px;display:flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              <span>Clear History</span>
             </button>
+          </div>
+          <div class="landing-recents-list" style="display:flex;flex-direction:column;gap:6px;">
+            ${recents.map(trainId => {
+              const meta = store.getTrainMeta(trainId);
+              const num  = meta?.number || trainId;
+              const name = meta?.name || `Train #${trainId}`;
+              return `
+                <div class="landing-recent-item landing-suggest-chip" data-train-id="${trainId}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);cursor:pointer;transition:background 0.15s ease;">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                    <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:var(--color-accent);background:var(--color-accent-subtle);padding:3px 7px;border-radius:4px;flex-shrink:0;">${num}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                    <span style="font-size:11px;color:var(--color-accent);font-weight:600;">Track</span>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.4"><path d="m9 18 6-6-6-6"/></svg>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      <!-- Popular Indian Trains -->
+      <div class="landing-section-wrap" style="margin-top:var(--space-1);">
+        <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span>Popular Trains</span>
+        </div>
+        <div class="landing-popular-grid" style="display:grid;grid-template-columns:1fr;gap:6px;">
+          ${popularTrains.map(t => `
+            <div class="landing-suggest-chip" data-train-id="${t.id}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);cursor:pointer;transition:background 0.15s ease;">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:var(--color-accent);background:var(--color-accent-subtle);padding:3px 7px;border-radius:4px;flex-shrink:0;">${t.number}</span>
+                <div style="min-width:0;">
+                  <div style="font-size:13px;font-weight:600;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div>
+                  <div style="font-size:11px;color:var(--color-text-muted);">${t.route}</div>
+                </div>
+              </div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2.4" style="flex-shrink:0;"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
           `).join("")}
         </div>
       </div>
@@ -437,6 +493,21 @@ export function attachStatusCardEvents() {
       if (trainId) trackerService.loadTrain(trainId);
     });
   });
+
+  // Banner shortcut to Routes tab
+  const routeBanner = document.getElementById("landingRouteBanner");
+  if (routeBanner) {
+    routeBanner.addEventListener("click", () => store.setActiveTab("routes"));
+  }
+
+  // Clear search history button
+  const clearBtn = document.getElementById("clearSearchHistoryBtn");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      store.clearRecentSearches();
+    });
+  }
 
   const refreshBtn = document.getElementById("manualRefreshBtn");
   if (refreshBtn) {

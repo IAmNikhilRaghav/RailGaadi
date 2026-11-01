@@ -1,3 +1,4 @@
+
 /**
  * RailGaadi — Route Search (Station A → Station B)
  * Finds all trains running between two Indian stations
@@ -11,36 +12,40 @@ import { stationDataService } from "../services/stationDataService.js";
 
 // ── Module state ──────────────────────────────────────────────────────────
 
-let fromStation  = null;  // { code, name }
-let toStation    = null;  // { code, name }
+let fromStation = null;  // { code, name }
+let toStation = null;  // { code, name }
 let routeResults = [];
-let isSearching  = false;
-let fromQuery    = "";
-let toQuery      = "";
+let isSearching = false;
+let fromQuery = "";
+let toQuery = "";
 let fromDropOpen = false;
-let toDropOpen   = false;
+let toDropOpen = false;
 let fromSuggestions = [];
-let toSuggestions   = [];
+let toSuggestions = [];
 let fromDebounce = null;
-let toDebounce   = null;
-let dayFilter    = "all"; // "all" | "today" | "tomorrow" | "0"..."6"
+let toDebounce = null;
+let dayFilter = "all"; // "all" | "today" | "tomorrow" | "0"..."6"
 
 // ── Day constants ─────────────────────────────────────────────────────────
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
-const DAY_NAMES  = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const TODAY_IDX  = new Date().getDay(); // 0=Sun, 1=Mon … 6=Sat
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const TODAY_IDX = new Date().getDay(); // 0=Sun, 1=Mon … 6=Sat
 const TOMORROW_IDX = (TODAY_IDX + 1) % 7;
 
 // ── Popular Sample Routes ─────────────────────────────────────────────────
 
 const POPULAR_ROUTES = [
-  { fromCode: "JP",   fromName: "Jaipur Jn",          toCode: "MTJ",  toName: "Mathura Jn" },
-  { fromCode: "NDLS", fromName: "New Delhi",          toCode: "CNB",  toName: "Kanpur Central" },
-  { fromCode: "BME",  fromName: "Barmer",             toCode: "JU",   toName: "Jodhpur Jn" },
-  { fromCode: "HWH",  fromName: "Howrah Jn",          toCode: "PNBE", toName: "Patna Jn" },
-  { fromCode: "CSMT", fromName: "Mumbai CSMT",        toCode: "PUNE", toName: "Pune Jn" },
-  { fromCode: "MAS",  fromName: "Chennai Central",    toCode: "SBC",  toName: "KSR Bengaluru" },
+  { fromCode: "JP", fromName: "Jaipur Jn", toCode: "MTJ", toName: "Mathura Jn" },
+  { fromCode: "NDLS", fromName: "New Delhi", toCode: "CNB", toName: "Kanpur Central" },
+  { fromCode: "BME", fromName: "Barmer", toCode: "JU", toName: "Jodhpur Jn" },
+  { fromCode: "CSMT", fromName: "Mumbai CSMT", toCode: "PUNE", toName: "Pune Jn" },
+  { fromCode: "HWH", fromName: "Howrah Jn", toCode: "PNBE", toName: "Patna Jn" },
+  { fromCode: "MAS", fromName: "Chennai Central", toCode: "SBC", toName: "KSR Bengaluru" },
+  { fromCode: "ADI", fromName: "Ahmedabad Jn", toCode: "ST", toName: "Surat" },
+  { fromCode: "LKO", fromName: "Lucknow", toCode: "BSB", toName: "Varanasi Jn" },
+  { fromCode: "GHY", fromName: "Guwahati", toCode: "NJP", toName: "New Jalpaiguri" },
+  { fromCode: "HYB", fromName: "Hyderabad", toCode: "BZA", toName: "Vijayawada Jn" }
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -63,13 +68,13 @@ function parseDays(raw) {
   if (Array.isArray(raw)) {
     const lc = raw.map(d => String(d).toLowerCase().trim());
     const matches = [
-      ["sun", "sunday",    "0"],
-      ["mon", "monday",    "1"],
-      ["tue", "tuesday",   "2"],
+      ["sun", "sunday", "0"],
+      ["mon", "monday", "1"],
+      ["tue", "tuesday", "2"],
       ["wed", "wednesday", "3"],
-      ["thu", "thursday",  "4"],
-      ["fri", "friday",    "5"],
-      ["sat", "saturday",  "6"],
+      ["thu", "thursday", "4"],
+      ["fri", "friday", "5"],
+      ["sat", "saturday", "6"],
     ];
     return matches.map(alts => alts.some(a => lc.includes(a)));
   }
@@ -78,13 +83,13 @@ function parseDays(raw) {
   if (typeof raw === "object") {
     const map = raw;
     return [
-      !!(map.sun || map.sunday    || map[0]),
-      !!(map.mon || map.monday    || map[1]),
-      !!(map.tue || map.tuesday   || map[2]),
+      !!(map.sun || map.sunday || map[0]),
+      !!(map.mon || map.monday || map[1]),
+      !!(map.tue || map.tuesday || map[2]),
       !!(map.wed || map.wednesday || map[3]),
-      !!(map.thu || map.thursday  || map[4]),
-      !!(map.fri || map.friday    || map[5]),
-      !!(map.sat || map.saturday  || map[6]),
+      !!(map.thu || map.thursday || map[4]),
+      !!(map.fri || map.friday || map[5]),
+      !!(map.sat || map.saturday || map[6]),
     ];
   }
 
@@ -127,30 +132,46 @@ async function getStationSuggestions(query) {
   if (!query || query.length < 2) return [];
   const q = query.toUpperCase().trim();
   const results = [];
+  const seenCodes = new Set();
+
+  // Ensure full stations directory is loaded
+  if (stationDataService.stationsMap.size <= 200) {
+    await stationDataService.loadAllStations();
+  }
 
   // Search through loaded stations
   stationDataService.stationsMap.forEach((stn, code) => {
     const nameUpper = (stn.name || "").toUpperCase();
     if (
+      code === q ||
       code.startsWith(q) ||
-      nameUpper.includes(q) ||
-      nameUpper.startsWith(q)
+      nameUpper.startsWith(q) ||
+      nameUpper.includes(q)
     ) {
-      results.push({ code, name: stn.name || code });
+      if (!seenCodes.has(code)) {
+        seenCodes.add(code);
+        results.push({ code, name: stn.name || code });
+      }
     }
   });
 
   results.sort((a, b) => {
-    const aCode = a.code === q ? 0 : 1;
-    const bCode = b.code === q ? 0 : 1;
-    if (aCode !== bCode) return aCode - bCode;
+    const aExact = a.code === q ? 0 : 1;
+    const bExact = b.code === q ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+
+    const aCodeStart = a.code.startsWith(q) ? 0 : 1;
+    const bCodeStart = b.code.startsWith(q) ? 0 : 1;
+    if (aCodeStart !== bCodeStart) return aCodeStart - bCodeStart;
+
     const aStart = a.name.toUpperCase().startsWith(q) ? 0 : 1;
     const bStart = b.name.toUpperCase().startsWith(q) ? 0 : 1;
     if (aStart !== bStart) return aStart - bStart;
+
     return a.name.localeCompare(b.name);
   });
 
-  return results.slice(0, 8);
+  return results.slice(0, 10);
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -259,14 +280,14 @@ export function renderRouteSearch() {
             aria-busy="${isSearching}"
           >
             ${isSearching
-              ? `<span class="rs-spinner" aria-hidden="true"></span> Searching all trains…`
-              : `
+      ? `<span class="rs-spinner" aria-hidden="true"></span> Searching all trains…`
+      : `
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
                 </svg>
                 Find trains
               `
-            }
+    }
           </button>
         </div>
 
@@ -402,13 +423,13 @@ function renderRouteResults() {
           <button class="rs-reset-filter-btn" id="rsResetFilter">Show all ${routeResults.length} trains</button>
         </div>
       ` : filtered.map(t => {
-        const days = parseDays(t.runningDays || t.days);
-        const runsToday = days[TODAY_IDX];
-        const depTime   = fmtTime(t.departureTime || t.dep || t.departure);
-        const arrTime   = fmtTime(t.arrivalTime   || t.arr || t.arrival);
-        const duration  = t.durationMinutes || t.duration;
+    const days = parseDays(t.runningDays || t.days);
+    const runsToday = days[TODAY_IDX];
+    const depTime = fmtTime(t.departureTime || t.dep || t.departure);
+    const arrTime = fmtTime(t.arrivalTime || t.arr || t.arrival);
+    const duration = t.durationMinutes || t.duration;
 
-        return `
+    return `
           <div class="rs-result-card ${runsToday ? "" : "rs-result-card--not-today"}"
                data-train-id="${t.trainId || t.number}"
                role="listitem">
@@ -420,9 +441,9 @@ function renderRouteResults() {
                 <span class="rs-result-name">${t.name}</span>
               </div>
               ${runsToday
-                ? `<span class="rs-runs-badge rs-runs-badge--today">Runs today</span>`
-                : `<span class="rs-runs-badge rs-runs-badge--not-today">Not running today</span>`
-              }
+        ? `<span class="rs-runs-badge rs-runs-badge--today">Runs today</span>`
+        : `<span class="rs-runs-badge rs-runs-badge--not-today">Not running today</span>`
+      }
             </div>
 
             <!-- Timings row -->
@@ -455,8 +476,11 @@ function renderRouteResults() {
 
             <!-- Action footer -->
             <div class="rs-result-footer">
-              ${t.type ? `<span class="rs-train-type-pill">${t.type}</span>` : ""}
-              ${t.platform && t.platform !== "—" ? `<span class="rs-platform-tag">Plt ${t.platform}</span>` : ""}
+              ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${t.type}</span>` : ""}
+              ${t.platform && t.platform !== "—"
+                ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>PF ${t.platform}</span></span>`
+                : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>PF</span><span>TBA</span></span>`
+              }
               <button class="rs-track-btn" data-train-id="${t.trainId || t.number}" aria-label="Track live train ${t.number}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="5 3 19 12 5 21 5 3"/>
@@ -467,7 +491,7 @@ function renderRouteResults() {
 
           </div>
         `;
-      }).join("")}
+  }).join("")}
     </div>
   `;
 }
@@ -526,13 +550,13 @@ async function doSearch() {
     return;
   }
 
-  isSearching  = true;
+  isSearching = true;
   routeResults = [];
   rerenderSection();
 
   try {
     const results = await searchTrainsBetweenStations(fromStation.code, toStation.code);
-    routeResults  = results || [];
+    routeResults = results || [];
   } catch (err) {
     console.warn("[RouteSearch] search failed:", err.message);
     routeResults = [];
@@ -546,9 +570,9 @@ export function attachRouteSearchEvents() {
   // Swap button
   document.getElementById("rsSwapBtn")?.addEventListener("click", () => {
     [fromStation, toStation] = [toStation, fromStation];
-    [fromQuery, toQuery]     = [toQuery, fromQuery];
+    [fromQuery, toQuery] = [toQuery, fromQuery];
     fromDropOpen = false;
-    toDropOpen   = false;
+    toDropOpen = false;
     rerenderSection();
     if (fromStation && toStation) doSearch();
   });
@@ -585,12 +609,12 @@ export function attachRouteSearchEvents() {
     chip.addEventListener("click", () => {
       const fromCode = chip.getAttribute("data-from-code");
       const fromName = chip.getAttribute("data-from-name");
-      const toCode   = chip.getAttribute("data-to-code");
-      const toName   = chip.getAttribute("data-to-name");
+      const toCode = chip.getAttribute("data-to-code");
+      const toName = chip.getAttribute("data-to-name");
       fromStation = { code: fromCode, name: fromName };
-      toStation   = { code: toCode,   name: toName };
-      fromQuery   = fromName;
-      toQuery     = toName;
+      toStation = { code: toCode, name: toName };
+      fromQuery = fromName;
+      toQuery = toName;
       doSearch();
     });
   });
@@ -603,7 +627,7 @@ export function attachRouteSearchEvents() {
     clearTimeout(fromDebounce);
     fromDebounce = setTimeout(async () => {
       fromSuggestions = await getStationSuggestions(fromQuery);
-      fromDropOpen    = fromSuggestions.length > 0;
+      fromDropOpen = fromSuggestions.length > 0;
       updateDropdownOnly("from");
     }, 200);
   });
@@ -612,8 +636,8 @@ export function attachRouteSearchEvents() {
     if (e.key === "Enter") {
       if (fromSuggestions.length > 0) {
         const s = fromSuggestions[0];
-        fromStation  = s;
-        fromQuery    = s.name;
+        fromStation = s;
+        fromQuery = s.name;
         fromDropOpen = false;
         rerenderSection();
         document.getElementById("rsToInput")?.focus();
@@ -632,7 +656,7 @@ export function attachRouteSearchEvents() {
     clearTimeout(toDebounce);
     toDebounce = setTimeout(async () => {
       toSuggestions = await getStationSuggestions(toQuery);
-      toDropOpen    = toSuggestions.length > 0;
+      toDropOpen = toSuggestions.length > 0;
       updateDropdownOnly("to");
     }, 200);
   });
@@ -641,8 +665,8 @@ export function attachRouteSearchEvents() {
     if (e.key === "Enter") {
       if (toSuggestions.length > 0) {
         const s = toSuggestions[0];
-        toStation  = s;
-        toQuery    = s.name;
+        toStation = s;
+        toQuery = s.name;
         toDropOpen = false;
         rerenderSection();
         document.getElementById("rsFindBtn")?.focus();
@@ -683,9 +707,9 @@ export function attachRouteSearchEvents() {
   // Close dropdowns on outside click
   document.addEventListener("click", e => {
     const insideFrom = document.getElementById("rsFromWrap")?.contains(e.target);
-    const insideTo   = document.getElementById("rsToWrap")?.contains(e.target);
+    const insideTo = document.getElementById("rsToWrap")?.contains(e.target);
     const insideDropFrom = document.getElementById("rsFromDropdown")?.contains(e.target);
-    const insideDropTo   = document.getElementById("rsToDropdown")?.contains(e.target);
+    const insideDropTo = document.getElementById("rsToDropdown")?.contains(e.target);
     if (!insideFrom && !insideDropFrom && fromDropOpen) {
       fromDropOpen = false;
       updateDropdownOnly("from");
@@ -701,18 +725,18 @@ export function attachRouteSearchEvents() {
 function attachDropdownItemEvents() {
   document.querySelectorAll(".rs-dropdown-item").forEach(item => {
     item.addEventListener("click", () => {
-      const code  = item.getAttribute("data-code");
-      const name  = item.getAttribute("data-name");
+      const code = item.getAttribute("data-code");
+      const name = item.getAttribute("data-name");
       const field = item.getAttribute("data-field");
       if (field === "from") {
-        fromStation  = { code, name };
-        fromQuery    = name;
+        fromStation = { code, name };
+        fromQuery = name;
         fromDropOpen = false;
         rerenderSection();
         document.getElementById("rsToInput")?.focus();
       } else {
-        toStation  = { code, name };
-        toQuery    = name;
+        toStation = { code, name };
+        toQuery = name;
         toDropOpen = false;
         rerenderSection();
         doSearch();
