@@ -390,6 +390,20 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
   // Return fresh cache if within 20s
   if (cached && Date.now() - cached.ts < STATUS_CACHE_TTL) return cached.data;
 
+  // Offline-first: check persistent storage for pre-cached route geometry
+  const ROUTE_STORAGE_KEY = `rg_route_${strId}`;
+  let persistedRoute = null;
+  try {
+    const raw = localStorage.getItem(ROUTE_STORAGE_KEY);
+    if (raw) {
+      persistedRoute = JSON.parse(raw);
+      // If store doesn't have liveRoute yet, prime it instantly (0ms) so map displays immediately
+      if (persistedRoute && !store.getState().liveRoute) {
+        store.setLiveRoute(persistedRoute);
+      }
+    }
+  } catch (e) {}
+
   try {
     const json = await apiFetch(`/trains/${strId}/live`, {
       geometry: "true",
@@ -540,6 +554,10 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
       train:  normalizedTrain
     };
 
+    try {
+      localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(normalizedRoute));
+    } catch (e) {}
+
     statusCache.set(cacheKey, { ts: Date.now(), data: result });
     return result;
 
@@ -556,6 +574,9 @@ export async function getTrainLiveAPI(trainId, date, meta = null) {
 
     // Graceful fallback to timetable & route data — guarantees UI ALWAYS works
     const fallback = createFallbackTrainData(strId, meta);
+    if (persistedRoute) {
+      fallback.route = persistedRoute;
+    }
     fallback.status.stale = true;
     fallback.status.source = "RailGaadi Timetable";
     statusCache.set(cacheKey, { ts: Date.now(), data: fallback });

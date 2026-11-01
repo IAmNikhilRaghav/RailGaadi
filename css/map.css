@@ -276,3 +276,41 @@
   }
 }
 
+/* User Location GPS Marker */
+.user-location-marker {
+  width: 32px;
+  height: 32px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.user-location-dot {
+  width: 15px;
+  height: 15px;
+  background: #0284c7;
+  border: 2.5px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.6);
+  z-index: 2;
+  position: relative;
+}
+
+.user-location-pulse {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background: rgba(2, 132, 199, 0.35);
+  border-radius: 50%;
+  animation: userLocationPulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  z-index: 1;
+}
+
+@keyframes userLocationPulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+

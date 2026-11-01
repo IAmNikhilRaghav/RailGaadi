@@ -159,26 +159,45 @@ class TrackerService {
   }
 
   /**
-   * Returns interpolated train position [lon, lat] along route polyline
+   * Returns exact train position { lat, lon, bearing, index } along route polyline
    */
   getCurrentPosition() {
     const { liveStatus, liveRoute } = store.getState();
     if (!liveRoute?.routeCoordinates?.length) return null;
 
-    // Prefer live GPS from provider
-    if (liveStatus?.position?.latitude && liveStatus?.position?.longitude) {
-      const { latitude, longitude } = liveStatus.position;
-      const bearing = GeoService.bearingAlongRoute(liveRoute.routeCoordinates, longitude, latitude);
-      return { lat: latitude, lon: longitude, bearing };
+    // 1. Prefer live GPS telemetry from provider
+    if (liveStatus?.position?.latitude != null && liveStatus?.position?.longitude != null) {
+      const lat = Number(liveStatus.position.latitude);
+      const lon = Number(liveStatus.position.longitude);
+      if (!isNaN(lat) && !isNaN(lon) && GeoService.isValidIndiaCord(lon, lat)) {
+        const bearing = GeoService.bearingAlongRoute(liveRoute.routeCoordinates, lon, lat);
+        return { lat, lon, bearing };
+      }
     }
 
-    // Fallback: interpolate from progress %
-    const pct = this.getProgressPercent();
-    if (pct == null) {
-      const first = liveRoute.routeCoordinates[0];
-      return first ? { lat: first[1], lon: first[0], bearing: 0 } : null;
+    // 2. Fallback to current station geo-coordinates if stationary or reported at station
+    const curCode = liveStatus?.currentStation?.stationId || liveStatus?.currentStation?.code;
+    if (curCode && liveRoute.stations?.length) {
+      const stn = liveRoute.stations.find(s => s.stationId === curCode || s.code === curCode);
+      if (stn?.latitude && stn?.longitude && GeoService.isValidIndiaCord(stn.longitude, stn.latitude)) {
+        const bearing = GeoService.bearingAlongRoute(liveRoute.routeCoordinates, stn.longitude, stn.latitude);
+        return { lat: Number(stn.latitude), lon: Number(stn.longitude), bearing };
+      }
     }
-    return GeoService.interpolatePosition(liveRoute.routeCoordinates, pct);
+
+    // 3. Fallback: interpolate along polyline from progress %
+    const pct = this.getProgressPercent();
+    if (pct == null || isNaN(pct)) {
+      const first = liveRoute.routeCoordinates[0];
+      return first ? { lat: Number(first[1]), lon: Number(first[0]), bearing: 0, index: 0 } : null;
+    }
+    const pos = GeoService.interpolatePosition(liveRoute.routeCoordinates, pct);
+    return {
+      lat: Number(pos.lat),
+      lon: Number(pos.lon),
+      bearing: Number(pos.bearing || 0),
+      index: pos.index
+    };
   }
 
   /**

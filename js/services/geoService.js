@@ -22,12 +22,21 @@ export class GeoService {
   }
 
   /**
-   * Interpolate exact current coordinate [lon, lat] along route coordinates given completion percentage
+   * Interpolate exact current coordinate [lon, lat] along route coordinates given completion percentage.
+   * ALWAYS returns an object: { lon: number, lat: number, bearing: number, index: number }
    */
   static interpolatePosition(coordinates, progressPercent) {
-    if (!coordinates || coordinates.length === 0) return [77.2195, 28.6429];
-    if (coordinates.length === 1 || progressPercent <= 0) return coordinates[0];
-    if (progressPercent >= 100) return coordinates[coordinates.length - 1];
+    if (!coordinates || coordinates.length === 0) {
+      return { lon: 77.2090, lat: 28.6139, bearing: 0, index: 0 };
+    }
+    if (coordinates.length === 1 || progressPercent <= 0) {
+      const c = coordinates[0];
+      return { lon: c[0], lat: c[1], bearing: 0, index: 0 };
+    }
+    if (progressPercent >= 100) {
+      const c = coordinates[coordinates.length - 1];
+      return { lon: c[0], lat: c[1], bearing: 0, index: coordinates.length - 1 };
+    }
 
     // Compute segment distances
     const segmentDistances = [];
@@ -43,12 +52,17 @@ export class GeoService {
       totalLength += d;
     }
 
-    const targetDistance = (totalLength * progressPercent) / 100;
+    if (totalLength === 0) {
+      const c = coordinates[0];
+      return { lon: c[0], lat: c[1], bearing: 0, index: 0 };
+    }
+
+    const targetDistance = (totalLength * Math.max(0, Math.min(100, progressPercent))) / 100;
     let accumulated = 0;
 
     for (let i = 0; i < segmentDistances.length; i++) {
       const segDist = segmentDistances[i];
-      if (accumulated + segDist >= targetDistance) {
+      if (accumulated + segDist >= targetDistance && segDist > 0) {
         const segProgress = (targetDistance - accumulated) / segDist;
         const lon = coordinates[i][0] + (coordinates[i + 1][0] - coordinates[i][0]) * segProgress;
         const lat = coordinates[i][1] + (coordinates[i + 1][1] - coordinates[i][1]) * segProgress;
@@ -68,9 +82,10 @@ export class GeoService {
       accumulated += segDist;
     }
 
+    const last = coordinates[coordinates.length - 1];
     return {
-      lon: coordinates[coordinates.length - 1][0],
-      lat: coordinates[coordinates.length - 1][1],
+      lon: last[0],
+      lat: last[1],
       bearing: 0,
       index: coordinates.length - 1
     };
@@ -84,12 +99,15 @@ export class GeoService {
       return { completed: [], remaining: [] };
     }
 
-    let splitIdx = currentPos.index;
-    if (splitIdx == null) {
+    const pLon = currentPos?.lon ?? (Array.isArray(currentPos) ? currentPos[0] : coordinates[0][0]);
+    const pLat = currentPos?.lat ?? (Array.isArray(currentPos) ? currentPos[1] : coordinates[0][1]);
+
+    let splitIdx = currentPos?.index;
+    if (splitIdx == null || splitIdx < 0 || splitIdx >= coordinates.length) {
       let minDist = Infinity;
       splitIdx = 0;
       for (let i = 0; i < coordinates.length; i++) {
-        const d = this.distanceKm(currentPos.lat, currentPos.lon, coordinates[i][1], coordinates[i][0]);
+        const d = this.distanceKm(pLat, pLon, coordinates[i][1], coordinates[i][0]);
         if (d < minDist) { minDist = d; splitIdx = i; }
       }
     }
@@ -98,8 +116,8 @@ export class GeoService {
     const remaining = [];
 
     for (let i = 0; i <= splitIdx; i++) completed.push(coordinates[i]);
-    completed.push([currentPos.lon, currentPos.lat]);
-    remaining.push([currentPos.lon, currentPos.lat]);
+    completed.push([pLon, pLat]);
+    remaining.push([pLon, pLat]);
     for (let i = splitIdx + 1; i < coordinates.length; i++) remaining.push(coordinates[i]);
 
     return { completed, remaining };

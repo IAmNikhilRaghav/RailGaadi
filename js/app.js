@@ -331,12 +331,12 @@ function renderViewContainer() {
     container.innerHTML = `
       <div class="workspace-grid">
         <div id="statusCardRoot">${renderStatusCard()}</div>
-        <div>${renderMapSection()}</div>
+        <div id="mapSectionRoot">${renderMapSection()}</div>
       </div>
     `;
     attachStatusCardEvents();
     attachMapEvents();
-    setTimeout(() => initOrUpdateMap(), 80);
+    setTimeout(() => initOrUpdateMap(), 50);
 
   } else if (state.activeTab === "analytics") {
     container.innerHTML = `<div id="analyticsViewRoot">${renderAnalyticsSection()}</div>`;

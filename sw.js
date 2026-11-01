@@ -3,7 +3,8 @@
  * Caches app shell, static assets, and provides offline fallback
  */
 
-const CACHE_NAME      = "railgaadi-v2";
+const CACHE_NAME      = "railgaadi-v3";
+const TILES_CACHE_NAME= "railgaadi-tiles-v1";
 const STATIC_ASSETS   = [
   "/",
   "/index.html",
@@ -14,15 +15,18 @@ const STATIC_ASSETS   = [
   "/css/analytics.css",
   "/css/companion.css",
   "/css/phase2.css",
+  "/css/routesearch.css",
+  "/css/mobile.css",
   "/js/app.js",
-  "/manifest.json"
+  "/manifest.json",
+  "/data/stations.json",
+  "/data/trains_index.json"
 ];
 
 /* ── Install: pre-cache static shell ────────────────────── */
 self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      // Cache what we can; don't fail installation if some fail
       return Promise.allSettled(
         STATIC_ASSETS.map(url =>
           cache.add(url).catch(err => {
@@ -41,7 +45,7 @@ self.addEventListener("activate", event => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key !== CACHE_NAME && key !== TILES_CACHE_NAME)
           .map(key => caches.delete(key))
       )
     )
@@ -49,30 +53,57 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-/* ── Fetch: network-first for API calls, cache-first for assets ── */
+/* ── Fetch: Cache-first for map assets/tiles/fonts, Network-first with fallback for APIs ── */
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
 
-  // Skip non-GET and cross-origin requests to live APIs
+  // Skip non-GET
   if (event.request.method !== "GET") return;
-  if (
-    url.pathname.startsWith("/api/railradar") ||
-    url.hostname.includes("openweathermap.org") ||
-    url.hostname.includes("opentopography.org") ||
-    url.hostname.includes("overpass-api.de") ||
+
+  // 1. Static Map Libraries, Fonts & Raster Tiles — Cache First (huge bandwidth saver on 2G/3G)
+  const isMapAssetOrTile =
+    url.hostname.includes("cartocdn.com") ||
     url.hostname.includes("maptiler.com") ||
-    url.hostname.includes("maplibre") ||
+    url.hostname.includes("unpkg.com") ||
+    url.hostname.includes("cdnjs.cloudflare.com") ||
     url.hostname.includes("fonts.googleapis.com") ||
-    url.hostname.includes("unpkg.com")
-  ) {
-    // Network-first, no caching for live data / CDN resources
+    url.hostname.includes("fonts.gstatic.com");
+
+  if (isMapAssetOrTile) {
+    event.respondWith(
+      caches.open(TILES_CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(cached => {
+          if (cached) return cached;
+          return fetch(event.request).then(res => {
+            if (res && res.status === 200) {
+              cache.put(event.request, res.clone());
+            }
+            return res;
+          }).catch(() => cached);
+        });
+      })
+    );
     return;
   }
 
+  // 2. Dynamic Live APIs (RailRadar, Weather, Elevation) — Network First with Stale-While-Revalidate
+  const isDynamicApi =
+    url.pathname.startsWith("/api/railradar") ||
+    url.hostname.includes("railradar.in") ||
+    url.hostname.includes("openweathermap.org") ||
+    url.hostname.includes("opentopography.org") ||
+    url.hostname.includes("overpass-api.de");
+
+  if (isDynamicApi) {
+    // Let browser network handle live API requests (with Vercel Edge caching headers)
+    return;
+  }
+
+  // 3. App Shell & Local Assets
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) {
-        // Return cached, then update in background
+        // Return cached immediately, then revalidate in background
         fetch(event.request)
           .then(fresh => {
             if (fresh && fresh.ok) {
