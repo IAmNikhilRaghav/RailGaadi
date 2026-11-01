@@ -137,31 +137,36 @@ function renderLanding() {
 
       <!-- Search History Section -->
       ${recents.length > 0 ? `
-        <div class="landing-section-wrap" style="margin-top:var(--space-1);">
+        <div class="landing-section-wrap" id="landingHistorySectionWrap" style="margin-top:var(--space-1);transition:opacity 0.2s ease, transform 0.2s ease;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.04em;display:flex;align-items:center;gap:6px;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               <span>Search History</span>
             </div>
-            <button class="landing-clear-history-btn" id="clearSearchHistoryBtn" style="background:none;border:none;color:var(--color-danger, #ef4444);font-size:11px;font-weight:700;cursor:pointer;padding:3px 6px;border-radius:4px;display:flex;align-items:center;gap:4px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            <button class="landing-clear-history-btn" id="clearSearchHistoryBtn" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.22);color:var(--color-danger, #ef4444);font-size:11px;font-weight:700;cursor:pointer;padding:4px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;transition:all 0.15s ease;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               <span>Clear History</span>
             </button>
           </div>
-          <div class="landing-recents-list" style="display:flex;flex-direction:column;gap:6px;">
+          <div class="landing-recents-list" id="landingRecentsList" style="display:flex;flex-direction:column;gap:6px;">
             ${recents.map(trainId => {
               const meta = store.getTrainMeta(trainId);
               const num  = meta?.number || trainId;
               const name = meta?.name || `Train #${trainId}`;
               return `
-                <div class="landing-recent-item landing-suggest-chip" data-train-id="${trainId}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);cursor:pointer;transition:background 0.15s ease;">
-                  <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <div class="landing-recent-item landing-suggest-chip" data-train-id="${trainId}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);cursor:pointer;transition:all 0.18s ease;">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
                     <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:var(--color-accent);background:var(--color-accent-subtle);padding:3px 7px;border-radius:4px;flex-shrink:0;">${num}</span>
                     <span style="font-size:13px;font-weight:600;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
                   </div>
-                  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-                    <span style="font-size:11px;color:var(--color-accent);font-weight:600;">Track</span>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.4"><path d="m9 18 6-6-6-6"/></svg>
+                  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                    <div style="display:flex;align-items:center;gap:4px;">
+                      <span style="font-size:11px;color:var(--color-accent);font-weight:600;">Track</span>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.4"><path d="m9 18 6-6-6-6"/></svg>
+                    </div>
+                    <button class="landing-remove-recent-btn" data-train-id="${trainId}" title="Remove from history" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:50%;" aria-label="Remove ${num} from history">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
                   </div>
                 </div>
               `;
@@ -456,11 +461,29 @@ export function renderStatusCard() {
 }
 
 export function attachStatusCardEvents() {
-  // Landing suggest chips
+  // Landing suggest chips (recent searches)
   document.querySelectorAll(".landing-suggest-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
+    chip.addEventListener("click", (e) => {
+      if (e.target.closest(".landing-remove-recent-btn")) return;
       const trainId = chip.getAttribute("data-train-id");
       if (trainId) trackerService.loadTrain(trainId);
+    });
+  });
+
+  // Individual remove recent search button
+  document.querySelectorAll(".landing-remove-recent-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const trainId = btn.getAttribute("data-train-id");
+      const itemEl = btn.closest(".landing-recent-item");
+      if (itemEl) {
+        itemEl.style.transition = "opacity 0.16s ease, transform 0.16s ease";
+        itemEl.style.opacity = "0";
+        itemEl.style.transform = "translateX(24px)";
+      }
+      setTimeout(() => {
+        if (trainId) store.removeRecentSearch(trainId);
+      }, 160);
     });
   });
 
@@ -470,12 +493,21 @@ export function attachStatusCardEvents() {
     routeBanner.addEventListener("click", () => store.setActiveTab("routes"));
   }
 
-  // Clear search history button
+  // Clear search history button (real-time instant deletion)
   const clearBtn = document.getElementById("clearSearchHistoryBtn");
   if (clearBtn) {
     clearBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      store.clearRecentSearches();
+      clearBtn.style.pointerEvents = "none";
+      const historyWrap = document.getElementById("landingHistorySectionWrap");
+      if (historyWrap) {
+        historyWrap.style.transition = "opacity 0.18s ease, transform 0.18s ease";
+        historyWrap.style.opacity = "0";
+        historyWrap.style.transform = "scale(0.96)";
+      }
+      setTimeout(() => {
+        store.clearRecentSearches();
+      }, 180);
     });
   }
 

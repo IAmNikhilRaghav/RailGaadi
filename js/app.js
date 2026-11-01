@@ -192,6 +192,10 @@ function renderApp(changedKeys = []) {
   // --- Quick chips update on favourites/recents or active train change ---
   if (changed.has("favourites") || changed.has("recentSearches") || changed.has("activeTrainId")) {
     updateQuickChips();
+    if (!state.activeTrainId && state.activeTab === "tracking") {
+      setInnerHTML("statusCardRoot", renderStatusCard());
+      attachStatusCardEvents();
+    }
     if (state.isFavDrawerOpen) {
       setInnerHTML("favDrawerRoot", renderFavDrawer());
       attachFavDrawerEvents();
