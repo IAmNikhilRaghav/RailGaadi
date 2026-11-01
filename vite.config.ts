@@ -7,6 +7,7 @@ export default defineConfig({
     port: 8080,
     open: false,
     host: true,
+    allowedHosts: true,
     proxy: {
       '/api/railradar': {
         target: 'https://railradar.in/api/v1',
