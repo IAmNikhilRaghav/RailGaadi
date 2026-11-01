@@ -74,17 +74,50 @@ export function renderSearchSection() {
             </svg>
           </div>
 
-          <input
-            type="text"
-            class="search-input"
-            id="trainSearchInput"
-            placeholder="Search by train no. or name"
-            autocomplete="off"
-            spellcheck="false"
-            aria-autocomplete="list"
-            aria-expanded="false"
-            aria-controls="searchResultsDropdown"
-          />
+          <!-- Dynamic Marquee Container -->
+          <div class="search-ticker-container" id="searchTickerContainer">
+            <div class="search-ticker-track" id="searchTickerTrack">
+              <div class="search-ticker-item">
+                <span>Search by train no. or name</span>
+                <span class="ticker-dot">•</span>
+                <span>Track live train status</span>
+                <span class="ticker-dot">•</span>
+                <span>12404 Prayagraj SF Express</span>
+                <span class="ticker-dot">•</span>
+                <span>22436 Vande Bharat</span>
+                <span class="ticker-dot">•</span>
+                <span>12301 Howrah Rajdhani</span>
+                <span class="ticker-dot">•</span>
+                <span>Track Any Indian Train Live</span>
+                <span class="ticker-dot">•</span>
+              </div>
+              <div class="search-ticker-item" aria-hidden="true">
+                <span>Search by train no. or name</span>
+                <span class="ticker-dot">•</span>
+                <span>Track live train status</span>
+                <span class="ticker-dot">•</span>
+                <span>12404 Prayagraj SF Express</span>
+                <span class="ticker-dot">•</span>
+                <span>22436 Vande Bharat</span>
+                <span class="ticker-dot">•</span>
+                <span>12301 Howrah Rajdhani</span>
+                <span class="ticker-dot">•</span>
+                <span>Track Any Indian Train Live</span>
+                <span class="ticker-dot">•</span>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              class="search-input"
+              id="trainSearchInput"
+              autocomplete="off"
+              spellcheck="false"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="searchResultsDropdown"
+            />
+          </div>
 
           <!-- Loading spinner inside input -->
           <div id="searchSpinner" style="display:none; color:var(--color-accent); margin-right:8px; align-items:center;">
@@ -143,11 +176,19 @@ export function attachSearchEvents() {
     selectedIndex = -1;
   }
 
+  const tickerContainer = document.getElementById("searchTickerContainer");
+
+  function resetTickerState() {
+    tickerContainer?.classList.remove("has-value");
+    tickerContainer?.classList.remove("has-focus");
+  }
+
   function selectTrain(item, results) {
     const trainId = item.getAttribute("data-train-id");
     const meta    = results?.find(r => r.trainId === trainId);
     closeDropdown();
     input.value = "";
+    resetTickerState();
     if (clearBtn) clearBtn.style.display = "none";
     if (spinner)  spinner.style.display = "none";
     trackerService.loadTrain(trainId, meta);
@@ -169,16 +210,19 @@ export function attachSearchEvents() {
       if (results && results.length > 0) {
         const top = results[0];
         input.value = "";
+        resetTickerState();
         if (clearBtn) clearBtn.style.display = "none";
         trackerService.loadTrain(top.trainId, top);
       } else {
         input.value = "";
+        resetTickerState();
         if (clearBtn) clearBtn.style.display = "none";
         trackerService.loadTrain(val);
       }
     } catch {
       if (spinner) spinner.style.display = "none";
       input.value = "";
+      resetTickerState();
       if (clearBtn) clearBtn.style.display = "none";
       trackerService.loadTrain(val);
     }
@@ -226,8 +270,28 @@ export function attachSearchEvents() {
   }
 
   /* ── debounced input ── */
+  input.addEventListener("focus", () => {
+    tickerContainer?.classList.add("has-focus");
+  });
+
+  input.addEventListener("blur", () => {
+    if (!input.value.trim()) {
+      tickerContainer?.classList.remove("has-focus");
+      tickerContainer?.classList.remove("has-value");
+    }
+  });
+
+  tickerContainer?.addEventListener("click", () => {
+    input.focus();
+  });
+
   input.addEventListener("input", e => {
     const val = e.target.value;
+    if (val.length > 0) {
+      tickerContainer?.classList.add("has-value");
+    } else {
+      tickerContainer?.classList.remove("has-value");
+    }
 
     if (clearBtn) {
       clearBtn.style.display = val.length > 0 ? "flex" : "none";
@@ -331,6 +395,8 @@ export function attachSearchEvents() {
       input.value = "";
       clearBtn.style.display = "none";
       if (spinner) spinner.style.display = "none";
+      tickerContainer?.classList.remove("has-value");
+      tickerContainer?.classList.remove("has-focus");
       closeDropdown();
       input.focus();
     });

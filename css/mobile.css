@@ -194,12 +194,20 @@ html, body {
     border: 1.5px solid var(--color-border);
   }
 
+  .search-ticker-item {
+    font-size: 13.5px;
+    gap: 8px;
+    padding-right: 18px;
+  }
+
   .search-submit-btn {
     padding: 6px 11px;
     font-size: 12px;
     gap: 4px;
     border-radius: 9999px;
     margin-left: 4px;
+    position: relative;
+    z-index: 3;
   }
 
   .search-input-wrapper:focus-within {

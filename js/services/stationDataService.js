@@ -12,6 +12,7 @@ class StationDataService {
     this.stationsMap = new Map();
     this.trainsCatalog = null;
     this.isStationsLoading = false;
+    this.isStationsLoaded = false;
     this.isTrainsLoading = false;
 
     // Pre-populate with core stations for synchronous zero-latency lookups
@@ -32,7 +33,7 @@ class StationDataService {
    * Asynchronously loads all 8,690+ Indian railway stations from public/data/stations.json
    */
   async loadAllStations() {
-    if (this.stationsMap.size > 200 || this.isStationsLoading) return;
+    if (this.isStationsLoaded || this.isStationsLoading) return;
     if (typeof window === "undefined") return;
     this.isStationsLoading = true;
     try {
@@ -47,6 +48,7 @@ class StationDataService {
             name: data[2]
           });
         });
+        this.isStationsLoaded = true;
       }
     } catch (e) {
       console.warn('[StationDataService] Error loading full stations directory:', e);

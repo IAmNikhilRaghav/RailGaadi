@@ -179,6 +179,10 @@ function renderApp(changedKeys = []) {
   // --- Tab switch ---
   if (changed.has("activeTab")) {
     syncTabActiveState(state.activeTab);
+    const searchRoot = document.getElementById("searchSectionRoot");
+    if (searchRoot) {
+      searchRoot.style.display = state.activeTab === "routes" ? "none" : "";
+    }
     // Scroll to top on tab switch (mobile UX)
     window.scrollTo({ top: 0, behavior: "smooth" });
     renderViewContainer();
@@ -259,7 +263,7 @@ function fullRender() {
         ${renderHeader()}
 
         <main class="main-content">
-          <div id="searchSectionRoot">${renderSearchSection()}</div>
+          <div id="searchSectionRoot" style="${state.activeTab === 'routes' ? 'display:none;' : ''}">${renderSearchSection()}</div>
 
           <!-- Desktop Segmented Tab Navigation (hidden on mobile via CSS) -->
           <div class="view-tabs-container">

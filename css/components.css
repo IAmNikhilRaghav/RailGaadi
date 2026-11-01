@@ -134,10 +134,70 @@
   display: flex;
   align-items: center;
   margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+/* ── Dynamic Marquee Ticker inside Search Bar ── */
+.search-ticker-container {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  cursor: text;
+}
+
+.search-ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  align-items: center;
+  pointer-events: none;
+  animation: searchMarquee 26s linear infinite;
+  will-change: transform;
+  transition: opacity 0.2s ease;
+  z-index: 1;
+}
+
+.search-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 28px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.search-ticker-item .ticker-dot {
+  color: var(--color-accent);
+  opacity: 0.6;
+}
+
+.search-ticker-container.has-focus .search-ticker-track,
+.search-ticker-container.has-value .search-ticker-track {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes searchMarquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 .search-input {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   font-size: var(--text-md);
   font-weight: 500;
   color: var(--color-text-primary);
@@ -147,6 +207,9 @@
   box-shadow: none !important;
   -webkit-appearance: none !important;
   appearance: none !important;
+  position: relative;
+  z-index: 2;
+  padding: 0 !important;
 }
 
 .search-input:focus,

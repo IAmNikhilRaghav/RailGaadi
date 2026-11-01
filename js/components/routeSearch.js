@@ -1,8 +1,8 @@
-
 /**
  * RailGaadi — Route Search (Station A → Station B)
- * Finds all trains running between two Indian stations
- * with day-of-week running routine calendar like "Where is My Train" app
+ * Dedicated full-page route search with instant dynamic train matching
+ * across all Indian trains (5,200+ Pan-India trains & 8,690+ stations)
+ * Matches any alphabet, word, number, or string with zero delay.
  */
 
 import { store } from "../state/store.js";
@@ -13,7 +13,7 @@ import { stationDataService } from "../services/stationDataService.js";
 // ── Module state ──────────────────────────────────────────────────────────
 
 let fromStation = null;  // { code, name }
-let toStation = null;  // { code, name }
+let toStation = null;    // { code, name }
 let routeResults = [];
 let isSearching = false;
 let fromQuery = "";
@@ -24,7 +24,9 @@ let fromSuggestions = [];
 let toSuggestions = [];
 let fromDebounce = null;
 let toDebounce = null;
-let dayFilter = "all"; // "all" | "today" | "tomorrow" | "0"..."6"
+let dayFilter = "all";   // "all" | "today" | "tomorrow" | "0"..."6"
+let liveFilterQuery = "";
+let catalogTrainsCache = [];
 
 // ── Day constants ─────────────────────────────────────────────────────────
 
@@ -33,23 +35,32 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const TODAY_IDX = new Date().getDay(); // 0=Sun, 1=Mon … 6=Sat
 const TOMORROW_IDX = (TODAY_IDX + 1) % 7;
 
+// Preload catalog trains
+stationDataService.getAllTrains().then(trains => {
+  if (trains && trains.length > 0) {
+    catalogTrainsCache = trains;
+    const container = document.getElementById("rsResultsContainer");
+    if (container && routeResults.length === 0) {
+      container.innerHTML = renderRouteResultsContent();
+      attachResultItemEvents();
+    }
+  }
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 /** Parse a days-of-week bitmask/array/string into a 7-element boolean array */
 function parseDays(raw) {
-  if (!raw) return Array(7).fill(true); // assume all days if unknown
+  if (!raw) return Array(7).fill(true);
 
-  // If it's a 7-char string like "YNNYYNY"
   if (typeof raw === "string" && raw.length === 7) {
     return raw.split("").map(c => c === "Y" || c === "1" || c === "y" || c === "T" || c === "t");
   }
 
-  // If it's a bitmask number (bit 0 = Sun)
   if (typeof raw === "number") {
     return DAY_LABELS.map((_, i) => !!(raw & (1 << i)));
   }
 
-  // If it's an array of day strings/numbers (e.g. ['mon', 'wed', 'thu', 'sat'])
   if (Array.isArray(raw)) {
     const lc = raw.map(d => String(d).toLowerCase().trim());
     const matches = [
@@ -64,7 +75,6 @@ function parseDays(raw) {
     return matches.map(alts => alts.some(a => lc.includes(a)));
   }
 
-  // If it's an object with boolean properties
   if (typeof raw === "object") {
     const map = raw;
     return [
@@ -81,7 +91,6 @@ function parseDays(raw) {
   return Array(7).fill(true);
 }
 
-/** Render the S M T W T F S week calendar row */
 function renderDaysBadges(days) {
   return `
     <div class="rs-days-row" aria-label="Day-wise running schedule">
@@ -96,7 +105,6 @@ function renderDaysBadges(days) {
   `;
 }
 
-/** Format duration in minutes as "X hrs Y mins" (just like Where is My Train) */
 function fmtDuration(minutes) {
   if (!minutes || isNaN(minutes)) return "";
   const h = Math.floor(minutes / 60);
@@ -106,33 +114,27 @@ function fmtDuration(minutes) {
   return `${m} mins`;
 }
 
-/** Format time string "HH:MM" */
 function fmtTime(t) {
   if (!t || t === "—") return "—";
   return t.replace(/^(\d):/, "0$1:").slice(0, 5);
 }
 
-/** Station autocomplete from stationDataService */
+/** Station autocomplete — searches all 8,690+ stations matching any alphabet or word */
 async function getStationSuggestions(query) {
-  if (!query || query.length < 2) return [];
+  if (!query || !query.trim()) return [];
   const q = query.toUpperCase().trim();
+  const qWords = q.split(/\s+/).filter(Boolean);
   const results = [];
   const seenCodes = new Set();
 
-  // Ensure full stations directory is loaded
-  if (stationDataService.stationsMap.size <= 200) {
-    await stationDataService.loadAllStations();
-  }
+  await stationDataService.loadAllStations();
 
-  // Search through loaded stations
   stationDataService.stationsMap.forEach((stn, code) => {
     const nameUpper = (stn.name || "").toUpperCase();
-    if (
-      code === q ||
-      code.startsWith(q) ||
-      nameUpper.startsWith(q) ||
-      nameUpper.includes(q)
-    ) {
+    const matchesCode = code === q || code.startsWith(q) || code.includes(q);
+    const matchesName = nameUpper.startsWith(q) || nameUpper.includes(q) || qWords.every(w => nameUpper.includes(w));
+
+    if (matchesCode || matchesName) {
       if (!seenCodes.has(code)) {
         seenCodes.add(code);
         results.push({ code, name: stn.name || code });
@@ -156,7 +158,95 @@ async function getStationSuggestions(query) {
     return a.name.localeCompare(b.name);
   });
 
-  return results.slice(0, 10);
+  return results.slice(0, 15);
+}
+
+/** Get trains to display dynamically based on selection and query */
+function getTrainsToDisplay() {
+  if (routeResults.length > 0) {
+    return {
+      title: `${fromStation?.name || fromStation?.code} → ${toStation?.name || toStation?.code}`,
+      trains: routeResults
+    };
+  }
+
+  const catalog = catalogTrainsCache;
+
+  // If fromStation is selected
+  if (fromStation && !toStation) {
+    const fCode = fromStation.code.toUpperCase();
+    const fName = fromStation.name.toUpperCase().slice(0, 5);
+    const matched = catalog.filter(t => {
+      const o = (t.origin || "").toUpperCase();
+      const d = (t.destination || "").toUpperCase();
+      const n = (t.name || "").toUpperCase();
+      return o.includes(fName) || o.includes(fCode) || d.includes(fName) || n.includes(fName);
+    });
+    return {
+      title: `Trains from ${fromStation.name} (${fromStation.code})`,
+      trains: matched.slice(0, 40)
+    };
+  }
+
+  // If toStation is selected
+  if (!fromStation && toStation) {
+    const tCode = toStation.code.toUpperCase();
+    const tName = toStation.name.toUpperCase().slice(0, 5);
+    const matched = catalog.filter(t => {
+      const o = (t.origin || "").toUpperCase();
+      const d = (t.destination || "").toUpperCase();
+      const n = (t.name || "").toUpperCase();
+      return d.includes(tName) || d.includes(tCode) || o.includes(tName) || n.includes(tName);
+    });
+    return {
+      title: `Trains to ${toStation.name} (${toStation.code})`,
+      trains: matched.slice(0, 40)
+    };
+  }
+
+  // If typing query in station input
+  const activeQ = (fromQuery || toQuery || "").trim().toLowerCase();
+  if (activeQ.length >= 2) {
+    const matched = catalog.filter(t => {
+      return (t.number && t.number.toLowerCase().includes(activeQ)) ||
+             (t.name && t.name.toLowerCase().includes(activeQ)) ||
+             (t.origin && t.origin.toLowerCase().includes(activeQ)) ||
+             (t.destination && t.destination.toLowerCase().includes(activeQ)) ||
+             (t.type && t.type.toLowerCase().includes(activeQ));
+    });
+    return {
+      title: `Matching Indian Trains for "${activeQ}"`,
+      trains: matched.slice(0, 40)
+    };
+  }
+
+  // Default: prominent Pan-India Trains
+  const prominent = [
+    { number: "12404", name: "Prayagraj SF Express", origin: "Lalgarh Jn", destination: "Prayagraj Jn", type: "Superfast Express", departureTime: "10:30", arrivalTime: "04:45", durationMinutes: 1095, runningDays: "YYYYYYY", platform: "2" },
+    { number: "22436", name: "Vande Bharat Express", origin: "New Delhi", destination: "Varanasi Jn", type: "Vande Bharat", departureTime: "06:00", arrivalTime: "14:00", durationMinutes: 480, runningDays: "YNYYYYY", platform: "1" },
+    { number: "12301", name: "Howrah Rajdhani Express", origin: "Howrah Jn", destination: "New Delhi", type: "Rajdhani", departureTime: "16:50", arrivalTime: "10:05", durationMinutes: 1035, runningDays: "YYYYYYN", platform: "9" },
+    { number: "12952", name: "Tejas Rajdhani Express", origin: "New Delhi", destination: "Mumbai Central", type: "Tejas Rajdhani", departureTime: "16:55", arrivalTime: "08:35", durationMinutes: 940, runningDays: "YYYYYYY", platform: "3" },
+    { number: "12002", name: "Bhopal Shatabdi Express", origin: "New Delhi", destination: "Rani Kamalapati", type: "Shatabdi", departureTime: "06:00", arrivalTime: "14:40", durationMinutes: 520, runningDays: "YYYYYYY", platform: "1" },
+    { number: "20490", name: "Barmer SF Express", origin: "Mathura Jn", destination: "Barmer", type: "Superfast Express", departureTime: "15:45", arrivalTime: "06:30", durationMinutes: 885, runningDays: "YYYYYYY", platform: "1" },
+    { number: "12259", name: "Sealdah Bikaner AC Duronto", origin: "Sealdah", destination: "Bikaner Jn", type: "Duronto", departureTime: "17:00", arrivalTime: "18:20", durationMinutes: 1520, runningDays: "YYYYYYY", platform: "12" },
+    { number: "51974", name: "Jaipur - Mathura Passenger", origin: "Jaipur Jn", destination: "Mathura Jn", type: "Passenger/Local", departureTime: "14:30", arrivalTime: "20:45", durationMinutes: 375, runningDays: "YYYYYYY", platform: "4" }
+  ];
+
+  const topCatalog = (catalog || []).slice(0, 25).map(t => ({
+    number: t.number,
+    name: t.name,
+    origin: t.origin,
+    destination: t.destination,
+    type: t.type || "Express",
+    departureTime: "—",
+    arrivalTime: "—",
+    runningDays: "YYYYYYY"
+  }));
+
+  return {
+    title: `Pan-India Trains & Routes`,
+    trains: [...prominent, ...topCatalog]
+  };
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -165,7 +255,7 @@ export function renderRouteSearch() {
   return `
     <section class="rs-section" id="routeSearchSection" aria-label="Search trains by route">
 
-      <!-- Header Banner (Where is My Train style) -->
+      <!-- Route Search Card on Top -->
       <div class="rs-hero-card">
         <div class="rs-hero-title">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -267,18 +357,18 @@ export function renderRouteSearch() {
             aria-busy="${isSearching}"
           >
             ${isSearching
-      ? `<span class="rs-spinner" aria-hidden="true"></span> Searching all trains…`
-      : `
+              ? `<span class="rs-spinner" aria-hidden="true"></span> Searching all trains…`
+              : `
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
                 </svg>
                 Find trains
               `
-    }
+            }
           </button>
         </div>
 
-        <!-- Autocomplete dropdown slots — updated surgically without re-rendering inputs -->
+        <!-- Autocomplete dropdown slots -->
         <div id="rsFromDropdownSlot">${fromDropOpen && fromSuggestions.length > 0 ? `
           <div class="rs-dropdown" id="rsFromDropdown" role="listbox" aria-label="Departure station suggestions">
             ${fromSuggestions.map(s => `
@@ -302,16 +392,16 @@ export function renderRouteSearch() {
         ` : ""}</div>
       </div>
 
-      <!-- Results section -->
-      ${renderRouteResults()}
+      <!-- Dynamic Live Train Results Container -->
+      <div id="rsResultsContainer">
+        ${renderRouteResultsContent()}
+      </div>
 
     </section>
   `;
 }
 
-function renderRouteResults() {
-  if (!fromStation || !toStation) return "";
-
+function renderRouteResultsContent() {
   if (isSearching) {
     return `
       <div class="rs-results-loading" aria-live="polite" aria-busy="true">
@@ -322,35 +412,57 @@ function renderRouteResults() {
     `;
   }
 
-  if (routeResults.length === 0) {
-    return `
-      <div class="rs-empty" role="status">
-        <div class="rs-empty-icon" aria-hidden="true">🚂</div>
-        <p class="rs-empty-title">No direct trains found</p>
-        <p class="rs-empty-sub">No trains currently listed directly between <strong>${fromStation.name} (${fromStation.code})</strong> and <strong>${toStation.name} (${toStation.code})</strong>.<br>Try nearby major junction stations.</p>
-      </div>
-    `;
-  }
+  const { title, trains } = getTrainsToDisplay();
 
-  // Apply day filter
-  let filtered = routeResults;
+  // Filter by running day
+  let filtered = trains;
   let targetDayIdx = null;
-
   if (dayFilter === "today") targetDayIdx = TODAY_IDX;
   else if (dayFilter === "tomorrow") targetDayIdx = TOMORROW_IDX;
   else if (dayFilter !== "all") targetDayIdx = parseInt(dayFilter, 10);
 
   if (targetDayIdx !== null) {
-    filtered = routeResults.filter(t => {
+    filtered = filtered.filter(t => {
       const days = parseDays(t.runningDays || t.days);
       return days[targetDayIdx];
     });
   }
 
-  return `
-    <div class="rs-results" role="list" aria-label="Trains from ${fromStation.name} to ${toStation.name}">
+  // Filter by live filter string (matches any alphabet, word, number)
+  if (liveFilterQuery.trim()) {
+    const q = liveFilterQuery.trim().toLowerCase();
+    filtered = filtered.filter(t => {
+      return (t.number && t.number.toLowerCase().includes(q)) ||
+             (t.name && t.name.toLowerCase().includes(q)) ||
+             (t.origin && t.origin.toLowerCase().includes(q)) ||
+             (t.destination && t.destination.toLowerCase().includes(q)) ||
+             (t.type && t.type.toLowerCase().includes(q));
+    });
+  }
 
-      <!-- Filter bar (matches Where is My Train top bar) -->
+  return `
+    <div class="rs-results" role="list" aria-label="Matching trains">
+
+      <!-- Live Search & Filter Bar (Type any word, string, alphabet) -->
+      <div class="rs-live-filter-box">
+        <div class="rs-filter-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input
+            type="text"
+            id="rsLiveFilterInput"
+            class="rs-live-filter-input"
+            placeholder="Search by train no., name, or any route word..."
+            value="${liveFilterQuery}"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          ${liveFilterQuery ? `<button id="rsClearLiveFilter" class="rs-filter-clear-btn" title="Clear search">✕</button>` : ""}
+        </div>
+      </div>
+
+      <!-- Filter bar: Day Filter and Count -->
       <div class="rs-filter-bar">
         <div class="rs-filter-left">
           <label for="rsDayFilter" class="rs-filter-label">Filter by:</label>
@@ -368,102 +480,124 @@ function renderRouteResults() {
         </div>
 
         <div class="rs-filter-count">
-          Showing <strong>${filtered.length}</strong> of ${routeResults.length} trains
+          Showing <strong>${filtered.length}</strong> trains
         </div>
       </div>
 
       <!-- Route Header card -->
-      <div class="rs-route-summary-card">
-        <div class="rs-summary-stn">
-          <div class="rs-summary-code">${fromStation.code}</div>
-          <div class="rs-summary-name">${fromStation.name}</div>
+      ${fromStation && toStation ? `
+        <div class="rs-route-summary-card">
+          <div class="rs-summary-stn">
+            <div class="rs-summary-code">${fromStation.code}</div>
+            <div class="rs-summary-name">${fromStation.name}</div>
+          </div>
+          <div class="rs-summary-divider">
+            <div class="rs-summary-line"></div>
+            <div class="rs-summary-dot"></div>
+          </div>
+          <div class="rs-summary-stn rs-summary-stn--right">
+            <div class="rs-summary-code">${toStation.code}</div>
+            <div class="rs-summary-name">${toStation.name}</div>
+          </div>
         </div>
-        <div class="rs-summary-divider">
-          <div class="rs-summary-line"></div>
-          <div class="rs-summary-dot"></div>
+      ` : `
+        <div style="font-size:13px;font-weight:700;color:var(--color-text-secondary);margin:8px 4px 12px;display:flex;align-items:center;gap:6px;">
+          <span>🚆</span>
+          <span>${title}</span>
         </div>
-        <div class="rs-summary-stn rs-summary-stn--right">
-          <div class="rs-summary-code">${toStation.code}</div>
-          <div class="rs-summary-name">${toStation.name}</div>
-        </div>
-      </div>
+      `}
 
       <!-- Trains list -->
-      ${filtered.length === 0 ? `
-        <div class="rs-no-filter-match">
-          <p>No trains running on selected day.</p>
-          <button class="rs-reset-filter-btn" id="rsResetFilter">Show all ${routeResults.length} trains</button>
-        </div>
-      ` : filtered.map(t => {
-    const days = parseDays(t.runningDays || t.days);
-    const runsToday = days[TODAY_IDX];
-    const depTime = fmtTime(t.departureTime || t.dep || t.departure);
-    const arrTime = fmtTime(t.arrivalTime || t.arr || t.arrival);
-    const duration = t.durationMinutes || t.duration;
-
-    return `
-          <div class="rs-result-card ${runsToday ? "" : "rs-result-card--not-today"}"
-               data-train-id="${t.trainId || t.number}"
-               role="listitem">
-
-            <!-- Train number & title -->
-            <div class="rs-result-top">
-              <div class="rs-result-identity">
-                <span class="rs-result-num">${t.number}</span>
-                <span class="rs-result-name">${t.name}</span>
-              </div>
-              ${runsToday
-        ? `<span class="rs-runs-badge rs-runs-badge--today">Runs today</span>`
-        : `<span class="rs-runs-badge rs-runs-badge--not-today">Not running today</span>`
-      }
-            </div>
-
-            <!-- Timings row -->
-            <div class="rs-result-timing">
-              <div class="rs-time-block">
-                <span class="rs-time">${depTime}</span>
-                <span class="rs-time-stn-label">${fromStation.code}</span>
-              </div>
-
-              <div class="rs-duration-line">
-                ${duration ? `<span class="rs-duration-label">${fmtDuration(duration)}</span>` : ""}
-                <div class="rs-duration-track">
-                  <div class="rs-duration-dot rs-duration-dot--start"></div>
-                  <div class="rs-duration-bar"></div>
-                  <div class="rs-duration-dot rs-duration-dot--end"></div>
-                </div>
-              </div>
-
-              <div class="rs-time-block rs-time-block--right">
-                <span class="rs-time">${arrTime}</span>
-                <span class="rs-time-stn-label">${toStation.code}</span>
-              </div>
-            </div>
-
-            <!-- Week Calendar Routine (S M T W T F S) -->
-            <div class="rs-calendar-wrap">
-              <div class="rs-calendar-label">Weekly Schedule:</div>
-              ${renderDaysBadges(days)}
-            </div>
-
-            <!-- Action footer -->
-            <div class="rs-result-footer">
-              ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${t.type}</span>` : ""}
-              ${t.platform && t.platform !== "—"
-                ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>PF ${t.platform}</span></span>`
-                : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>PF</span><span>TBA</span></span>`
-              }
-              <button class="rs-track-btn" data-train-id="${t.trainId || t.number}" aria-label="Track live train ${t.number}">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-                Track Live
-              </button>
-            </div>
-
+      <div id="rsTrainCardsList">
+        ${filtered.length === 0 ? `
+          <div class="rs-empty" role="status" style="padding:28px 16px;">
+            <div class="rs-empty-icon" aria-hidden="true">🔍</div>
+            <p class="rs-empty-title">No trains matching "${liveFilterQuery || fromQuery || toQuery}"</p>
+            <p class="rs-empty-sub">Try searching by any train number (e.g. 12404, 22436), train name (Rajdhani, Vande Bharat), or station name.</p>
+            ${liveFilterQuery ? `<button class="rs-reset-filter-btn" id="rsResetLiveFilterBtn">Clear Search</button>` : ""}
           </div>
-        `;
-  }).join("")}
+        ` : filtered.map(t => {
+          const days = parseDays(t.runningDays || t.days);
+          const runsToday = days[TODAY_IDX];
+          const depTime = fmtTime(t.departureTime || t.dep || t.departure);
+          const arrTime = fmtTime(t.arrivalTime || t.arr || t.arrival);
+          const duration = t.durationMinutes || t.duration;
+          const originText = t.origin || (fromStation ? fromStation.name : "Origin");
+          const destText = t.destination || (toStation ? toStation.name : "Destination");
+
+          return `
+            <div class="rs-result-card ${runsToday ? "" : "rs-result-card--not-today"}"
+                 data-train-id="${t.trainId || t.number}"
+                 role="listitem">
+
+              <!-- Train number & title -->
+              <div class="rs-result-top">
+                <div class="rs-result-identity">
+                  <span class="rs-result-num">${t.number}</span>
+                  <span class="rs-result-name">${t.name}</span>
+                </div>
+                ${runsToday
+                  ? `<span class="rs-runs-badge rs-runs-badge--today">Runs today</span>`
+                  : `<span class="rs-runs-badge rs-runs-badge--not-today">Not running today</span>`
+                }
+              </div>
+
+              <!-- Route Endpoints -->
+              <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <span style="font-weight:600;color:var(--color-text-secondary);">${originText}</span>
+                <span>→</span>
+                <span style="font-weight:600;color:var(--color-text-secondary);">${destText}</span>
+              </div>
+
+              <!-- Timings row (if available) -->
+              ${depTime !== "—" || arrTime !== "—" ? `
+                <div class="rs-result-timing">
+                  <div class="rs-time-block">
+                    <span class="rs-time">${depTime}</span>
+                    <span class="rs-time-stn-label">${fromStation ? fromStation.code : "DEP"}</span>
+                  </div>
+
+                  <div class="rs-duration-line">
+                    ${duration ? `<span class="rs-duration-label">${fmtDuration(duration)}</span>` : ""}
+                    <div class="rs-duration-track">
+                      <div class="rs-duration-dot rs-duration-dot--start"></div>
+                      <div class="rs-duration-bar"></div>
+                      <div class="rs-duration-dot rs-duration-dot--end"></div>
+                    </div>
+                  </div>
+
+                  <div class="rs-time-block rs-time-block--right">
+                    <span class="rs-time">${arrTime}</span>
+                    <span class="rs-time-stn-label">${toStation ? toStation.code : "ARR"}</span>
+                  </div>
+                </div>
+              ` : ""}
+
+              <!-- Week Calendar Routine (S M T W T F S) -->
+              <div class="rs-calendar-wrap">
+                <div class="rs-calendar-label">Weekly Schedule:</div>
+                ${renderDaysBadges(days)}
+              </div>
+
+              <!-- Action footer -->
+              <div class="rs-result-footer">
+                ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${t.type}</span>` : ""}
+                ${t.platform && t.platform !== "—"
+                  ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>PF ${t.platform}</span></span>`
+                  : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>PF</span><span>TBA</span></span>`
+                }
+                <button class="rs-track-btn" data-train-id="${t.trainId || t.number}" aria-label="Track live train ${t.number}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  Track Live
+                </button>
+              </div>
+
+            </div>
+          `;
+        }).join("")}
+      </div>
     </div>
   `;
 }
@@ -477,10 +611,13 @@ function rerenderSection() {
   attachRouteSearchEvents();
 }
 
-/**
- * Surgically updates ONLY the autocomplete dropdown HTML for "from" or "to"
- * without touching the input element — prevents focus/cursor loss while typing.
- */
+function updateResultsOnly() {
+  const container = document.getElementById("rsResultsContainer");
+  if (!container) return;
+  container.innerHTML = renderRouteResultsContent();
+  attachResultItemEvents();
+}
+
 function updateDropdownOnly(field) {
   if (field === "from") {
     const slot = document.getElementById("rsFromDropdownSlot");
@@ -499,7 +636,7 @@ function updateDropdownOnly(field) {
     const slot = document.getElementById("rsToDropdownSlot");
     if (!slot) return;
     slot.innerHTML = toDropOpen && toSuggestions.length > 0
-      ? `<div class="rs-dropdown" id="rsToDropdown" role="listbox" aria-label="Destination station suggestions">
+      ? `<div class="rs-dropdown rs-dropdown-to" id="rsToDropdown" role="listbox" aria-label="Destination station suggestions">
           ${toSuggestions.map(s => `
             <div class="rs-dropdown-item" data-code="${s.code}" data-name="${s.name}" data-field="to" role="option">
               <span class="rs-dropdown-code">${s.code}</span>
@@ -509,7 +646,6 @@ function updateDropdownOnly(field) {
         </div>`
       : "";
   }
-  // Re-attach dropdown item click events after slot update
   attachDropdownItemEvents();
 }
 
@@ -524,7 +660,7 @@ async function doSearch() {
 
   isSearching = true;
   routeResults = [];
-  rerenderSection();
+  updateResultsOnly();
 
   try {
     const results = await searchTrainsBetweenStations(fromStation.code, toStation.code);
@@ -534,110 +670,71 @@ async function doSearch() {
     routeResults = [];
   } finally {
     isSearching = false;
-    rerenderSection();
+    updateResultsOnly();
   }
 }
 
-export function attachRouteSearchEvents() {
-  // Swap button
-  document.getElementById("rsSwapBtn")?.addEventListener("click", () => {
-    [fromStation, toStation] = [toStation, fromStation];
-    [fromQuery, toQuery] = [toQuery, fromQuery];
-    fromDropOpen = false;
-    toDropOpen = false;
-    rerenderSection();
-    if (fromStation && toStation) doSearch();
-  });
-
-  // Clear buttons
-  document.getElementById("rsClearFrom")?.addEventListener("click", () => {
-    fromStation = null; fromQuery = ""; fromDropOpen = false;
-    rerenderSection();
-    document.getElementById("rsFromInput")?.focus();
-  });
-
-  document.getElementById("rsClearTo")?.addEventListener("click", () => {
-    toStation = null; toQuery = ""; toDropOpen = false;
-    rerenderSection();
-    document.getElementById("rsToInput")?.focus();
-  });
-
-  // Find trains button
-  document.getElementById("rsFindBtn")?.addEventListener("click", doSearch);
-
-  // Day filter select
-  document.getElementById("rsDayFilter")?.addEventListener("change", e => {
-    dayFilter = e.target.value;
-    rerenderSection();
-  });
-
-  document.getElementById("rsResetFilter")?.addEventListener("click", () => {
-    dayFilter = "all";
-    rerenderSection();
-  });
-
-  // From input — ONLY update dropdown slot, never rerenderSection while typing
-  const fromInput = document.getElementById("rsFromInput");
-  fromInput?.addEventListener("input", e => {
-    fromQuery = e.target.value;
-    fromStation = null;
-    clearTimeout(fromDebounce);
-    fromDebounce = setTimeout(async () => {
-      fromSuggestions = await getStationSuggestions(fromQuery);
-      fromDropOpen = fromSuggestions.length > 0;
-      updateDropdownOnly("from");
-    }, 200);
-  });
-
-  fromInput?.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      if (fromSuggestions.length > 0) {
-        const s = fromSuggestions[0];
-        fromStation = s;
-        fromQuery = s.name;
+function attachDropdownItemEvents() {
+  document.querySelectorAll(".rs-dropdown-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const code = item.getAttribute("data-code");
+      const name = item.getAttribute("data-name");
+      const field = item.getAttribute("data-field");
+      if (field === "from") {
+        fromStation = { code, name };
+        fromQuery = name;
         fromDropOpen = false;
         rerenderSection();
         document.getElementById("rsToInput")?.focus();
       } else {
-        document.getElementById("rsToInput")?.focus();
-      }
-    }
-    if (e.key === "Escape") { fromDropOpen = false; updateDropdownOnly("from"); }
-  });
-
-  // To input — ONLY update dropdown slot, never rerenderSection while typing
-  const toInput = document.getElementById("rsToInput");
-  toInput?.addEventListener("input", e => {
-    toQuery = e.target.value;
-    toStation = null;
-    clearTimeout(toDebounce);
-    toDebounce = setTimeout(async () => {
-      toSuggestions = await getStationSuggestions(toQuery);
-      toDropOpen = toSuggestions.length > 0;
-      updateDropdownOnly("to");
-    }, 200);
-  });
-
-  toInput?.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      if (toSuggestions.length > 0) {
-        const s = toSuggestions[0];
-        toStation = s;
-        toQuery = s.name;
+        toStation = { code, name };
+        toQuery = name;
         toDropOpen = false;
         rerenderSection();
-        document.getElementById("rsFindBtn")?.focus();
-      } else {
-        doSearch();
+        if (fromStation && toStation) {
+          doSearch();
+        } else {
+          document.getElementById("rsFindBtn")?.focus();
+        }
       }
-    }
-    if (e.key === "Escape") { toDropOpen = false; updateDropdownOnly("to"); }
+    });
+  });
+}
+
+function attachResultItemEvents() {
+  // Live filter input (matches any word, number, string)
+  const filterInput = document.getElementById("rsLiveFilterInput");
+  if (filterInput) {
+    filterInput.addEventListener("input", (e) => {
+      liveFilterQuery = e.target.value;
+      updateResultsOnly();
+      // Keep cursor focus in input
+      const refreshedInput = document.getElementById("rsLiveFilterInput");
+      if (refreshedInput) {
+        refreshedInput.focus();
+        const len = refreshedInput.value.length;
+        refreshedInput.setSelectionRange(len, len);
+      }
+    });
+  }
+
+  document.getElementById("rsClearLiveFilter")?.addEventListener("click", () => {
+    liveFilterQuery = "";
+    updateResultsOnly();
   });
 
-  // Attach dropdown item click events (called on initial attach and after slot update)
-  attachDropdownItemEvents();
+  document.getElementById("rsResetLiveFilterBtn")?.addEventListener("click", () => {
+    liveFilterQuery = "";
+    updateResultsOnly();
+  });
 
-  // Track buttons in results
+  // Day filter select
+  document.getElementById("rsDayFilter")?.addEventListener("change", e => {
+    dayFilter = e.target.value;
+    updateResultsOnly();
+  });
+
+  // Track Live button clicks
   document.querySelectorAll(".rs-track-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -660,6 +757,110 @@ export function attachRouteSearchEvents() {
       }
     });
   });
+}
+
+export function attachRouteSearchEvents() {
+  // Swap button
+  document.getElementById("rsSwapBtn")?.addEventListener("click", () => {
+    [fromStation, toStation] = [toStation, fromStation];
+    [fromQuery, toQuery] = [toQuery, fromQuery];
+    fromDropOpen = false;
+    toDropOpen = false;
+    rerenderSection();
+    if (fromStation && toStation) doSearch();
+  });
+
+  // Clear buttons
+  document.getElementById("rsClearFrom")?.addEventListener("click", () => {
+    fromStation = null;
+    fromQuery = "";
+    fromDropOpen = false;
+    rerenderSection();
+    document.getElementById("rsFromInput")?.focus();
+  });
+
+  document.getElementById("rsClearTo")?.addEventListener("click", () => {
+    toStation = null;
+    toQuery = "";
+    toDropOpen = false;
+    rerenderSection();
+    document.getElementById("rsToInput")?.focus();
+  });
+
+  // Find trains button
+  document.getElementById("rsFindBtn")?.addEventListener("click", doSearch);
+
+  // From input
+  const fromInput = document.getElementById("rsFromInput");
+  fromInput?.addEventListener("input", e => {
+    fromQuery = e.target.value;
+    fromStation = null;
+    clearTimeout(fromDebounce);
+    fromDebounce = setTimeout(async () => {
+      fromSuggestions = await getStationSuggestions(fromQuery);
+      fromDropOpen = fromSuggestions.length > 0;
+      updateDropdownOnly("from");
+      // Dynamically update matching trains below as you type!
+      updateResultsOnly();
+    }, 180);
+  });
+
+  fromInput?.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      if (fromSuggestions.length > 0) {
+        const s = fromSuggestions[0];
+        fromStation = s;
+        fromQuery = s.name;
+        fromDropOpen = false;
+        rerenderSection();
+        document.getElementById("rsToInput")?.focus();
+      } else {
+        document.getElementById("rsToInput")?.focus();
+      }
+    }
+    if (e.key === "Escape") { fromDropOpen = false; updateDropdownOnly("from"); }
+  });
+
+  // To input
+  const toInput = document.getElementById("rsToInput");
+  toInput?.addEventListener("input", e => {
+    toQuery = e.target.value;
+    toStation = null;
+    clearTimeout(toDebounce);
+    toDebounce = setTimeout(async () => {
+      toSuggestions = await getStationSuggestions(toQuery);
+      toDropOpen = toSuggestions.length > 0;
+      updateDropdownOnly("to");
+      // Dynamically update matching trains below as you type!
+      updateResultsOnly();
+    }, 180);
+  });
+
+  toInput?.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      if (toSuggestions.length > 0) {
+        const s = toSuggestions[0];
+        toStation = s;
+        toQuery = s.name;
+        toDropOpen = false;
+        rerenderSection();
+        if (fromStation && toStation) {
+          doSearch();
+        } else {
+          document.getElementById("rsFindBtn")?.focus();
+        }
+      } else {
+        doSearch();
+      }
+    }
+    if (e.key === "Escape") { toDropOpen = false; updateDropdownOnly("to"); }
+  });
+
+  // Dropdown item events
+  attachDropdownItemEvents();
+
+  // Result item events
+  attachResultItemEvents();
 
   // Close dropdowns on outside click
   document.addEventListener("click", e => {
@@ -675,31 +876,5 @@ export function attachRouteSearchEvents() {
       toDropOpen = false;
       updateDropdownOnly("to");
     }
-  }, { capture: true, once: true });
-}
-
-/** Attach click events to dropdown items — called after surgical slot update */
-function attachDropdownItemEvents() {
-  document.querySelectorAll(".rs-dropdown-item").forEach(item => {
-    item.addEventListener("click", () => {
-      const code = item.getAttribute("data-code");
-      const name = item.getAttribute("data-name");
-      const field = item.getAttribute("data-field");
-      if (field === "from") {
-        fromStation = { code, name };
-        fromQuery = name;
-        fromDropOpen = false;
-        rerenderSection();
-        document.getElementById("rsToInput")?.focus();
-      } else {
-        toStation = { code, name };
-        toQuery = name;
-        toDropOpen = false;
-        rerenderSection();
-        doSearch();
-      }
-    });
   });
 }
-
-export { renderDaysBadges, parseDays };
