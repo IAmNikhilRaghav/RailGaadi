@@ -251,56 +251,67 @@ function renderApp(changedKeys = []) {
 function fullRender() {
   const root = document.getElementById("root");
   if (!root) return;
-  const state = store.getState();
+  try {
+    const state = store.getState();
 
-  root.innerHTML = `
-    <div class="app-container" data-map-style="${state.mapStyle}">
-      ${renderHeader()}
+    root.innerHTML = `
+      <div class="app-container" data-map-style="${state.mapStyle}">
+        ${renderHeader()}
 
-      <main class="main-content">
-        <div id="searchSectionRoot">${renderSearchSection()}</div>
+        <main class="main-content">
+          <div id="searchSectionRoot">${renderSearchSection()}</div>
 
-        <!-- Desktop Segmented Tab Navigation (hidden on mobile via CSS) -->
-        <div class="view-tabs-container">
-          <nav class="segmented-control" role="tablist" aria-label="View Mode">
-            ${TABS.map((tab) => `
-              <button class="segmented-btn ${state.activeTab === tab.id ? "active" : ""}"
-                data-tab="${tab.id}" role="tab"
-                aria-selected="${state.activeTab === tab.id}"
-                id="tab-${tab.id}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${tab.icon}</svg>
-                <span>${tab.label}</span>
-              </button>
-            `).join("")}
-          </nav>
+          <!-- Desktop Segmented Tab Navigation (hidden on mobile via CSS) -->
+          <div class="view-tabs-container">
+            <nav class="segmented-control" role="tablist" aria-label="View Mode">
+              ${TABS.map((tab) => `
+                <button class="segmented-btn ${state.activeTab === tab.id ? "active" : ""}"
+                  data-tab="${tab.id}" role="tab"
+                  aria-selected="${state.activeTab === tab.id}"
+                  id="tab-${tab.id}">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${tab.icon}</svg>
+                  <span>${tab.label}</span>
+                </button>
+              `).join("")}
+            </nav>
+          </div>
+
+          <!-- View Content Router -->
+          <div id="viewContainer"></div>
+        </main>
+
+        <!-- Mobile Bottom Navigation (shown on mobile via CSS) -->
+        ${renderBottomNav()}
+
+        <!-- Toast -->
+        <div class="toast-container" id="toastContainer">
+          ${state.toast ? `<div class="toast" role="alert"><span>${state.toast}</span></div>` : ""}
         </div>
 
-        <!-- View Content Router -->
-        <div id="viewContainer"></div>
-      </main>
+        <!-- Share Modal -->
+        <div id="shareModalRoot">${renderShareModal()}</div>
 
-      <!-- Mobile Bottom Navigation (shown on mobile via CSS) -->
-      ${renderBottomNav()}
-
-      <!-- Toast -->
-      <div class="toast-container" id="toastContainer">
-        ${state.toast ? `<div class="toast" role="alert"><span>${state.toast}</span></div>` : ""}
+        <!-- Favourites Drawer -->
+        <div id="favDrawerRoot">${renderFavDrawer()}</div>
       </div>
+    `;
 
-      <!-- Share Modal -->
-      <div id="shareModalRoot">${renderShareModal()}</div>
-
-      <!-- Favourites Drawer -->
-      <div id="favDrawerRoot">${renderFavDrawer()}</div>
-    </div>
-  `;
-
-  renderViewContainer();
-  attachHeaderEvents();
-  attachSearchEvents();
-  attachShareModalEvents();
-  attachFavDrawerEvents();
-  attachTabAndViewEvents();
+    renderViewContainer();
+    attachHeaderEvents();
+    attachSearchEvents();
+    attachShareModalEvents();
+    attachFavDrawerEvents();
+    attachTabAndViewEvents();
+  } catch (err) {
+    console.error("[RailGaadi] Boot render error:", err);
+    root.innerHTML = `
+      <div style="padding:24px;background:#0f172a;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+        <h2 style="color:#ef4444;margin-bottom:12px;">Render Warning</h2>
+        <p style="color:#94a3b8;margin-bottom:16px;">${err?.message || "Error rendering application"}</p>
+        <button onclick="location.reload()" style="background:#2563eb;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;">Reload App</button>
+      </div>
+    `;
+  }
 }
 
 function renderViewContainer() {

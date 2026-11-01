@@ -7,13 +7,15 @@ import { store } from "../state/store.js";
 
 class NotificationService {
   constructor() {
-    this.permission = Notification?.permission || "default";
+    this.permission = typeof window !== "undefined" && typeof window.Notification !== "undefined"
+      ? window.Notification.permission
+      : "default";
     this.lastNotifiedDelay = null;
     this.lastNotifiedStation = null;
   }
 
   get isSupported() {
-    return typeof Notification !== "undefined";
+    return typeof window !== "undefined" && typeof window.Notification !== "undefined";
   }
 
   async requestPermission() {
@@ -57,9 +59,9 @@ class NotificationService {
   }
 
   send(title, options = {}) {
-    if (!this.isSupported || Notification.permission !== "granted") return;
+    if (!this.isSupported || typeof window.Notification === "undefined" || window.Notification.permission !== "granted") return;
     try {
-      new Notification(title, {
+      new window.Notification(title, {
         icon: "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop",
         badge: "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop",
         ...options
