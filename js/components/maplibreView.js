@@ -268,9 +268,23 @@ export function initOrUpdateMap() {
         style: mapStyle,
         center,
         zoom: 5.6,
-        pitch: 20,
-        attributionControl: false
+        pitch: 0,
+        attributionControl: false,
+        pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        fadeDuration: 100,
+        touchZoomRotate: true,
+        dragRotate: false,
+        touchPitch: false,
+        cooperativeGestures: false,
+        renderWorldCopies: false,
+        maxTileCacheSize: 80
       });
+
+      // Disable touch rotation on mobile for pure 60fps pinch-to-zoom like Google Maps
+      if (mapInstance.touchZoomRotate) {
+        mapInstance.touchZoomRotate.disableRotation();
+      }
+
       mapInstance.on("dragstart", () => { isUserInteracting = true; store.setFollowTrain(false); showRecenterBtn(true); });
       mapInstance.on("load", () => {
         if (route) drawFullRoute(route, pos);
@@ -586,11 +600,98 @@ export function attachMapEvents() {
   const fsBtn = document.getElementById("mapFullscreenBtn");
   if (fsBtn) {
     fsBtn.addEventListener("click", () => {
-      const wrapper = document.querySelector(".map-wrapper");
-      if (!document.fullscreenElement) wrapper?.requestFullscreen().catch(() => {});
-      else document.exitFullscreen().catch(() => {});
+      toggleMapFullscreen();
     });
   }
+}
+
+export function toggleMapFullscreen() {
+  const wrapper = document.querySelector(".map-wrapper");
+  const fsBtn   = document.getElementById("mapFullscreenBtn");
+  if (!wrapper) return;
+
+  const isFs = wrapper.classList.contains("map-wrapper--fullscreen") || !!document.fullscreenElement;
+
+  if (isFs) {
+    // Exit fullscreen
+    wrapper.classList.remove("map-wrapper--fullscreen");
+    document.body.classList.remove("map-fullscreen-active");
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    if (fsBtn) {
+      fsBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+      `;
+      fsBtn.title = "Toggle Fullscreen";
+      fsBtn.classList.remove("active");
+    }
+  } else {
+    // Enter fullscreen: use CSS class first (100% reliable on iOS Safari), and try native fullscreen on desktop
+    wrapper.classList.add("map-wrapper--fullscreen");
+    document.body.classList.add("map-fullscreen-active");
+
+    const canNative = typeof wrapper.requestFullscreen === "function" && !/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (canNative) {
+      wrapper.requestFullscreen().catch(() => {});
+    }
+
+    if (fsBtn) {
+      fsBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 14h6v6m10-10h-6V4m0 6 7-7M3 21l7-7"/>
+        </svg>
+      `;
+      fsBtn.title = "Exit Fullscreen";
+      fsBtn.classList.add("active");
+    }
+    store.showToast("Map Fullscreen active 🗺️ — tap to minimize");
+  }
+
+  // Force map canvas to resize immediately to match new full-screen dimensions
+  setTimeout(() => {
+    if (mapInstance) {
+      try { mapInstance.resize(); } catch (e) {}
+    }
+  }, 60);
+  setTimeout(() => {
+    if (mapInstance) {
+      try { mapInstance.resize(); } catch (e) {}
+    }
+  }, 220);
+}
+
+// Global listener for native fullscreen change & escape key
+if (!window._mapFullscreenListenersAdded) {
+  window._mapFullscreenListenersAdded = true;
+  document.addEventListener("fullscreenchange", () => {
+    const wrapper = document.querySelector(".map-wrapper");
+    const fsBtn   = document.getElementById("mapFullscreenBtn");
+    if (!document.fullscreenElement && wrapper?.classList.contains("map-wrapper--fullscreen")) {
+      wrapper.classList.remove("map-wrapper--fullscreen");
+      document.body.classList.remove("map-fullscreen-active");
+      if (fsBtn) {
+        fsBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        `;
+        fsBtn.classList.remove("active");
+      }
+      setTimeout(() => mapInstance?.resize(), 60);
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const wrapper = document.querySelector(".map-wrapper");
+      if (wrapper?.classList.contains("map-wrapper--fullscreen")) {
+        toggleMapFullscreen();
+      }
+    }
+  });
 }
 
 function showRecenterBtn(show) {

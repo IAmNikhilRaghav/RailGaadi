@@ -313,4 +313,61 @@
   100% { transform: scale(2.4); opacity: 0; }
 }
 
+/* ── 60fps Mobile Touch & Gesture Optimizations ──────────── */
+.map-container,
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
+}
+
+.map-wrapper {
+  overscroll-behavior: contain;
+}
+
+/* ── Cross-Platform Fullscreen Mode (works on iOS Safari & Android) ── */
+.map-wrapper.map-wrapper--fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 100dvh !important;
+  z-index: 99999 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-controls-floating {
+  top: calc(env(safe-area-inset-top, 16px) + 16px) !important;
+  right: calc(env(safe-area-inset-right, 16px) + 16px) !important;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-floating-status {
+  top: calc(env(safe-area-inset-top, 16px) + 16px) !important;
+  left: calc(env(safe-area-inset-left, 16px) + 16px) !important;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-recenter-btn {
+  bottom: calc(env(safe-area-inset-bottom, 20px) + 24px) !important;
+}
+
+body.map-fullscreen-active {
+  overflow: hidden !important;
+}
+
+body.map-fullscreen-active .bottom-nav {
+  display: none !important;
+}
+
+
 

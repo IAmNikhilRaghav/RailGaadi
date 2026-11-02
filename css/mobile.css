@@ -271,11 +271,17 @@ html, body {
    ────────────────────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
-  .map-wrapper {
+  .map-wrapper:not(.map-wrapper--fullscreen) {
     height: 55dvh; /* Use dynamic viewport height to handle mobile browser chrome */
     min-height: 300px;
     max-height: 480px;
     border-radius: var(--radius-lg);
+  }
+
+  .map-container,
+  .maplibregl-canvas-container,
+  .maplibregl-canvas {
+    touch-action: none !important;
   }
 
   /* Bigger tap targets for map controls */
