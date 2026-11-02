@@ -106,37 +106,37 @@
   pointer-events: none !important;
 }
 
-/* Fullscreen Top-Right Peek / Tools Initializer */
+/* Fullscreen Top-Right Peek / Tools Initializer (compact modern button) */
 .map-edge-peek-tab {
   display: none;
   position: absolute;
   top: var(--space-4);
   right: var(--space-4);
   z-index: 100;
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   background: rgba(15, 23, 42, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
   cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
   opacity: 0;
   pointer-events: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transform: scale(0.85);
+  transform: scale(0.9);
 }
 
 .map-wrapper.map-wrapper--fullscreen .map-edge-peek-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  top: calc(env(safe-area-inset-top, 16px) + 16px) !important;
-  right: calc(env(safe-area-inset-right, 16px) + 16px) !important;
+  top: calc(env(safe-area-inset-top, 16px) + 14px) !important;
+  right: calc(env(safe-area-inset-right, 16px) + 14px) !important;
 }
 
 .map-wrapper.map-wrapper--fullscreen .map-edge-peek-tab.visible {
@@ -486,8 +486,13 @@
 }
 
 .map-wrapper.map-wrapper--fullscreen .map-controls-floating {
-  top: calc(env(safe-area-inset-top, 16px) + 16px) !important;
-  right: calc(env(safe-area-inset-right, 16px) + 16px) !important;
+  top: calc(env(safe-area-inset-top, 16px) + 14px) !important;
+  right: calc(env(safe-area-inset-right, 16px) + 14px) !important;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-edge-peek-tab {
+  top: calc(env(safe-area-inset-top, 16px) + 14px) !important;
+  right: calc(env(safe-area-inset-right, 16px) + 14px) !important;
 }
 
 .map-wrapper.map-wrapper--fullscreen .map-floating-status {

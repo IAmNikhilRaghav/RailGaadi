@@ -237,7 +237,7 @@ export function renderMapSection() {
 
       <!-- Fullscreen Top-Right Tools Initializer -->
       <button class="map-edge-peek-tab" id="mapEdgePeekTab" title="Show map tools" aria-label="Show map tools">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m15 18-6-6 6-6"/>
         </svg>
       </button>
@@ -848,21 +848,28 @@ export function locateUserOnMap() {
 let recenterInactivityTimer = null;
 let fullscreenHideTimer     = null;
 
-function scheduleFullscreenToolbarHide(delay = 1800) {
+function hideFullscreenToolbar() {
+  if (fullscreenHideTimer) {
+    clearTimeout(fullscreenHideTimer);
+    fullscreenHideTimer = null;
+  }
+  const controls = document.getElementById("mapControlsFloating");
+  const peekTab  = document.getElementById("mapEdgePeekTab");
+  if (controls) controls.classList.add("toolbar-hidden");
+  peekTab?.classList.add("visible");
+}
+
+function scheduleFullscreenToolbarHide(delay = 3500) {
   if (fullscreenHideTimer) clearTimeout(fullscreenHideTimer);
   const wrapper = document.querySelector(".map-wrapper");
   if (!wrapper?.classList.contains("map-wrapper--fullscreen")) return;
   fullscreenHideTimer = setTimeout(() => {
-    const controls = document.getElementById("mapControlsFloating");
-    const peekTab  = document.getElementById("mapEdgePeekTab");
-    if (controls && wrapper.classList.contains("map-wrapper--fullscreen")) {
-      controls.classList.add("toolbar-hidden");
-      peekTab?.classList.add("visible");
-    }
+    hideFullscreenToolbar();
   }, delay);
 }
 
-function showFullscreenToolbar(autoHideDelay = 2200) {
+function showFullscreenToolbar(autoHideDelay = 4000) {
+  if (fullscreenHideTimer) clearTimeout(fullscreenHideTimer);
   const controls = document.getElementById("mapControlsFloating");
   const peekTab  = document.getElementById("mapEdgePeekTab");
   if (controls) {
@@ -956,25 +963,17 @@ export function attachMapEvents() {
     }, { passive: true });
   }
 
-  // Touch anywhere on right edge in fullscreen to instantly pop up tools
+  // NOTE: Map canvas touches/clicks do NOT open the toolbar.
+  // The toolbar is ONLY opened by intentionally tapping the black initializer (#mapEdgePeekTab).
+  // Tapping the map canvas in fullscreen dismisses the toolbar back to the compact button.
   const mapWrapper = document.querySelector(".map-wrapper");
-  if (mapWrapper && !mapWrapper._hasEdgeTouchBound) {
+  if (mapCanvas && mapWrapper && !mapWrapper._hasEdgeTouchBound) {
     mapWrapper._hasEdgeTouchBound = true;
-    const handleEdgeTouch = (e) => {
-      if (!mapWrapper.classList.contains("map-wrapper--fullscreen")) return;
-      const touch = e.touches?.[0] || e;
-      const clientX = touch.clientX;
-      const screenW = window.innerWidth;
-      // If user touches within 90px of right screen edge
-      if (clientX >= screenW - 90) {
-        showFullscreenToolbar(2800);
-      } else {
-        // Any map tap in fullscreen reveals toolbar briefly
-        showFullscreenToolbar(2200);
+    mapCanvas.addEventListener("click", () => {
+      if (mapWrapper.classList.contains("map-wrapper--fullscreen")) {
+        hideFullscreenToolbar();
       }
-    };
-    mapWrapper.addEventListener("touchstart", handleEdgeTouch, { passive: true });
-    mapWrapper.addEventListener("click", handleEdgeTouch);
+    });
   }
 
   // Keep toolbar visible while interacting with floating controls in fullscreen
@@ -1131,10 +1130,10 @@ export function toggleMapFullscreen() {
       fsBtn.classList.add("active");
     }
 
-    // Auto-hide toolbar after 1.8 seconds in fullscreen
-    showFullscreenToolbar(1800);
+    // Start fullscreen with a clean, hidden toolbar — user must tap the black initializer to open tools
+    hideFullscreenToolbar();
 
-    store.showToast("Map Fullscreen active 🗺️ — touch right edge for tools");
+    store.showToast("Map Fullscreen active 🗺️ — tap ◀ button for tools");
   }
 
   // Force map canvas to resize immediately to match new full-screen dimensions
