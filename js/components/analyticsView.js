@@ -127,13 +127,13 @@ export function renderAnalyticsSection() {
       <div class="card-panel wimt-accordion-card" id="journeyTimelineAccordion">
 
         <!-- Totally Clear Tagline Header -->
-        <div class="wimt-tagline-header">
+        <div class="wimt-tagline-header" onclick="window.toggleJourneyTimeline(event)" role="button" tabindex="0" title="Touch to toggle journey description">
           <h3 class="wimt-tagline-text">Full Journey Timeline &amp; Station Events</h3>
         </div>
 
         <!-- Fully Functional Dynamic Blue Summary Bar with all journey stats -->
         <div class="wimt-summary-bar-wrapper">
-          <button type="button" class="next-stn-interactive-btn ${isTimelineOpen ? "is-expanded" : ""}" id="nextStnSummaryBar" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody" title="Touch to view or collapse all station events">
+          <button type="button" class="next-stn-interactive-btn ${isTimelineOpen ? "is-expanded" : ""}" id="nextStnSummaryBar" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody" title="Touch to view or collapse all station events" onclick="window.toggleJourneyTimeline(event)">
             <div class="next-stn-bar-content">
               <!-- Primary Line: Next Station and remaining distance -->
               <div class="next-stn-primary-row">
@@ -187,11 +187,11 @@ export function renderAnalyticsSection() {
 
             <!-- View Switcher Tabs -->
             <div class="wimt-view-switcher" role="tablist" aria-label="Timeline View Format">
-              <button type="button" class="wimt-switch-btn ${timelineViewMode === "wimt" ? "active" : ""}" id="btnSwitchWimt" data-view="wimt">
+              <button type="button" class="wimt-switch-btn ${timelineViewMode === "wimt" ? "active" : ""}" id="btnSwitchWimt" data-view="wimt" onclick="window.setTimelineViewMode('wimt', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3"/></svg>
                 <span>Where Is My Train View</span>
               </button>
-              <button type="button" class="wimt-switch-btn ${timelineViewMode === "table" ? "active" : ""}" id="btnSwitchTable" data-view="table">
+              <button type="button" class="wimt-switch-btn ${timelineViewMode === "table" ? "active" : ""}" id="btnSwitchTable" data-view="table" onclick="window.setTimelineViewMode('table', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
                 <span>Detailed Table (No., ETA, PF, etc.)</span>
               </button>
@@ -494,57 +494,74 @@ export function renderAnalyticsSection() {
   `;
 }
 
-/* ── Interactive Event Handlers ───────────────────────────── */
+/* ── Interactive Event Handlers & Mobile Fast-Tap Logic ───────── */
+
+// Global window functions for 100% reliable inline execution on Android/iOS
+if (typeof window !== "undefined") {
+  window.toggleJourneyTimeline = function(e) {
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    isTimelineOpen = !isTimelineOpen;
+    const body       = document.getElementById("journeyTimelineBody");
+    const summaryBtn = document.getElementById("nextStnSummaryBar");
+
+    if (body) {
+      body.hidden = !isTimelineOpen;
+      body.style.display = isTimelineOpen ? "block" : "none";
+    }
+    if (summaryBtn) {
+      summaryBtn.classList.toggle("is-expanded", isTimelineOpen);
+      summaryBtn.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
+      const cta = summaryBtn.querySelector(".next-stn-cta-text");
+      if (cta) cta.textContent = isTimelineOpen ? "Hide Description" : "Tap to view full description";
+    }
+  };
+
+  window.setTimelineViewMode = function(mode, e) {
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    timelineViewMode = mode;
+    const btnWimt   = document.getElementById("btnSwitchWimt");
+    const btnTable  = document.getElementById("btnSwitchTable");
+    const viewWimt  = document.getElementById("wimtTimelineView");
+    const viewTable = document.getElementById("detailedTableView");
+
+    if (btnWimt)  btnWimt.classList.toggle("active", mode === "wimt");
+    if (btnTable) btnTable.classList.toggle("active", mode === "table");
+    if (viewWimt) viewWimt.style.display = mode === "wimt" ? "block" : "none";
+    if (viewTable) viewTable.style.display = mode === "table" ? "block" : "none";
+  };
+}
 
 export function attachAnalyticsEvents() {
-  const toggleBtn = document.getElementById("journeyTimelineToggle");
-  const body      = document.getElementById("journeyTimelineBody");
-  if (toggleBtn && body) {
-    toggleBtn.onclick = (e) => {
-      e.preventDefault();
-      isTimelineOpen = !isTimelineOpen;
-      toggleBtn.classList.toggle("is-open", isTimelineOpen);
-      toggleBtn.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
-      body.hidden = !isTimelineOpen;
-    };
+  const summaryBtn = document.getElementById("nextStnSummaryBar");
+  const taglineHdr = document.querySelector(".wimt-tagline-header");
+
+  if (summaryBtn) {
+    summaryBtn.onclick = (e) => window.toggleJourneyTimeline(e);
+  }
+  if (taglineHdr) {
+    taglineHdr.onclick = (e) => window.toggleJourneyTimeline(e);
   }
 
   const btnWimt  = document.getElementById("btnSwitchWimt");
   const btnTable = document.getElementById("btnSwitchTable");
-  const viewWimt = document.getElementById("wimtTimelineView");
-  const viewTable = document.getElementById("detailedTableView");
-
-  if (btnWimt && btnTable && viewWimt && viewTable) {
-    btnWimt.onclick = () => {
-      timelineViewMode = "wimt";
-      btnWimt.classList.add("active");
-      btnTable.classList.remove("active");
-      viewWimt.style.display = "block";
-      viewTable.style.display = "none";
-    };
-    btnTable.onclick = () => {
-      timelineViewMode = "table";
-      btnTable.classList.add("active");
-      btnWimt.classList.remove("active");
-      viewTable.style.display = "block";
-      viewWimt.style.display = "none";
-    };
-  }
+  if (btnWimt)  btnWimt.onclick  = (e) => window.setTimelineViewMode("wimt", e);
+  if (btnTable) btnTable.onclick = (e) => window.setTimelineViewMode("table", e);
 }
 
 // Global click delegation as fallback for dynamic re-renders
 if (typeof window !== "undefined" && !window._hasAnalyticsDelegation) {
   window._hasAnalyticsDelegation = true;
-  document.addEventListener("click", (e) => {
-    const toggle = e.target.closest("#journeyTimelineToggle");
-    if (toggle) {
-      const body = document.getElementById("journeyTimelineBody");
-      if (body) {
-        isTimelineOpen = !isTimelineOpen;
-        toggle.classList.toggle("is-open", isTimelineOpen);
-        toggle.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
-        body.hidden = !isTimelineOpen;
-      }
+
+  const handleGlobalAction = (e) => {
+    const trigger = e.target.closest("#nextStnSummaryBar, .next-stn-interactive-btn, .wimt-tagline-header, #journeyTimelineToggle");
+    if (trigger) {
+      window.toggleJourneyTimeline(e);
       return;
     }
 
@@ -552,22 +569,13 @@ if (typeof window !== "undefined" && !window._hasAnalyticsDelegation) {
     if (switchBtn) {
       const mode = switchBtn.getAttribute("data-view");
       if (mode) {
-        timelineViewMode = mode;
-        const btnWimt  = document.getElementById("btnSwitchWimt");
-        const btnTable = document.getElementById("btnSwitchTable");
-        const viewWimt = document.getElementById("wimtTimelineView");
-        const viewTable = document.getElementById("detailedTableView");
-        if (btnWimt && btnTable && viewWimt && viewTable) {
-          btnWimt.classList.toggle("active", mode === "wimt");
-          btnTable.classList.toggle("active", mode === "table");
-          viewWimt.style.display = mode === "wimt" ? "block" : "none";
-          viewTable.style.display = mode === "table" ? "block" : "none";
-        }
+        window.setTimelineViewMode(mode, e);
       }
     }
-  });
-}
+  };
 
+  document.addEventListener("click", handleGlobalAction);
+}
 
 /* ── elevation chart drawing ──────────────────────────────── */
 

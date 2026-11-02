@@ -234,8 +234,10 @@ function renderApp(changedKeys = []) {
     } else if (state.activeTab === "analytics") {
       const ar = document.getElementById("analyticsViewRoot");
       if (ar) {
+        const prevScrollY = window.scrollY;
         ar.innerHTML = renderAnalyticsSection();
         attachAnalyticsEvents();
+        if (prevScrollY > 0) window.scrollTo(0, prevScrollY);
         setTimeout(() => drawElevationChart(), 50);
       }
     } else if (state.activeTab === "companion") {
