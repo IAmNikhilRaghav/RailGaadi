@@ -152,9 +152,21 @@ export function renderMapSection() {
       </div>
 
       <!-- Floating Controls -->
-      <div class="map-controls-floating">
+      <div class="map-controls-floating" id="mapControlsFloating">
+        <!-- Three-dots toggle button for small screen view -->
+        <button class="map-control-btn map-more-tools-btn" id="mapMoreToolsBtn" title="More map tools (⋮)" aria-label="Toggle map tools">
+          <svg class="more-tools-icon-dots" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="5" r="2.2"/>
+            <circle cx="12" cy="12" r="2.2"/>
+            <circle cx="12" cy="19" r="2.2"/>
+          </svg>
+          <svg class="more-tools-icon-close" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+
         <!-- Google Maps-style Dynamic Compass (rotates with heading, tap resets North) -->
-        <button class="map-control-btn map-compass-btn" id="mapCompassBtn" title="Reset North (🧭)" aria-label="Reset orientation to North">
+        <button class="map-control-btn map-compass-btn map-collapsible-tool" id="mapCompassBtn" title="Reset North (🧭)" aria-label="Reset orientation to North">
           <svg class="compass-needle" id="compassNeedleSvg" width="22" height="22" viewBox="0 0 24 24" style="transition:transform 0.15s ease-out;display:block;">
             <polygon points="12 2, 7.5 12, 12 9.5" fill="#ef4444" stroke="#dc2626" stroke-width="0.5"/>
             <polygon points="12 2, 16.5 12, 12 9.5" fill="#f87171" stroke="#dc2626" stroke-width="0.5"/>
@@ -165,12 +177,12 @@ export function renderMapSection() {
         </button>
 
         <!-- 3D Perspective Viewpoint Toggle -->
-        <button class="map-control-btn" id="mapPitchBtn" title="Toggle 3D Viewpoint" aria-label="Toggle 3D perspective viewpoint">
+        <button class="map-control-btn map-collapsible-tool" id="mapPitchBtn" title="Toggle 3D Viewpoint" aria-label="Toggle 3D perspective viewpoint">
           <span class="pitch-mode-label" style="font-size:11px;font-weight:800;letter-spacing:-0.5px;">3D</span>
         </button>
 
         <!-- Rotate Anti-Clockwise -->
-        <button class="map-control-btn" id="mapRotateLeftBtn" title="Rotate Anti-Clockwise (⟲)" aria-label="Rotate Anti-Clockwise">
+        <button class="map-control-btn map-collapsible-tool" id="mapRotateLeftBtn" title="Rotate Anti-Clockwise (⟲)" aria-label="Rotate Anti-Clockwise">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
             <path d="M3 3v5h5"/>
@@ -178,24 +190,24 @@ export function renderMapSection() {
         </button>
 
         <!-- Rotate Clockwise -->
-        <button class="map-control-btn" id="mapRotateRightBtn" title="Rotate Clockwise (⟳)" aria-label="Rotate Clockwise">
+        <button class="map-control-btn map-collapsible-tool" id="mapRotateRightBtn" title="Rotate Clockwise (⟳)" aria-label="Rotate Clockwise">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
             <path d="M21 3v5h-5"/>
           </svg>
         </button>
 
-        <div class="map-controls-divider"></div>
+        <div class="map-controls-divider map-collapsible-tool"></div>
 
         <!-- User Location / GPS Button -->
-        <button class="map-control-btn" id="mapLocateUserBtn" title="My Current Location" aria-label="Find my location on map">
+        <button class="map-control-btn map-collapsible-tool" id="mapLocateUserBtn" title="My Current Location" aria-label="Find my location on map">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="4"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/>
           </svg>
         </button>
 
         <!-- Follow Train Camera Toggle -->
-        <button class="map-control-btn ${state.followTrain ? "active" : ""}" id="mapFollowToggleBtn" title="Follow Train Camera" aria-label="Toggle camera follow mode">
+        <button class="map-control-btn map-collapsible-tool ${state.followTrain ? "active" : ""}" id="mapFollowToggleBtn" title="Follow Train Camera" aria-label="Toggle camera follow mode">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/>
             <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
@@ -203,23 +215,31 @@ export function renderMapSection() {
           </svg>
         </button>
 
-        <button class="map-control-btn" id="mapZoomInBtn"  title="Zoom In"  aria-label="Zoom in">
+        <button class="map-control-btn map-collapsible-tool" id="mapZoomInBtn"  title="Zoom In"  aria-label="Zoom in">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
         </button>
 
-        <button class="map-control-btn" id="mapZoomOutBtn" title="Zoom Out" aria-label="Zoom out">
+        <button class="map-control-btn map-collapsible-tool" id="mapZoomOutBtn" title="Zoom Out" aria-label="Zoom out">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
         </button>
 
+        <!-- Fullscreen Button — always accessible -->
         <button class="map-control-btn" id="mapFullscreenBtn" title="Toggle Fullscreen" aria-label="Toggle fullscreen">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
           </svg>
         </button>
+      </div>
+
+      <!-- Fullscreen Right-Edge Peek Tab / Trigger -->
+      <div class="map-edge-peek-tab" id="mapEdgePeekTab" title="Show tools" aria-label="Show map tools">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
       </div>
 
       <!-- Recenter Button -->
@@ -410,7 +430,15 @@ export function initOrUpdateMap() {
 
       mapInstance.on("rotate", updateOrientationUI);
       mapInstance.on("pitch",  updateOrientationUI);
-      mapInstance.on("move",   updateOrientationUI);
+      mapInstance.on("move", (e) => {
+        updateOrientationUI();
+        if (e?.originalEvent) {
+          const state = store.getState();
+          if (!state.followTrain) {
+            showRecenterBtn(true);
+          }
+        }
+      });
 
       mapInstance.on("load", () => {
         if (route) drawFullRoute(route, pos);
@@ -815,6 +843,38 @@ export function locateUserOnMap() {
   );
 }
 
+/* ── Fullscreen Toolbar & Inactivity Timers ───────────────── */
+
+let recenterInactivityTimer = null;
+let fullscreenHideTimer     = null;
+
+function scheduleFullscreenToolbarHide(delay = 1800) {
+  if (fullscreenHideTimer) clearTimeout(fullscreenHideTimer);
+  const wrapper = document.querySelector(".map-wrapper");
+  if (!wrapper?.classList.contains("map-wrapper--fullscreen")) return;
+  fullscreenHideTimer = setTimeout(() => {
+    const controls = document.getElementById("mapControlsFloating");
+    const peekTab  = document.getElementById("mapEdgePeekTab");
+    if (controls && wrapper.classList.contains("map-wrapper--fullscreen")) {
+      controls.classList.add("toolbar-hidden");
+      peekTab?.classList.add("visible");
+    }
+  }, delay);
+}
+
+function showFullscreenToolbar(autoHideDelay = 2200) {
+  const controls = document.getElementById("mapControlsFloating");
+  const peekTab  = document.getElementById("mapEdgePeekTab");
+  if (controls) {
+    controls.classList.remove("toolbar-hidden");
+  }
+  peekTab?.classList.remove("visible");
+  const wrapper = document.querySelector(".map-wrapper");
+  if (wrapper?.classList.contains("map-wrapper--fullscreen")) {
+    scheduleFullscreenToolbarHide(autoHideDelay);
+  }
+}
+
 /* ── Events ───────────────────────────────────────────────── */
 
 export function attachMapEvents() {
@@ -849,6 +909,84 @@ export function attachMapEvents() {
       }
       showRecenterBtn(false);
     });
+  }
+
+  // Three-dots toggle button for small screen view
+  const moreToolsBtn = document.getElementById("mapMoreToolsBtn");
+  const floatingControls = document.getElementById("mapControlsFloating");
+  if (moreToolsBtn && floatingControls) {
+    moreToolsBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isExpanded = floatingControls.classList.toggle("is-expanded");
+      moreToolsBtn.classList.toggle("active", isExpanded);
+      const dotsIcon = moreToolsBtn.querySelector(".more-tools-icon-dots");
+      const closeIcon = moreToolsBtn.querySelector(".more-tools-icon-close");
+      if (dotsIcon) dotsIcon.style.display = isExpanded ? "none" : "block";
+      if (closeIcon) closeIcon.style.display = isExpanded ? "block" : "none";
+    });
+  }
+
+  // Dismiss expanded small-screen tools when tapping map canvas
+  const mapCanvas = document.getElementById("railMap");
+  if (mapCanvas && floatingControls) {
+    mapCanvas.addEventListener("click", () => {
+      const wrapper = document.querySelector(".map-wrapper");
+      if (!wrapper?.classList.contains("map-wrapper--fullscreen")) {
+        floatingControls.classList.remove("is-expanded");
+        moreToolsBtn?.classList.remove("active");
+        const dotsIcon = moreToolsBtn?.querySelector(".more-tools-icon-dots");
+        const closeIcon = moreToolsBtn?.querySelector(".more-tools-icon-close");
+        if (dotsIcon) dotsIcon.style.display = "block";
+        if (closeIcon) closeIcon.style.display = "none";
+      }
+    });
+  }
+
+  // Google Maps-style Fullscreen Right-Edge Peek Tab
+  const peekTab = document.getElementById("mapEdgePeekTab");
+  if (peekTab) {
+    peekTab.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showFullscreenToolbar(2800);
+    });
+    peekTab.addEventListener("touchstart", (e) => {
+      e.stopPropagation();
+      showFullscreenToolbar(2800);
+    }, { passive: true });
+  }
+
+  // Touch anywhere on right edge in fullscreen to instantly pop up tools
+  const mapWrapper = document.querySelector(".map-wrapper");
+  if (mapWrapper && !mapWrapper._hasEdgeTouchBound) {
+    mapWrapper._hasEdgeTouchBound = true;
+    const handleEdgeTouch = (e) => {
+      if (!mapWrapper.classList.contains("map-wrapper--fullscreen")) return;
+      const touch = e.touches?.[0] || e;
+      const clientX = touch.clientX;
+      const screenW = window.innerWidth;
+      // If user touches within 90px of right screen edge
+      if (clientX >= screenW - 90) {
+        showFullscreenToolbar(2800);
+      } else {
+        // Any map tap in fullscreen reveals toolbar briefly
+        showFullscreenToolbar(2200);
+      }
+    };
+    mapWrapper.addEventListener("touchstart", handleEdgeTouch, { passive: true });
+    mapWrapper.addEventListener("click", handleEdgeTouch);
+  }
+
+  // Keep toolbar visible while interacting with floating controls in fullscreen
+  if (floatingControls) {
+    const keepToolbarAlive = () => {
+      const wrapper = document.querySelector(".map-wrapper");
+      if (wrapper?.classList.contains("map-wrapper--fullscreen")) {
+        showFullscreenToolbar(3000);
+      }
+    };
+    floatingControls.addEventListener("touchstart", keepToolbarAlive, { passive: true });
+    floatingControls.addEventListener("click", keepToolbarAlive);
   }
 
   // Google Maps Compass Reset North
@@ -958,6 +1096,12 @@ export function toggleMapFullscreen() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
+    if (fullscreenHideTimer) clearTimeout(fullscreenHideTimer);
+    const controls = document.getElementById("mapControlsFloating");
+    const peekTab  = document.getElementById("mapEdgePeekTab");
+    controls?.classList.remove("toolbar-hidden");
+    peekTab?.classList.remove("visible");
+
     if (fsBtn) {
       fsBtn.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -986,7 +1130,11 @@ export function toggleMapFullscreen() {
       fsBtn.title = "Exit Fullscreen";
       fsBtn.classList.add("active");
     }
-    store.showToast("Map Fullscreen active 🗺️ — tap to minimize");
+
+    // Auto-hide toolbar after 1.8 seconds in fullscreen
+    showFullscreenToolbar(1800);
+
+    store.showToast("Map Fullscreen active 🗺️ — touch right edge for tools");
   }
 
   // Force map canvas to resize immediately to match new full-screen dimensions
@@ -1011,6 +1159,12 @@ if (!window._mapFullscreenListenersAdded) {
     if (!document.fullscreenElement && wrapper?.classList.contains("map-wrapper--fullscreen")) {
       wrapper.classList.remove("map-wrapper--fullscreen");
       document.body.classList.remove("map-fullscreen-active");
+      if (fullscreenHideTimer) clearTimeout(fullscreenHideTimer);
+      const controls = document.getElementById("mapControlsFloating");
+      const peekTab  = document.getElementById("mapEdgePeekTab");
+      controls?.classList.remove("toolbar-hidden");
+      peekTab?.classList.remove("visible");
+
       if (fsBtn) {
         fsBtn.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1034,7 +1188,23 @@ if (!window._mapFullscreenListenersAdded) {
 }
 
 function showRecenterBtn(show) {
-  document.getElementById("mapRecenterBtn")?.classList.toggle("visible", show);
+  const btn = document.getElementById("mapRecenterBtn");
+  if (!btn) return;
+
+  if (recenterInactivityTimer) {
+    clearTimeout(recenterInactivityTimer);
+    recenterInactivityTimer = null;
+  }
+
+  if (show) {
+    btn.classList.add("visible");
+    // Auto-hide when user shows no activity for 3.2 seconds
+    recenterInactivityTimer = setTimeout(() => {
+      btn.classList.remove("visible");
+    }, 3200);
+  } else {
+    btn.classList.remove("visible");
+  }
 }
 
 export function focusLocationOnMap(lon, lat, name) {

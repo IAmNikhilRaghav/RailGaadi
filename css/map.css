@@ -43,10 +43,103 @@
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   padding: 2px 2px 6px 2px;
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 }
 
 .map-controls-floating::-webkit-scrollbar {
   display: none;
+}
+
+/* Three-dots button for small screen view */
+.map-more-tools-btn {
+  display: flex;
+  position: relative;
+}
+
+.map-more-tools-btn.active {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-color: var(--color-accent);
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-more-tools-btn {
+  display: none !important; /* In fullscreen all tools are present */
+}
+
+/* Small screen collapsible tools: hidden when collapsed */
+.map-wrapper:not(.map-wrapper--fullscreen) .map-controls-floating:not(.is-expanded) .map-collapsible-tool {
+  display: none !important;
+}
+
+/* When expanded in small screen, style as sleek floating panel */
+.map-wrapper:not(.map-wrapper--fullscreen) .map-controls-floating.is-expanded {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border);
+  animation: slideDownTools 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-map-style="dark"] .map-wrapper:not(.map-wrapper--fullscreen) .map-controls-floating.is-expanded {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+@keyframes slideDownTools {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fullscreen auto-hidden toolbar */
+.map-wrapper.map-wrapper--fullscreen .map-controls-floating.toolbar-hidden {
+  transform: translateX(calc(100% + 24px)) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Fullscreen Right-Edge Peek Tab */
+.map-edge-peek-tab {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(100%);
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  padding: 14px 6px 14px 8px;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  box-shadow: -2px 0 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-edge-peek-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-wrapper.map-wrapper--fullscreen .map-edge-peek-tab.visible {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .map-control-btn {
@@ -128,12 +221,12 @@
   color: var(--color-accent);
 }
 
-/* Recenter Button when user pans away */
+/* Recenter Button when user pans away (with smooth inactivity auto-hide) */
 .map-recenter-btn {
   position: absolute;
   bottom: var(--space-6);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, 14px);
   z-index: 10;
   background: #0f172a;
   color: #ffffff;
@@ -142,25 +235,21 @@
   font-size: var(--text-sm);
   font-weight: 600;
   box-shadow: var(--shadow-xl);
-  display: none;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .map-recenter-btn.visible {
-  display: flex;
-  animation: bounceUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes bounceUp {
-  from {
-    transform: translate(-50%, 20px);
-    opacity: 0;
-  }
-  to {
-    transform: translate(-50%, 0);
-    opacity: 1;
-  }
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
 }
 
 /* Custom Marker Styles */
