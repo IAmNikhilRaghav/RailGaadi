@@ -284,17 +284,21 @@ html, body {
     touch-action: none !important;
   }
 
-  /* Bigger tap targets for map controls */
+  /* Map controls tap targets & clean scroll */
   .map-control-btn {
-    width: 48px;
-    height: 48px;
+    width: 42px;
+    height: 42px;
     border-radius: var(--radius-md);
   }
 
   .map-controls-floating {
     top: var(--space-3);
     right: var(--space-3);
-    gap: var(--space-2);
+    gap: 6px;
+    max-height: calc(100% - 24px);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Floating pill — keep it slim on small screens */

@@ -153,6 +153,40 @@ export function renderMapSection() {
 
       <!-- Floating Controls -->
       <div class="map-controls-floating">
+        <!-- Google Maps-style Dynamic Compass (rotates with heading, tap resets North) -->
+        <button class="map-control-btn map-compass-btn" id="mapCompassBtn" title="Reset North (🧭)" aria-label="Reset orientation to North">
+          <svg class="compass-needle" id="compassNeedleSvg" width="22" height="22" viewBox="0 0 24 24" style="transition:transform 0.15s ease-out;display:block;">
+            <polygon points="12 2, 7.5 12, 12 9.5" fill="#ef4444" stroke="#dc2626" stroke-width="0.5"/>
+            <polygon points="12 2, 16.5 12, 12 9.5" fill="#f87171" stroke="#dc2626" stroke-width="0.5"/>
+            <polygon points="12 22, 7.5 12, 12 14.5" fill="#64748b" stroke="#475569" stroke-width="0.5"/>
+            <polygon points="12 22, 16.5 12, 12 14.5" fill="#94a3b8" stroke="#475569" stroke-width="0.5"/>
+            <circle cx="12" cy="12" r="2.2" fill="#ffffff" stroke="#0f172a" stroke-width="1.2"/>
+          </svg>
+        </button>
+
+        <!-- 3D Perspective Viewpoint Toggle -->
+        <button class="map-control-btn" id="mapPitchBtn" title="Toggle 3D Viewpoint" aria-label="Toggle 3D perspective viewpoint">
+          <span class="pitch-mode-label" style="font-size:11px;font-weight:800;letter-spacing:-0.5px;">3D</span>
+        </button>
+
+        <!-- Rotate Anti-Clockwise -->
+        <button class="map-control-btn" id="mapRotateLeftBtn" title="Rotate Anti-Clockwise (⟲)" aria-label="Rotate Anti-Clockwise">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+
+        <!-- Rotate Clockwise -->
+        <button class="map-control-btn" id="mapRotateRightBtn" title="Rotate Clockwise (⟳)" aria-label="Rotate Clockwise">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+        </button>
+
+        <div class="map-controls-divider"></div>
+
         <!-- User Location / GPS Button -->
         <button class="map-control-btn" id="mapLocateUserBtn" title="My Current Location" aria-label="Find my location on map">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -294,7 +328,7 @@ export function initOrUpdateMap() {
         zoom: 5.6,
         pitch: 0,
         bearing: 0,
-        maxPitch: 0,
+        maxPitch: 65,
         attributionControl: false,
         pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
         fadeDuration: 0,
@@ -306,19 +340,27 @@ export function initOrUpdateMap() {
         },
         doubleClickZoom: true,
         touchZoomRotate: true,
-        dragRotate: false,
-        touchPitch: false,
+        dragRotate: true,
+        touchPitch: true,
+        pitchWithRotate: true,
         cooperativeGestures: false,
-        renderWorldCopies: false,
+        renderWorldCopies: true,
         maxTileCacheSize: 150
       });
 
-      // Disable touch rotation on mobile for pure 60fps pinch-to-zoom like Google Maps
+      // Enable dynamic 360° rotation (clockwise & anti-clockwise) and 3D perspective viewpoint
       if (mapInstance.touchZoomRotate) {
-        mapInstance.touchZoomRotate.disableRotation();
+        mapInstance.touchZoomRotate.enable();
+        mapInstance.touchZoomRotate.enableRotation();
+      }
+      if (mapInstance.touchPitch) {
+        mapInstance.touchPitch.enable();
+      }
+      if (mapInstance.dragRotate) {
+        mapInstance.dragRotate.enable();
       }
 
-      // Track all user gestures: pinch-zoom, pan, touch, wheel, click-drag
+      // Track all user gestures: pinch-zoom, pan, rotation, pitch tilt, touch, wheel, click-drag
       // Immediately disconnect followTrain so telemetry ticks do NOT interrupt user gestures!
       const onUserGestureStart = (e) => {
         if (!e || e.originalEvent) {
@@ -331,6 +373,7 @@ export function initOrUpdateMap() {
       mapInstance.on("movestart", onUserGestureStart);
       mapInstance.on("zoomstart", onUserGestureStart);
       mapInstance.on("dragstart", onUserGestureStart);
+      mapInstance.on("rotatestart", onUserGestureStart);
       mapInstance.on("pitchstart", onUserGestureStart);
       mapInstance.on("touchstart", onUserGestureStart);
       mapInstance.on("wheel", onUserGestureStart);
@@ -338,6 +381,36 @@ export function initOrUpdateMap() {
       mapInstance.on("moveend", () => {
         isUserInteracting = false;
       });
+
+      // Google Maps-style dynamic compass & 3D viewpoint synchronization
+      const updateOrientationUI = () => {
+        if (!mapInstance) return;
+        const bearing = mapInstance.getBearing();
+        const pitch   = mapInstance.getPitch();
+
+        const compassNeedle = document.getElementById("compassNeedleSvg");
+        if (compassNeedle) {
+          compassNeedle.style.transform = `rotate(${-bearing}deg)`;
+        }
+
+        const compassBtn = document.getElementById("mapCompassBtn");
+        if (compassBtn) {
+          const isOffNorth = Math.abs(bearing) > 1 || Math.abs(pitch) > 1;
+          compassBtn.classList.toggle("is-active", isOffNorth);
+        }
+
+        const pitchBtn = document.getElementById("mapPitchBtn");
+        if (pitchBtn) {
+          const is3D = pitch > 15;
+          pitchBtn.classList.toggle("is-active", is3D);
+          const label = pitchBtn.querySelector(".pitch-mode-label");
+          if (label) label.textContent = is3D ? "2D" : "3D";
+        }
+      };
+
+      mapInstance.on("rotate", updateOrientationUI);
+      mapInstance.on("pitch",  updateOrientationUI);
+      mapInstance.on("move",   updateOrientationUI);
 
       mapInstance.on("load", () => {
         if (route) drawFullRoute(route, pos);
@@ -594,7 +667,11 @@ function drawFullRoute(route, pos) {
       </div>
     `;
     try {
-      trainMapMarker = new window.maplibregl.Marker({ element: trainMarkerEl })
+      trainMapMarker = new window.maplibregl.Marker({
+        element: trainMarkerEl,
+        rotationAlignment: "map",
+        pitchAlignment: "map"
+      })
         .setLngLat([pos.lon, pos.lat])
         .addTo(mapInstance);
     } catch (e) {}
@@ -771,6 +848,66 @@ export function attachMapEvents() {
         mapInstance.flyTo({ center: [pos.lon, pos.lat], zoom: 7 });
       }
       showRecenterBtn(false);
+    });
+  }
+
+  // Google Maps Compass Reset North
+  const compassBtn = document.getElementById("mapCompassBtn");
+  if (compassBtn) {
+    compassBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      mapInstance.resetNorthPitch({ duration: 400 });
+      store.showToast("Orientation reset to North 🧭");
+    });
+  }
+
+  // 3D Perspective Viewpoint Toggle
+  const pitchBtn = document.getElementById("mapPitchBtn");
+  if (pitchBtn) {
+    pitchBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      store.setFollowTrain(false);
+      showRecenterBtn(true);
+      const cur = mapInstance.getPitch();
+      const target = cur > 20 ? 0 : 55;
+      mapInstance.easeTo({ pitch: target, duration: 400 });
+      store.showToast(target > 0 ? "3D Perspective View active 🏙️" : "2D Top-Down View active 🗺️");
+    });
+  }
+
+  // Rotate Anti-Clockwise (⟲)
+  const rotLeftBtn = document.getElementById("mapRotateLeftBtn");
+  if (rotLeftBtn) {
+    rotLeftBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      store.setFollowTrain(false);
+      showRecenterBtn(true);
+      const b = mapInstance.getBearing();
+      mapInstance.easeTo({ bearing: b - 45, duration: 300 });
+    });
+  }
+
+  // Rotate Clockwise (⟳)
+  const rotRightBtn = document.getElementById("mapRotateRightBtn");
+  if (rotRightBtn) {
+    rotRightBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      store.setFollowTrain(false);
+      showRecenterBtn(true);
+      const b = mapInstance.getBearing();
+      mapInstance.easeTo({ bearing: b + 45, duration: 300 });
     });
   }
 
