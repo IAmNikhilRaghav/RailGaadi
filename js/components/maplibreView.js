@@ -235,19 +235,19 @@ export function renderMapSection() {
         </button>
       </div>
 
-      <!-- Fullscreen Right-Edge Peek Tab / Trigger -->
-      <div class="map-edge-peek-tab" id="mapEdgePeekTab" title="Show tools" aria-label="Show map tools">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Fullscreen Top-Right Tools Initializer -->
+      <button class="map-edge-peek-tab" id="mapEdgePeekTab" title="Show map tools" aria-label="Show map tools">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m15 18-6-6 6-6"/>
         </svg>
-      </div>
+      </button>
 
-      <!-- Recenter Button -->
+      <!-- Recenter Button (compact modern pill) -->
       <button class="map-recenter-btn" id="mapRecenterBtn" aria-label="Recenter on train">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="3 11 22 2 13 21 11 13 3 11"/>
         </svg>
-        <span>Re-center on Train</span>
+        <span>Re-center</span>
       </button>
 
       <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
