@@ -10,6 +10,10 @@ import { ElevationService } from "../services/elevationService.js";
 
 const elevationAttemptedTrains = new Set();
 
+// Persistent state for interactive accordion and view switcher
+let isTimelineOpen = true;
+let timelineViewMode = "wimt"; // "wimt" | "table"
+
 /* ── helpers ──────────────────────────────────────────────── */
 
 function fmtDelay(min) {
@@ -21,6 +25,25 @@ function fmtDelay(min) {
 function fmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }); }
   catch { return iso || "—"; }
+}
+
+function formatTrainTime(t) {
+  if (!t || t === "—" || t === "START") return t || "—";
+  if (typeof t === "string" && t.includes("T")) {
+    try {
+      const d = new Date(t);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+      }
+    } catch (e) {}
+  }
+  if (typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t)) {
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
+  return t;
 }
 
 function safeMax(arr) { return arr.length ? Math.max(...arr) : 0; }
@@ -35,7 +58,6 @@ function renderAnalyticsEmpty() {
         <h3 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-secondary);margin-bottom:8px;">Analytics Unavailable</h3>
         <p style="font-size:var(--text-sm);">Search and load a train first to see journey analytics, elevation profile, and timetable.</p>
       </div>
-      </div><!-- /hidden old table -->
     </div>
   `;
 }
@@ -89,8 +111,7 @@ export function renderAnalyticsSection() {
   const maxElev     = safeMax(elevPoints);
   const highestStn  = stations.find(s => s.elevationM === maxElev);
 
-  // ── Compute distance to next halting station ──────────────────────────────
-  // Next station = first future station after current
+  // Next station distance
   const nextStnIdx  = curIdx + 1 < stations.length ? curIdx + 1 : null;
   const nextStn     = nextStnIdx != null ? stations[nextStnIdx] : null;
   const currStnDist = curIdx >= 0 && stations[curIdx]?.distanceKm != null ? stations[curIdx].distanceKm : null;
@@ -102,22 +123,282 @@ export function renderAnalyticsSection() {
   return `
     <div class="analytics-container" aria-label="Journey Analytics">
 
-      <!-- 1. Full Journey Timeline & Station Events — shown FIRST -->
-      <div class="card-panel" style="padding:var(--space-6);margin-bottom:var(--space-6);">
-        <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-1);">Full Journey Timeline &amp; Station Events</h3>
-        ${kmToNext != null ? `
-          <div class="next-stn-banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
-            <span>Next station <strong>${nextStn.name}</strong> — <strong>${kmToNext} km</strong> remaining</span>
-          </div>
-        ` : ""}
+      <!-- 1. Full Journey Timeline & Station Events — Dynamic Interactive Accordion Button -->
+      <div class="card-panel wimt-accordion-card" id="journeyTimelineAccordion">
 
-        <!-- Legend for stop types -->
-        <div class="tl-legend">
-          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--halt"></span>Scheduled stop</span>
-          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--through"></span>Pass-through</span>
-          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--done"></span>Passed</span>
-        </div>
+        <!-- Dynamic Clickable Header Bar -->
+        <button type="button" class="wimt-accordion-bar ${isTimelineOpen ? "is-open" : ""}" id="journeyTimelineToggle" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody">
+          <div class="wimt-accordion-bar-left">
+            <div class="wimt-accordion-icon-badge">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="3" width="16" height="16" rx="2"/>
+                <path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3M9 15h.01M15 15h.01"/>
+              </svg>
+            </div>
+            <div class="wimt-accordion-titles">
+              <div class="wimt-accordion-title-row">
+                <span class="wimt-accordion-title">Full Journey Timeline &amp; Station Events</span>
+                <span class="wimt-accordion-live-pill">● LIVE TRACKER</span>
+              </div>
+              <div class="wimt-accordion-meta">
+                <span>${stations.length} Stations</span>
+                <span class="wimt-meta-dot">·</span>
+                <span>${progressPct}% Covered</span>
+                ${kmToNext != null ? `<span class="wimt-meta-dot">·</span><span class="wimt-next-stn-highlight">Next: <strong>${nextStn?.name}</strong> (${kmToNext} km)</span>` : ""}
+              </div>
+            </div>
+          </div>
+          <div class="wimt-accordion-bar-right">
+            <span class="wimt-accordion-status-chip ${delay > 0 ? "is-late" : "is-ontime"}">
+              ${delay == null ? "Scheduled" : delay === 0 ? "On Time" : delay > 0 ? `+${delay}m Late` : `${Math.abs(delay)}m Early`}
+            </span>
+            <div class="wimt-chevron-pill" title="Click to expand/collapse timeline">
+              <svg class="wimt-chevron-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+          </div>
+        </button>
+
+        <!-- Collapsible Container Body -->
+        <div class="wimt-accordion-body" id="journeyTimelineBody" ${isTimelineOpen ? "" : "hidden"}>
+
+          <!-- Top Toolbar: View Mode Switcher & Live Next Banner -->
+          <div class="wimt-toolbar-row">
+            ${kmToNext != null ? `
+              <div class="next-stn-banner">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+                <span>Next Station: <strong>${nextStn?.name}</strong> — <strong>${kmToNext} km</strong> remaining</span>
+              </div>
+            ` : "<div></div>"}
+
+            <!-- View Switcher Tabs -->
+            <div class="wimt-view-switcher" role="tablist" aria-label="Timeline View Format">
+              <button type="button" class="wimt-switch-btn ${timelineViewMode === "wimt" ? "active" : ""}" id="btnSwitchWimt" data-view="wimt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3"/></svg>
+                <span>Where Is My Train View</span>
+              </button>
+              <button type="button" class="wimt-switch-btn ${timelineViewMode === "table" ? "active" : ""}" id="btnSwitchTable" data-view="table">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+                <span>Detailed Table (No., ETA, PF, etc.)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- VIEW 1: WHERE IS MY TRAIN (WIMT) VIEW                   -->
+          <!-- ======================================================== -->
+          <div class="wimt-view-container" id="wimtTimelineView" style="display:${timelineViewMode === "wimt" ? "block" : "none"};">
+            <!-- WIMT Subheader: Arrival | Station / Day | Departure -->
+            <div class="wimt-subhead">
+              <div class="wimt-subhead-arr">Arrival</div>
+              <div class="wimt-subhead-center">Day 1 · Stations</div>
+              <div class="wimt-subhead-dep">Departure</div>
+            </div>
+
+            <div class="wimt-timeline-track-list">
+              ${stations.map((s, idx) => {
+                const isPassed   = idx < curIdx;
+                const isCurrent  = idx === curIdx;
+                const isUpcoming = idx > curIdx;
+                const isFirst    = idx === 0;
+                const isLast     = idx === stations.length - 1;
+
+                const haltMin    = s.haltMin ?? s.halt_min ?? s.haltMinutes ?? null;
+                const isThrough  = haltMin != null && haltMin === 0;
+                const isHalting  = !isThrough;
+
+                const schArr = formatTrainTime(s.scheduledArr);
+                const schDep = formatTrainTime(s.scheduledDep);
+                const actArr = formatTrainTime(s.actualArr);
+                const actDep = formatTrainTime(s.actualDep);
+
+                const delayMin = s.delayMinutes ?? (isCurrent ? delay : null);
+                const isLate   = delayMin != null && delayMin > 0;
+                const isEarly  = delayMin != null && delayMin < 0;
+
+                // Upcoming distance remaining
+                const currTrainDistKm = curIdx >= 0 && stations[curIdx]?.distanceKm != null ? stations[curIdx].distanceKm : null;
+                const thisStnDistKm   = s.distanceKm != null ? s.distanceKm : null;
+                const kmRemaining     = (isUpcoming && currTrainDistKm != null && thisStnDistKm != null)
+                                          ? Math.round((thisStnDistKm - currTrainDistKm) * 10) / 10
+                                          : null;
+
+                return `
+                  <div class="wimt-stn-row ${isCurrent ? "is-current-station" : ""} ${isPassed ? "is-passed-station" : "is-upcoming-station"} ${isThrough ? "is-through-station" : "is-halting-station"}">
+
+                    <!-- Left: Arrival Times -->
+                    <div class="wimt-col-arrival">
+                      <div class="wimt-time-sched ${isPassed || isCurrent ? "is-muted" : ""}">${schArr}</div>
+                      ${actArr && actArr !== schArr ? `
+                        <div class="wimt-time-actual ${isLate ? "is-late-time" : "is-ontime-time"}">${actArr}</div>
+                      ` : (isCurrent && delayMin != null && delayMin > 0) ? `
+                        <div class="wimt-time-actual is-late-time">+${delayMin}m</div>
+                      ` : ""}
+                    </div>
+
+                    <!-- Center: Track Spine + Station Info + Train Bubble -->
+                    <div class="wimt-col-center">
+                      <!-- Vertical Continuous Track Line -->
+                      <div class="wimt-track-spine">
+                        <div class="wimt-track-segment wimt-track-top ${isPassed || isCurrent ? "track-done" : ""} ${isFirst ? "track-hidden" : ""}"></div>
+
+                        ${isCurrent ? `
+                          <!-- WIMT Train Emblem on track -->
+                          <div class="wimt-train-circle-badge" aria-label="Train is standing here">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff">
+                              <path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-4-4-8-4zm-4 14c-.83 0-1.5-.67-1.5-1.5S7.17 13 8 13s1.5.67 1.5 1.5S8.83 16 8 16zm8 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1-6H7V6h10v4z"/>
+                            </svg>
+                            <span class="wimt-train-ripple"></span>
+                          </div>
+                        ` : isHalting ? `
+                          <!-- Solid Station Node -->
+                          <div class="wimt-station-dot ${isPassed ? "dot-passed" : "dot-future"}"></div>
+                        ` : `
+                          <!-- Pass-through Small Node -->
+                          <div class="wimt-station-dot-small ${isPassed ? "dot-passed" : "dot-future"}"></div>
+                        `}
+
+                        <div class="wimt-track-segment wimt-track-bottom ${isPassed ? "track-done" : ""} ${isLast ? "track-hidden" : ""}"></div>
+                      </div>
+
+                      <!-- Station Details and Live Bubble -->
+                      <div class="wimt-station-details">
+                        <div class="wimt-stn-title-row">
+                          <span class="wimt-station-name ${isThrough ? "name-through" : ""}">${s.name}</span>
+                          ${isThrough ? `<span class="wimt-pass-tag">Pass-through</span>` : ""}
+                        </div>
+
+                        <div class="wimt-station-subinfo">
+                          ${s.distanceKm != null ? `<span class="wimt-dist-tag">${s.distanceKm} km</span>` : ""}
+                          ${s.platform ? `<span class="wimt-pf-tag">Platform ${s.platform}</span>` : ""}
+                          ${haltMin > 0 ? `<span class="wimt-halt-tag">Halt ${haltMin}m</span>` : ""}
+                        </div>
+
+                        ${isCurrent ? `
+                          <!-- WIMT Floating Speech-Bubble Card -->
+                          <div class="wimt-train-speech-card">
+                            <div class="wimt-bubble-pointer"></div>
+                            <div class="wimt-bubble-header">
+                              <span class="wimt-bubble-title">Arrived at ${s.name}</span>
+                              <span class="wimt-bubble-live-dot">● LIVE</span>
+                            </div>
+                            <div class="wimt-bubble-status ${isLate ? "is-late-text" : "is-ontime-text"}">
+                              <span class="wimt-signal-icon">((•))</span>
+                              ${isLate ? `Delayed by ${delayMin} mins` : delayMin === 0 ? "Running on time" : `${Math.abs(delayMin || 0)} mins early`}
+                            </div>
+                            <div class="wimt-bubble-time">Updated a few seconds ago</div>
+                          </div>
+                        ` : ""}
+
+                        ${isUpcoming && kmRemaining != null ? `
+                          <div class="wimt-upcoming-km">📍 ${kmRemaining} km remaining</div>
+                        ` : ""}
+                      </div>
+                    </div>
+
+                    <!-- Right: Departure Times -->
+                    <div class="wimt-col-departure">
+                      <div class="wimt-time-sched ${isPassed ? "is-muted" : ""}">${schDep}</div>
+                      ${actDep && actDep !== schDep ? `
+                        <div class="wimt-time-actual ${isLate ? "is-late-time" : "is-ontime-time"}">${actDep}</div>
+                      ` : (isCurrent && delayMin != null && delayMin > 0) ? `
+                        <div class="wimt-time-actual is-late-time">+${delayMin}m</div>
+                      ` : ""}
+                    </div>
+
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- VIEW 2: DETAILED TABLE VIEW (No., Station, Time, PF, etc) -->
+          <!-- ======================================================== -->
+          <div class="wimt-view-container" id="detailedTableView" style="display:${timelineViewMode === "table" ? "block" : "none"};">
+            <div class="events-table-wrapper" style="display:block;">
+              <table class="events-table" aria-label="Station events timetable">
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Station</th>
+                    <th>Arr · Dep (Scheduled)</th>
+                    <th>Actual / ETA</th>
+                    <th>Distance</th>
+                    <th>Platform</th>
+                    <th>Elevation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${stations.map((s, idx) => {
+                    const isPassed  = idx < curIdx;
+                    const isCurrent = idx === curIdx;
+                    const rowClass  = isCurrent ? "current-row" : "";
+                    const haltMin   = s.haltMin ?? s.halt_min ?? s.haltMinutes ?? null;
+                    const isThrough = haltMin != null && haltMin === 0;
+
+                    const schArr = formatTrainTime(s.scheduledArr);
+                    const schDep = formatTrainTime(s.scheduledDep);
+                    const actArr = formatTrainTime(s.actualArr);
+
+                    return `
+                      <tr class="${rowClass} ${isThrough ? "row-through" : "row-halting"}">
+                        <td class="col-no">
+                          <div class="tl-col-cell">
+                            <div class="tl-line tl-line--top ${isPassed || isCurrent ? "tl-line--done" : ""} ${idx === 0 ? "tl-line--invisible" : ""}"></div>
+                            ${isCurrent ? `
+                              <span class="tl-train-marker" aria-label="Train is here">
+                                <svg viewBox="0 0 16 24" width="16" height="22" xmlns="http://www.w3.org/2000/svg">
+                                  <rect x="1" y="4" width="14" height="10" rx="2.5" fill="#1e40af"/>
+                                  <rect x="3" y="2" width="10" height="4" rx="1.5" fill="#2563eb"/>
+                                  <rect x="4" y="5" width="3.5" height="3" rx="0.8" fill="#bfdbfe"/>
+                                  <rect x="9" y="5" width="3.5" height="3" rx="0.8" fill="#bfdbfe"/>
+                                  <circle cx="4.5" cy="17" r="2.5" fill="#1e3a8a"/>
+                                  <circle cx="11.5" cy="17" r="2.5" fill="#1e3a8a"/>
+                                </svg>
+                                <span class="tl-pulse-ring"></span>
+                              </span>
+                            ` : isPassed ? `
+                              <span class="tl-node tl-node--passed"></span>
+                            ` : `
+                              <span class="tl-node tl-node--future"></span>
+                            `}
+                            <div class="tl-line tl-line--bottom ${isPassed ? "tl-line--done" : ""} ${idx === stations.length - 1 ? "tl-line--invisible" : ""}"></div>
+                          </div>
+                          <span class="tl-seq">${s.sequence || idx + 1}</span>
+                        </td>
+                        <td>
+                          <div class="station-name-cell ${isCurrent ? "station-name-cell--current" : ""}">${s.name}</div>
+                          <div class="station-code-cell">
+                            ${s.code || s.stationId || ""}
+                            ${isCurrent ? "· 🟢 Live" : isPassed ? "· ✓" : ""}
+                            ${isThrough ? "· Pass" : haltMin ? `· ${haltMin}m halt` : ""}
+                          </div>
+                        </td>
+                        <td>
+                          <div>${schArr !== "—" ? schArr : "—"}</div>
+                          <div style="font-size:12px;color:var(--color-text-secondary);">${schDep !== "—" ? `Dep: ${schDep}` : ""}</div>
+                        </td>
+                        <td style="font-weight:600;color:${idx <= curIdx ? "var(--color-text-primary)" : "var(--color-accent)"};">
+                          ${actArr || schArr || "—"}
+                        </td>
+                        <td>${s.distanceKm != null ? `${s.distanceKm} km` : "—"}</td>
+                        <td>${s.platform ? `PF ${s.platform}` : "—"}</td>
+                        <td>${s.elevationM != null ? `${s.elevationM} m` : "—"}</td>
+                      </tr>
+                    `;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /wimt-accordion-body -->
+      </div><!-- /wimt-accordion-card -->
+
+      <!-- 2. Key Metrics Row -->
+      <div class="analytics-row split-3">
         <div class="analytics-metric-card">
           <div class="metric-card-top">
             <span class="metric-card-title">Schedule Variance</span>
@@ -148,8 +429,8 @@ export function renderAnalyticsSection() {
         </div>
       </div>
 
-      <!-- 3. Live Speed Telemetry & History Card -->
-      <div class="elevation-card speed-card" style="margin-top:var(--space-6);">
+      <!-- 3. Live Speed Telemetry & Velocity Curve -->
+      <div class="elevation-card speed-card">
         <div class="chart-header">
           <div class="chart-title-group">
             <h3>Live Speed Telemetry &amp; Velocity Curve</h3>
@@ -170,7 +451,7 @@ export function renderAnalyticsSection() {
       </div>
 
       <!-- 4. Route Elevation Profile -->
-      <div class="elevation-card" style="margin-top:var(--space-6);">
+      <div class="elevation-card">
         <div class="chart-header">
           <div class="chart-title-group">
             <h3>Route Elevation Profile</h3>
@@ -196,146 +477,84 @@ export function renderAnalyticsSection() {
         </div>
       </div>
 
-      <!-- (timeline table was moved to top — rendered first above) -->
-      <div style="display:none">
-
-        ${stations.length === 0 ? `
-          <p style="color:var(--color-text-muted);text-align:center;padding:var(--space-8);">Station schedule not available from provider</p>
-        ` : `
-          <div class="wimt-timeline">
-            ${stations.map((s, idx) => {
-              const isPassed  = idx < curIdx;
-              const isCurrent = idx === curIdx;
-              const isUpcoming = idx > curIdx;
-              const totalStations = stations.length;
-              const isFirst = idx === 0;
-              const isLast  = idx === totalStations - 1;
-
-              const haltMin   = s.haltMin ?? s.halt_min ?? s.haltMinutes ?? null;
-              const isThrough = haltMin != null && haltMin === 0;
-              const isHalting = !isThrough;
-
-              // Distance remaining to this station (upcoming only)
-              const currTrainDistKm = curIdx >= 0 && stations[curIdx]?.distanceKm != null ? stations[curIdx].distanceKm : null;
-              const thisStnDistKm   = s.distanceKm != null ? s.distanceKm : null;
-              const kmRemaining     = (isUpcoming && currTrainDistKm != null && thisStnDistKm != null)
-                                        ? Math.round((thisStnDistKm - currTrainDistKm) * 10) / 10
-                                        : null;
-
-              // Format times cleanly — show HH:MM only
-              function hhmm(iso) {
-                if (!iso || iso === "—") return null;
-                try {
-                  const d = new Date(iso);
-                  if (isNaN(d)) return iso;
-                  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
-                } catch { return iso; }
-              }
-
-              const arrTime = hhmm(s.scheduledArr) || hhmm(s.actualArr);
-              const depTime = hhmm(s.scheduledDep) || (s.scheduledDep !== "—" ? s.scheduledDep : null);
-              const actArr  = hhmm(s.actualArr);
-
-              // Delay colour
-              const delayMin  = s.delayMinutes ?? null;
-              const delayText = delayMin != null ? (delayMin > 0 ? `+${delayMin}m late` : delayMin < 0 ? `${Math.abs(delayMin)}m early` : "On time") : null;
-              const delayColor = delayMin == null ? "" : delayMin > 0 ? "#dc2626" : "#16a34a";
-
-              // Node markup
-              let nodeMarkup = "";
-              if (isCurrent) {
-                nodeMarkup = `
-                  <span class="wimt-node wimt-node--current" aria-label="Train is here">
-                    <svg viewBox="0 0 16 24" width="14" height="21" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="1" y="3" width="14" height="10" rx="2.5" fill="#1e40af"/>
-                      <rect x="3" y="1" width="10" height="4" rx="1.5" fill="#2563eb"/>
-                      <rect x="4" y="4" width="3" height="2.5" rx="0.7" fill="#bfdbfe"/>
-                      <rect x="9" y="4" width="3" height="2.5" rx="0.7" fill="#bfdbfe"/>
-                      <rect x="1.5" y="12" width="13" height="1.5" rx="0.5" fill="#1e3a8a"/>
-                      <circle cx="4.5" cy="17" r="2.8" fill="#1e3a8a"/><circle cx="4.5" cy="17" r="1.3" fill="#475569"/>
-                      <circle cx="11.5" cy="17" r="2.8" fill="#1e3a8a"/><circle cx="11.5" cy="17" r="1.3" fill="#475569"/>
-                      <circle cx="8" cy="2.5" r="0.9" fill="#fbbf24" opacity="0.9"/>
-                    </svg>
-                    <span class="wimt-pulse"></span>
-                  </span>`;
-              } else if (isPassed) {
-                nodeMarkup = isHalting
-                  ? `<span class="wimt-node wimt-node--passed-halt"></span>`
-                  : `<span class="wimt-node wimt-node--passed-through"></span>`;
-              } else {
-                nodeMarkup = isHalting
-                  ? `<span class="wimt-node wimt-node--future-halt"></span>`
-                  : `<span class="wimt-node wimt-node--future-through"></span>`;
-              }
-
-              // Row state classes
-              const stateClass = isCurrent ? "wimt-row--current" : isPassed ? "wimt-row--passed" : "wimt-row--upcoming";
-              const typeClass  = isThrough ? "wimt-row--through" : "wimt-row--halt";
-
-              return `
-                <div class="wimt-row ${stateClass} ${typeClass}">
-
-                  <!-- Left: timeline track column -->
-                  <div class="wimt-track">
-                    <div class="wimt-line wimt-line--top ${isPassed || isCurrent ? "wimt-line--done" : ""} ${isFirst ? "wimt-line--hidden" : ""}"></div>
-                    ${nodeMarkup}
-                    <div class="wimt-line wimt-line--bottom ${isPassed ? "wimt-line--done" : ""} ${isLast ? "wimt-line--hidden" : ""}"></div>
-                  </div>
-
-                  <!-- Center: station info -->
-                  <div class="wimt-info">
-                    <div class="wimt-stn-header">
-                      <span class="wimt-stn-name">${s.name}</span>
-                      ${isCurrent ? `<span class="wimt-live-badge">● LIVE</span>` : ""}
-                      ${isThrough ? `<span class="wimt-through-badge">Non-stop</span>` : ""}
-                    </div>
-                    <div class="wimt-stn-meta">
-                      <span class="wimt-stn-code">${s.code || s.stationId || ""}</span>
-                      ${s.distanceKm ? `<span class="wimt-meta-sep">·</span><span class="wimt-dist">${s.distanceKm} km</span>` : ""}
-                      ${s.elevationM != null ? `<span class="wimt-meta-sep">·</span><span class="wimt-elev">${s.elevationM} m</span>` : ""}
-                    </div>
-                    ${isCurrent ? `
-                      <div class="wimt-stn-status wimt-stn-status--current">
-                        🚉 Train currently at this station
-                        ${haltMin ? `<span class="wimt-halt-chip">Halt: ${haltMin} min</span>` : ""}
-                      </div>
-                    ` : isPassed ? `
-                      <div class="wimt-stn-status wimt-stn-status--passed">
-                        ✓ Passed
-                        ${actArr ? `at ${actArr}` : ""}
-                        ${delayText ? `<span style="color:${delayColor};font-weight:600;margin-left:4px;">${delayText}</span>` : ""}
-                      </div>
-                    ` : `
-                      ${kmRemaining != null ? `<div class="wimt-stn-km-away">📍 ${kmRemaining} km to go</div>` : ""}
-                    `}
-                  </div>
-
-                  <!-- Right: timing column -->
-                  <div class="wimt-timing ${isThrough ? "wimt-timing--through" : ""}">
-                    ${arrTime ? `
-                      <div class="wimt-time-block">
-                        <span class="wimt-time-label">ARR</span>
-                        <span class="wimt-time-val ${isCurrent || isPassed ? "wimt-time-val--done" : ""}">${arrTime}</span>
-                      </div>
-                    ` : ""}
-                    ${depTime && depTime !== arrTime ? `
-                      <div class="wimt-time-block">
-                        <span class="wimt-time-label">DEP</span>
-                        <span class="wimt-time-val ${isCurrent ? "wimt-time-val--accent" : isPassed ? "wimt-time-val--done" : ""}">${depTime}</span>
-                      </div>
-                    ` : ""}
-                    ${s.platform ? `<div class="wimt-platform">PF ${s.platform}</div>` : ""}
-                  </div>
-
-                </div>
-              `;
-            }).join("")}
-          </div>
-        `}
-      </div>
     </div>
   `;
 }
+
+/* ── Interactive Event Handlers ───────────────────────────── */
+
+export function attachAnalyticsEvents() {
+  const toggleBtn = document.getElementById("journeyTimelineToggle");
+  const body      = document.getElementById("journeyTimelineBody");
+  if (toggleBtn && body) {
+    toggleBtn.onclick = (e) => {
+      e.preventDefault();
+      isTimelineOpen = !isTimelineOpen;
+      toggleBtn.classList.toggle("is-open", isTimelineOpen);
+      toggleBtn.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
+      body.hidden = !isTimelineOpen;
+    };
+  }
+
+  const btnWimt  = document.getElementById("btnSwitchWimt");
+  const btnTable = document.getElementById("btnSwitchTable");
+  const viewWimt = document.getElementById("wimtTimelineView");
+  const viewTable = document.getElementById("detailedTableView");
+
+  if (btnWimt && btnTable && viewWimt && viewTable) {
+    btnWimt.onclick = () => {
+      timelineViewMode = "wimt";
+      btnWimt.classList.add("active");
+      btnTable.classList.remove("active");
+      viewWimt.style.display = "block";
+      viewTable.style.display = "none";
+    };
+    btnTable.onclick = () => {
+      timelineViewMode = "table";
+      btnTable.classList.add("active");
+      btnWimt.classList.remove("active");
+      viewTable.style.display = "block";
+      viewWimt.style.display = "none";
+    };
+  }
+}
+
+// Global click delegation as fallback for dynamic re-renders
+if (typeof window !== "undefined" && !window._hasAnalyticsDelegation) {
+  window._hasAnalyticsDelegation = true;
+  document.addEventListener("click", (e) => {
+    const toggle = e.target.closest("#journeyTimelineToggle");
+    if (toggle) {
+      const body = document.getElementById("journeyTimelineBody");
+      if (body) {
+        isTimelineOpen = !isTimelineOpen;
+        toggle.classList.toggle("is-open", isTimelineOpen);
+        toggle.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
+        body.hidden = !isTimelineOpen;
+      }
+      return;
+    }
+
+    const switchBtn = e.target.closest(".wimt-switch-btn");
+    if (switchBtn) {
+      const mode = switchBtn.getAttribute("data-view");
+      if (mode) {
+        timelineViewMode = mode;
+        const btnWimt  = document.getElementById("btnSwitchWimt");
+        const btnTable = document.getElementById("btnSwitchTable");
+        const viewWimt = document.getElementById("wimtTimelineView");
+        const viewTable = document.getElementById("detailedTableView");
+        if (btnWimt && btnTable && viewWimt && viewTable) {
+          btnWimt.classList.toggle("active", mode === "wimt");
+          btnTable.classList.toggle("active", mode === "table");
+          viewWimt.style.display = mode === "wimt" ? "block" : "none";
+          viewTable.style.display = mode === "table" ? "block" : "none";
+        }
+      }
+    }
+  });
+}
+
 
 /* ── elevation chart drawing ──────────────────────────────── */
 

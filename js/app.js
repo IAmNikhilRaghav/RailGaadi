@@ -13,7 +13,7 @@ import { renderHeader, attachHeaderEvents } from "./components/header.js";
 import { renderSearchSection, attachSearchEvents, updateQuickChips } from "./components/search.js";
 import { renderStatusCard, attachStatusCardEvents } from "./components/statusCard.js";
 import { renderMapSection, initOrUpdateMap, attachMapEvents } from "./components/maplibreView.js";
-import { renderAnalyticsSection, drawElevationChart } from "./components/analyticsView.js";
+import { renderAnalyticsSection, drawElevationChart, attachAnalyticsEvents } from "./components/analyticsView.js";
 import { renderCompanionSection, attachCompanionEvents } from "./components/companionView.js";
 import { renderShareModal, attachShareModalEvents } from "./components/shareModal.js";
 import { renderStationBoard, attachStationBoardEvents } from "./components/stationBoard.js";
@@ -235,6 +235,7 @@ function renderApp(changedKeys = []) {
       const ar = document.getElementById("analyticsViewRoot");
       if (ar) {
         ar.innerHTML = renderAnalyticsSection();
+        attachAnalyticsEvents();
         setTimeout(() => drawElevationChart(), 50);
       }
     } else if (state.activeTab === "companion") {
@@ -340,6 +341,7 @@ function renderViewContainer() {
 
   } else if (state.activeTab === "analytics") {
     container.innerHTML = `<div id="analyticsViewRoot">${renderAnalyticsSection()}</div>`;
+    attachAnalyticsEvents();
     setTimeout(() => drawElevationChart(), 80);
 
   } else if (state.activeTab === "companion") {

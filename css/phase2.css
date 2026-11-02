@@ -139,6 +139,54 @@
   background: rgba(37,99,235,0.18);
 }
 
+[data-theme="dark"] .wimt-stn-row.is-current-station {
+  background: rgba(30, 58, 138, 0.28);
+}
+
+[data-theme="dark"] .wimt-train-speech-card {
+  background: var(--color-bg-surface);
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .wimt-bubble-pointer {
+  background: var(--color-bg-surface);
+  border-left-color: rgba(96, 165, 250, 0.35);
+  border-bottom-color: rgba(96, 165, 250, 0.35);
+}
+
+[data-theme="dark"] .wimt-bubble-title {
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .wimt-subhead {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .wimt-track-segment {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .wimt-track-segment.track-done {
+  background: #3b82f6;
+}
+
+[data-theme="dark"] .wimt-station-dot.dot-future {
+  background: var(--color-bg-surface);
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .wimt-view-switcher {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .wimt-switch-btn.active {
+  background: var(--color-bg-surface);
+  color: #60a5fa;
+}
+
 
 [data-theme="dark"] .quick-chip {
   background: var(--color-bg-subtle);
