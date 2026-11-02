@@ -177,3 +177,105 @@
   background: var(--color-accent-subtle);
   font-weight: 600;
 }
+
+/* ── No. column ──────────────────────────────────────────────── */
+.events-table .col-no {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  width: 36px;
+  min-width: 36px;
+  padding-left: var(--space-3);
+  padding-right: var(--space-2);
+}
+
+/* ── Station name & code cells ────────────────────────────────── */
+.station-name-cell {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.station-code-cell {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Live animated train badge ────────────────────────────────── */
+.live-train-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  animation: train-chug 0.55s ease-in-out infinite alternate;
+  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45));
+}
+
+@keyframes train-chug {
+  from { transform: translateY(0px) translateX(0px); }
+  to   { transform: translateY(-1.5px) translateX(1px); }
+}
+
+/* wheel spin on the live train */
+.train-chug-svg circle {
+  animation: wheel-spin 0.4s linear infinite;
+  transform-origin: center;
+}
+
+/* ── Mobile optimisation ─────────────────────────────────────── */
+@media (max-width: 600px) {
+  .events-table-wrapper {
+    margin-left: calc(-1 * var(--space-4));
+    margin-right: calc(-1 * var(--space-4));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .events-table {
+    font-size: 12px;
+  }
+
+  .events-table th {
+    padding: 8px 6px;
+    font-size: 10px;
+  }
+
+  .events-table td {
+    padding: 10px 6px;
+  }
+
+  .events-table .col-no {
+    width: 28px;
+    min-width: 28px;
+    padding-left: 6px;
+    padding-right: 4px;
+  }
+
+  /* Hide Elevation column on small screens — least critical */
+  .events-table th:last-child,
+  .events-table td:last-child {
+    display: none;
+  }
+
+  /* Compact station name on mobile */
+  .station-name-cell {
+    font-size: 13px;
+    gap: 4px;
+  }
+
+  .live-train-badge svg {
+    width: 30px;
+    height: 17px;
+  }
+
+  /* Compact the scheduled date columns to save space */
+  .events-table td:nth-child(3),
+  .events-table td:nth-child(4) {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}

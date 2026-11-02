@@ -185,7 +185,7 @@ export function renderAnalyticsSection() {
             <table class="events-table" aria-label="Station events timetable">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th>No.</th>
                   <th>Station</th>
                   <th>Arr · Dep (Scheduled)</th>
                   <th>Actual / ETA</th>
@@ -199,12 +199,27 @@ export function renderAnalyticsSection() {
                   const isPassed  = idx < curIdx;
                   const isCurrent = idx === curIdx;
                   const rowClass  = isCurrent ? "current-row" : "";
+                  const liveTrainSVG = `<span class="live-train-badge" title="Train is here">
+                    <svg class="train-chug-svg" viewBox="0 0 40 22" width="40" height="22" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="1" y="3" width="30" height="13" rx="3" fill="#1e40af"/>
+                      <rect x="26" y="5" width="7" height="9" rx="2" fill="#2563eb"/>
+                      <rect x="4" y="6" width="5" height="4" rx="1" fill="#bfdbfe"/>
+                      <rect x="11" y="6" width="5" height="4" rx="1" fill="#bfdbfe"/>
+                      <rect x="18" y="6" width="4" height="4" rx="1" fill="#bfdbfe"/>
+                      <rect x="27" y="7" width="3" height="3" rx="1" fill="#bfdbfe"/>
+                      <rect x="2" y="14" width="28" height="2" rx="1" fill="#1e3a8a"/>
+                      <circle cx="7" cy="18" r="2.5" fill="#1e3a8a"/><circle cx="7" cy="18" r="1.1" fill="#60a5fa"/>
+                      <circle cx="17" cy="18" r="2.5" fill="#1e3a8a"/><circle cx="17" cy="18" r="1.1" fill="#60a5fa"/>
+                      <circle cx="27" cy="18" r="2.5" fill="#1e3a8a"/><circle cx="27" cy="18" r="1.1" fill="#60a5fa"/>
+                      <circle cx="33" cy="9" r="1.4" fill="#fbbf24"/>
+                    </svg>
+                  </span>`;
                   return `
                     <tr class="${rowClass}">
-                      <td style="color:var(--color-text-muted);font-size:11px;">${s.sequence || idx + 1}</td>
+                      <td class="col-no">${s.sequence || idx + 1}</td>
                       <td>
-                        <div style="font-weight:700;">${s.name}</div>
-                        <div style="font-size:11px;color:var(--color-text-muted);">${s.code || s.stationId || ""} ${isCurrent ? "· 📍 Current" : isPassed ? "· ✓" : ""}</div>
+                        <div class="station-name-cell">${isCurrent ? liveTrainSVG : ""}${s.name}</div>
+                        <div class="station-code-cell">${s.code || s.stationId || ""} ${isCurrent ? "· 🟢 Live" : isPassed ? "· ✓" : ""}</div>
                       </td>
                       <td>
                         <div>${s.scheduledArr !== "—" ? s.scheduledArr : "—"}</div>
