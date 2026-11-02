@@ -32,14 +32,38 @@ const MAPTILER_STYLES = {
 
 const CARTO_STYLES = {
   light: {
-    version: 8, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
-    sources: { carto: { type: "raster", tiles: ["https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"], tileSize: 256 } },
-    layers:  [{ id: "carto", type: "raster", source: "carto" }]
+    version: 8,
+    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+    sources: {
+      carto: {
+        type: "raster",
+        tiles: [
+          "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+          "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+          "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+          "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"
+        ],
+        tileSize: 256
+      }
+    },
+    layers: [{ id: "carto", type: "raster", source: "carto" }]
   },
   dark: {
-    version: 8, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
-    sources: { carto: { type: "raster", tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"], tileSize: 256 } },
-    layers:  [{ id: "carto", type: "raster", source: "carto" }]
+    version: 8,
+    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+    sources: {
+      carto: {
+        type: "raster",
+        tiles: [
+          "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+          "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+          "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+          "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+        ],
+        tileSize: 256
+      }
+    },
+    layers: [{ id: "carto", type: "raster", source: "carto" }]
   }
 };
 
@@ -269,15 +293,24 @@ export function initOrUpdateMap() {
         center,
         zoom: 5.6,
         pitch: 0,
+        bearing: 0,
+        maxPitch: 0,
         attributionControl: false,
         pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
-        fadeDuration: 100,
+        fadeDuration: 0,
+        crossSourceCollisions: false,
+        dragPan: {
+          linearity: 0.25,
+          maxSpeed: 1800,
+          deceleration: 2400
+        },
+        doubleClickZoom: true,
         touchZoomRotate: true,
         dragRotate: false,
         touchPitch: false,
         cooperativeGestures: false,
         renderWorldCopies: false,
-        maxTileCacheSize: 80
+        maxTileCacheSize: 150
       });
 
       // Disable touch rotation on mobile for pure 60fps pinch-to-zoom like Google Maps
@@ -285,7 +318,27 @@ export function initOrUpdateMap() {
         mapInstance.touchZoomRotate.disableRotation();
       }
 
-      mapInstance.on("dragstart", () => { isUserInteracting = true; store.setFollowTrain(false); showRecenterBtn(true); });
+      // Track all user gestures: pinch-zoom, pan, touch, wheel, click-drag
+      // Immediately disconnect followTrain so telemetry ticks do NOT interrupt user gestures!
+      const onUserGestureStart = (e) => {
+        if (!e || e.originalEvent) {
+          isUserInteracting = true;
+          store.setFollowTrain(false);
+          showRecenterBtn(true);
+        }
+      };
+
+      mapInstance.on("movestart", onUserGestureStart);
+      mapInstance.on("zoomstart", onUserGestureStart);
+      mapInstance.on("dragstart", onUserGestureStart);
+      mapInstance.on("pitchstart", onUserGestureStart);
+      mapInstance.on("touchstart", onUserGestureStart);
+      mapInstance.on("wheel", onUserGestureStart);
+
+      mapInstance.on("moveend", () => {
+        isUserInteracting = false;
+      });
+
       mapInstance.on("load", () => {
         if (route) drawFullRoute(route, pos);
         setTimeout(() => mapInstance?.resize(), 60);
@@ -340,14 +393,16 @@ export function initOrUpdateMap() {
     }
   }
 
-  // Camera follow
-  if (state.followTrain && pos && mapInstance && !isNaN(pos.lon) && !isNaN(pos.lat)) {
+  // Camera follow — only if user is NOT actively touching/gesturing on map
+  if (state.followTrain && !isUserInteracting && pos && mapInstance && !isNaN(pos.lon) && !isNaN(pos.lat)) {
     mapInstance.easeTo({ center: [pos.lon, pos.lat], duration: 1000 });
     showRecenterBtn(false);
   }
 
-  // Force canvas size update
-  mapInstance.resize();
+  // Force canvas size update only when idle to prevent layout thrashing during touch moves
+  if (!isUserInteracting && mapInstance) {
+    try { mapInstance.resize(); } catch (e) {}
+  }
 
   // Update speed & badge label
   const speedEl = document.getElementById("mapSpeedLabel");
@@ -395,39 +450,134 @@ function drawFullRoute(route, pos) {
     console.warn("[MapLibre] layer draw warning:", err);
   }
 
-  // Station markers
+  // Station markers rendered directly via WebGL GPU layer (0 DOM overhead, smooth 60fps pinch-to-zoom)
+  removeLayerSafe("stations-touch-target");
+  removeLayerSafe("stations-circle-halo");
+  removeLayerSafe("stations-circle");
+  removeSourceSafe("stations-data");
+
   const curIdx = trackerService.getCurrentStationIndex();
-  (route.stations || []).forEach((stn, idx) => {
-    if (!stn.latitude || !stn.longitude) return;
+  const validStations = (route.stations || []).filter(stn => {
+    if (!stn.latitude || !stn.longitude) return false;
     const lat = Number(stn.latitude);
     const lon = Number(stn.longitude);
-    if (isNaN(lat) || isNaN(lon) || !GeoService.isValidIndiaCord(lon, lat)) return;
-
-    const el = document.createElement("div");
-    el.className = "station-map-marker";
-    if (idx < curIdx)   el.classList.add("passed");
-    if (idx === curIdx) el.classList.add("current-hub");
-
-    const popup = new window.maplibregl.Popup({ offset: 12 }).setHTML(`
-      <div style="font-family:sans-serif;min-width:160px;">
-        <strong style="font-size:14px;color:#0f172a;">${stn.name}${stn.code ? ` (${stn.code})` : ""}</strong>
-        <div style="font-size:12px;color:#64748b;margin-top:4px;">
-          ${stn.scheduledArr && stn.scheduledArr !== "—" ? `Arr: <strong>${stn.scheduledArr}</strong>` : ""}
-          ${stn.scheduledDep && stn.scheduledDep !== "—" ? ` · Dep: <strong>${stn.scheduledDep}</strong>` : ""}
-        </div>
-        ${stn.platform ? `<div style="font-size:11px;color:#1e40af;margin-top:2px;">Platform ${stn.platform}</div>` : ""}
-        <div style="font-size:11px;color:#64748b;">${stn.distanceKm ? `${stn.distanceKm} km from origin` : ""}</div>
-      </div>
-    `);
-
-    try {
-      const marker = new window.maplibregl.Marker({ element: el })
-        .setLngLat([lon, lat])
-        .setPopup(popup)
-        .addTo(mapInstance);
-      stationMarkers.push(marker);
-    } catch (e) {}
+    return !isNaN(lat) && !isNaN(lon) && GeoService.isValidIndiaCord(lon, lat);
   });
+
+  const stationsGeoJson = {
+    type: "FeatureCollection",
+    features: validStations.map((stn, idx) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Number(stn.longitude), Number(stn.latitude)] },
+      properties: {
+        idx,
+        name: stn.name,
+        code: stn.code,
+        scheduledArr: stn.scheduledArr || "—",
+        scheduledDep: stn.scheduledDep || "—",
+        platform: stn.platform || "",
+        distanceKm: stn.distanceKm || 0,
+        isPassed: idx < curIdx,
+        isCurrent: idx === curIdx,
+        isTerminus: idx === 0 || idx === validStations.length - 1
+      }
+    }))
+  };
+
+  try {
+    mapInstance.addSource("stations-data", {
+      type: "geojson",
+      data: stationsGeoJson
+    });
+
+    // Outer white halo
+    mapInstance.addLayer({
+      id: "stations-circle-halo",
+      type: "circle",
+      source: "stations-data",
+      paint: {
+        "circle-radius": [
+          "case",
+          ["boolean", ["get", "isCurrent"], false], 9,
+          ["boolean", ["get", "isTerminus"], false], 7.5,
+          5.5
+        ],
+        "circle-color": "#ffffff",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": "rgba(0, 0, 0, 0.15)"
+      }
+    });
+
+    // Inner filled circle
+    mapInstance.addLayer({
+      id: "stations-circle",
+      type: "circle",
+      source: "stations-data",
+      paint: {
+        "circle-radius": [
+          "case",
+          ["boolean", ["get", "isCurrent"], false], 6.5,
+          ["boolean", ["get", "isTerminus"], false], 5.5,
+          4
+        ],
+        "circle-color": [
+          "case",
+          ["boolean", ["get", "isCurrent"], false], "#15803d",
+          ["boolean", ["get", "isPassed"], false], "#94a3b8",
+          "#1e40af"
+        ]
+      }
+    });
+
+    // Invisible touch buffer layer for finger tapping on mobile (20px radius)
+    mapInstance.addLayer({
+      id: "stations-touch-target",
+      type: "circle",
+      source: "stations-data",
+      paint: {
+        "circle-radius": 20,
+        "circle-opacity": 0
+      }
+    });
+  } catch (err) {
+    console.warn("[MapLibre] stations layer draw warning:", err);
+  }
+
+  // Station click popup listener (registered once per map instance)
+  if (!mapInstance._hasStationClickRegistered) {
+    mapInstance._hasStationClickRegistered = true;
+    const showStationPopup = (e) => {
+      const feat = e.features?.[0];
+      if (!feat) return;
+      const p = feat.properties;
+      const coords = feat.geometry.coordinates;
+
+      new window.maplibregl.Popup({ offset: 10 })
+        .setLngLat(coords)
+        .setHTML(`
+          <div style="font-family:sans-serif;min-width:160px;padding:2px;">
+            <strong style="font-size:14px;color:#0f172a;">${p.name}${p.code ? ` (${p.code})` : ""}</strong>
+            <div style="font-size:12px;color:#64748b;margin-top:4px;">
+              ${p.scheduledArr && p.scheduledArr !== "—" ? `Arr: <strong>${p.scheduledArr}</strong>` : ""}
+              ${p.scheduledDep && p.scheduledDep !== "—" ? ` · Dep: <strong>${p.scheduledDep}</strong>` : ""}
+            </div>
+            ${p.platform ? `<div style="font-size:11px;color:#1e40af;margin-top:2px;font-weight:600;">Platform ${p.platform}</div>` : ""}
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">${p.distanceKm ? `${p.distanceKm} km from origin` : ""}</div>
+          </div>
+        `)
+        .addTo(mapInstance);
+    };
+
+    mapInstance.on("click", "stations-circle", showStationPopup);
+    mapInstance.on("click", "stations-touch-target", showStationPopup);
+
+    mapInstance.on("mouseenter", "stations-touch-target", () => {
+      mapInstance.getCanvas().style.cursor = "pointer";
+    });
+    mapInstance.on("mouseleave", "stations-touch-target", () => {
+      mapInstance.getCanvas().style.cursor = "";
+    });
+  }
 
   // Train marker
   if (pos && !isNaN(pos.lon) && !isNaN(pos.lat)) {
@@ -478,6 +628,38 @@ function updateRouteLayers(route, pos) {
   const rSrc = mapInstance.getSource("route-remaining");
   if (cSrc) cSrc.setData(lineFeature(completed));
   if (rSrc) rSrc.setData(lineFeature(remaining));
+
+  // Dynamically update GPU stations GeoJSON without layer teardown
+  const sSrc = mapInstance.getSource("stations-data");
+  if (sSrc && route.stations?.length) {
+    const curIdx = trackerService.getCurrentStationIndex();
+    const validStations = (route.stations || []).filter(stn => {
+      if (!stn.latitude || !stn.longitude) return false;
+      const lat = Number(stn.latitude);
+      const lon = Number(stn.longitude);
+      return !isNaN(lat) && !isNaN(lon) && GeoService.isValidIndiaCord(lon, lat);
+    });
+
+    sSrc.setData({
+      type: "FeatureCollection",
+      features: validStations.map((stn, idx) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [Number(stn.longitude), Number(stn.latitude)] },
+        properties: {
+          idx,
+          name: stn.name,
+          code: stn.code,
+          scheduledArr: stn.scheduledArr || "—",
+          scheduledDep: stn.scheduledDep || "—",
+          platform: stn.platform || "",
+          distanceKm: stn.distanceKm || 0,
+          isPassed: idx < curIdx,
+          isCurrent: idx === curIdx,
+          isTerminus: idx === 0 || idx === validStations.length - 1
+        }
+      }))
+    });
+  }
 }
 
 function updateTrainMarker(pos) {
@@ -594,8 +776,28 @@ export function attachMapEvents() {
 
   const zoomIn  = document.getElementById("mapZoomInBtn");
   const zoomOut = document.getElementById("mapZoomOutBtn");
-  if (zoomIn)  zoomIn.addEventListener("click",  () => mapInstance?.zoomIn());
-  if (zoomOut) zoomOut.addEventListener("click", () => mapInstance?.zoomOut());
+  if (zoomIn) {
+    zoomIn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      store.setFollowTrain(false);
+      showRecenterBtn(true);
+      mapInstance.easeTo({ zoom: Math.min(mapInstance.getZoom() + 1, 18), duration: 240 });
+    });
+  }
+  if (zoomOut) {
+    zoomOut.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!mapInstance) return;
+      isUserInteracting = true;
+      store.setFollowTrain(false);
+      showRecenterBtn(true);
+      mapInstance.easeTo({ zoom: Math.max(mapInstance.getZoom() - 1, 2), duration: 240 });
+    });
+  }
 
   const fsBtn = document.getElementById("mapFullscreenBtn");
   if (fsBtn) {

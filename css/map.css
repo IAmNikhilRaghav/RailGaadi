@@ -12,6 +12,10 @@
   overflow: hidden;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-card);
+  touch-action: none !important;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @media (min-width: 1200px) {
@@ -48,6 +52,8 @@
   align-items: center;
   justify-content: center;
   transition: all var(--duration-fast) ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .map-control-btn:hover {
@@ -78,7 +84,9 @@
   align-items: center;
   gap: var(--space-3);
   box-shadow: var(--shadow-md);
-  pointer-events: auto;
+  pointer-events: none !important; /* Never block user touch, pan, or pinch gestures */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .floating-speed-label {
@@ -127,11 +135,12 @@
 .train-custom-marker {
   width: 44px;
   height: 44px;
-  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none !important;
+  pointer-events: none !important; /* Touch passes directly to map canvas */
 }
 
 .train-marker-inner {
@@ -145,8 +154,8 @@
   justify-content: center;
   color: #ffffff;
   box-shadow: 0 4px 14px rgba(30, 64, 175, 0.45);
-  transition: transform 0.3s ease;
   z-index: 2;
+  pointer-events: none !important;
 }
 
 .train-marker-pulse {
@@ -156,6 +165,7 @@
   background: rgba(59, 130, 246, 0.35);
   animation: trainGlow 2.5s infinite;
   z-index: 1;
+  pointer-events: none !important;
 }
 
 @keyframes trainGlow {
