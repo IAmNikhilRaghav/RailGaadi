@@ -110,6 +110,19 @@
   background: var(--color-accent-subtle) !important;
 }
 
+[data-theme="dark"] .tl-node--future {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .station-name-cell--current {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .tl-train-marker {
+  filter: drop-shadow(0 2px 8px rgba(96, 165, 250, 0.4));
+}
+
 [data-theme="dark"] .quick-chip {
   background: var(--color-bg-subtle);
   border-color: var(--color-border);
