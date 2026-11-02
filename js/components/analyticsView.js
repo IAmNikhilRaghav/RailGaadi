@@ -11,7 +11,7 @@ import { ElevationService } from "../services/elevationService.js";
 const elevationAttemptedTrains = new Set();
 
 // Persistent state for interactive accordion and view switcher
-let isTimelineOpen = true;
+let isTimelineOpen = false;
 let timelineViewMode = "wimt"; // "wimt" | "table"
 
 /* ── helpers ──────────────────────────────────────────────── */
@@ -126,7 +126,7 @@ export function renderAnalyticsSection() {
       <!-- 1. Full Journey Timeline & Station Events — Dynamic Interactive Accordion Button -->
       <div class="card-panel wimt-accordion-card" id="journeyTimelineAccordion">
 
-        <!-- Dynamic Clickable Header Bar -->
+        <!-- Header Bar (Clickable) -->
         <button type="button" class="wimt-accordion-bar ${isTimelineOpen ? "is-open" : ""}" id="journeyTimelineToggle" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody">
           <div class="wimt-accordion-bar-left">
             <div class="wimt-accordion-icon-badge">
@@ -160,17 +160,36 @@ export function renderAnalyticsSection() {
           </div>
         </button>
 
-        <!-- Collapsible Container Body -->
+        <!-- Prominent Interactive Blue Next-Station Summary Bar (Primary trigger requested by user) -->
+        <div class="wimt-summary-bar-wrapper">
+          <button type="button" class="next-stn-interactive-btn ${isTimelineOpen ? "is-expanded" : ""}" id="nextStnSummaryBar" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody" title="Touch to view or collapse all station events">
+            <div class="next-stn-banner-left">
+              <div class="next-stn-icon-ring">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+                </svg>
+              </div>
+              <span>${kmToNext != null ? `Next Station: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> remaining` : `Train en-route — <strong>${stations.length} stations total</strong>`}</span>
+            </div>
+            <div class="next-stn-banner-right">
+              <span class="next-stn-cta-text">${isTimelineOpen ? "Hide Description" : "Tap to view full description"}</span>
+              <svg class="next-stn-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+          </button>
+        </div>
+
+        <!-- Collapsible Container Body (Shown only when opened via blue bar or header) -->
         <div class="wimt-accordion-body" id="journeyTimelineBody" ${isTimelineOpen ? "" : "hidden"}>
 
-          <!-- Top Toolbar: View Mode Switcher & Live Next Banner -->
+          <!-- Top Toolbar: View Mode Switcher -->
           <div class="wimt-toolbar-row">
-            ${kmToNext != null ? `
-              <div class="next-stn-banner">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
-                <span>Next Station: <strong>${nextStn?.name}</strong> — <strong>${kmToNext} km</strong> remaining</span>
-              </div>
-            ` : "<div></div>"}
+            <div class="wimt-toolbar-info">
+              <span class="wimt-legend-dot dot-halt"></span> Scheduled Stop
+              <span class="wimt-legend-dot dot-through" style="margin-left:12px;"></span> Pass-through
+              <span class="wimt-legend-dot dot-current" style="margin-left:12px;"></span> Live Train
+            </div>
 
             <!-- View Switcher Tabs -->
             <div class="wimt-view-switcher" role="tablist" aria-label="Timeline View Format">

@@ -420,6 +420,122 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Next Station Interactive Summary Bar (Primary Collapsible Trigger) ── */
+.wimt-summary-bar-wrapper {
+  padding: 0 20px 14px 20px;
+}
+
+.next-stn-interactive-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1.5px solid #93c5fd;
+  border-radius: 12px;
+  color: #1e40af;
+  font-size: 13.5px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+  gap: 12px;
+}
+
+.next-stn-interactive-btn:hover {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.22);
+  transform: translateY(-1px);
+}
+
+.next-stn-interactive-btn:active {
+  transform: scale(0.99);
+}
+
+.next-stn-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.3;
+}
+
+.next-stn-icon-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.18);
+  flex-shrink: 0;
+}
+
+.next-stn-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.next-stn-cta-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid rgba(147, 197, 253, 0.7);
+  letter-spacing: 0.01em;
+  transition: all 0.15s ease;
+}
+
+.next-stn-interactive-btn:hover .next-stn-cta-text {
+  background: #ffffff;
+  color: #1e40af;
+  border-color: #3b82f6;
+}
+
+.next-stn-chevron-icon {
+  color: #2563eb;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.next-stn-interactive-btn.is-expanded .next-stn-chevron-icon {
+  transform: rotate(180deg);
+}
+
+.next-stn-interactive-btn.is-expanded {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border-color: #3b82f6;
+}
+
+.wimt-toolbar-info {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.wimt-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.wimt-legend-dot.dot-halt { background: #2563eb; }
+.wimt-legend-dot.dot-through { background: #cbd5e1; }
+.wimt-legend-dot.dot-current { background: #16a34a; }
+
 /* ── Toolbar: Switcher & Next Station Banner ─────────────────── */
 .wimt-toolbar-row {
   display: flex;
