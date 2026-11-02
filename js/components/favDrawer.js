@@ -46,8 +46,8 @@ export function renderFavDrawer() {
         <div class="fav-train-row-actions">
           <span class="fav-type-tag">${(t.type || "Express").split("/")[0]}</span>
           <button class="fav-unstar-btn" data-train-id="${t.id}" title="${isFav ? "Remove from favourites" : "Add to favourites"}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav ? "#f59e0b" : "none"}" stroke="${isFav ? "#f59e0b" : "currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFav ? "#ef4444" : "none"}" stroke="${isFav ? "#ef4444" : "currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
             </svg>
           </button>
         </div>
@@ -60,8 +60,8 @@ export function renderFavDrawer() {
     <aside class="fav-drawer" id="favDrawerPanel" role="complementary" aria-label="Favourites">
       <div class="fav-drawer-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
           </svg>
           <h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">Saved Trains</h2>
         </div>
@@ -76,14 +76,14 @@ export function renderFavDrawer() {
         <!-- Favourites -->
         <div class="fav-drawer-section">
           <div class="fav-drawer-section-label">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
             </svg>
             <span>Favourites (${favTrains.length})</span>
           </div>
           ${favTrains.length > 0
             ? favTrains.map(t => trainRow(t, true)).join("")
-            : `<div class="fav-drawer-empty">⭐ No favourites yet — star a train from the status card</div>`}
+            : `<div class="fav-drawer-empty">❤️ No favourites yet — tap the heart on any train to save it</div>`}
         </div>
 
         <!-- Recent Searches -->

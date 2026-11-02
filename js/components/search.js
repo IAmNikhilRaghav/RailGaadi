@@ -39,7 +39,7 @@ export function renderQuickChips() {
     <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;white-space:nowrap;margin-right:4px;">Recent:</span>
     ${chips.map(c => `
       <button class="quick-chip ${c.id === activeTrainId ? "active" : ""}" data-train-id="${c.id}" title="Load ${c.number}">
-        ${c.isFav ? "⭐" : "🕒"} <strong>${c.number}</strong>${c.shortName ? ` · ${c.shortName}` : ""}
+        ${c.isFav ? "❤️" : "🕒"} <strong>${c.number}</strong>${c.shortName ? ` · ${c.shortName}` : ""}
       </button>
     `).join("")}
   `;

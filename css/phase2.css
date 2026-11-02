@@ -258,12 +258,18 @@
 .fav-count-badge {
   font-size: 10px;
   font-weight: 800;
-  background: #f59e0b;
+  background: #ef4444;
   color: white;
   padding: 1px 5px;
   border-radius: var(--radius-full);
   line-height: 1.4;
   font-family: var(--font-mono);
+}
+
+.header-btn.is-favourited {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #ef4444 !important;
 }
 
 /* ── Favourites Drawer ────────────────────────────────────── */

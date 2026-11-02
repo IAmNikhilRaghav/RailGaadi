@@ -213,7 +213,7 @@ class Store {
     this.setState({ favourites: next });
     const meta = this.getTrainMeta(trainId);
     const name = meta?.name || `#${trainId}`;
-    this.showToast(exists ? `Removed ${name} from favourites` : `Saved ${name} to favourites ⭐`);
+    this.showToast(exists ? `Removed ${name} from favourites` : `Saved ${name} to favourites ❤️`);
   }
 
   addRecentSearch(trainId) {
