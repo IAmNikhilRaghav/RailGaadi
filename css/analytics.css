@@ -3,6 +3,106 @@
    Elevation Chart, Delay Summary, Progress Gauges
    ========================================================================== */
 
+/* ── Next station distance banner ───────────────────────────── */
+.next-stn-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: #1e40af;
+  margin-bottom: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.next-stn-banner svg {
+  flex-shrink: 0;
+  color: #2563eb;
+}
+
+/* ── Stop type legend ───────────────────────────────────────── */
+.tl-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.tl-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tl-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tl-legend-dot--halt   { background: #2563eb; }
+.tl-legend-dot--through { background: transparent; border: 2px solid #94a3b8; }
+.tl-legend-dot--done   { background: #2563eb; opacity: 0.45; }
+
+/* ── Stop type badges ───────────────────────────────────────── */
+.stop-type-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.stop-type-badge--halt {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.stop-type-badge--through {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Km remaining to upcoming station ──────────────────────── */
+.km-remaining {
+  color: var(--color-accent);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* ── Row type distinction ───────────────────────────────────── */
+.events-table tr.row-through td {
+  opacity: 0.72;
+}
+
+.events-table tr.row-through .station-name-cell {
+  color: var(--color-text-secondary);
+}
+
+.events-table tr.row-halting .station-name-cell {
+  font-weight: 700;
+}
+
+/* Stronger highlight for halting rows */
+.events-table tr.current-row.row-halting td {
+  background: #dbeafe;
+  font-weight: 700;
+}
+
+
 .analytics-container {
   display: flex;
   flex-direction: column;

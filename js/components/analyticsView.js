@@ -35,6 +35,7 @@ function renderAnalyticsEmpty() {
         <h3 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-secondary);margin-bottom:8px;">Analytics Unavailable</h3>
         <p style="font-size:var(--text-sm);">Search and load a train first to see journey analytics, elevation profile, and timetable.</p>
       </div>
+      </div><!-- /hidden old table -->
     </div>
   `;
 }
@@ -88,11 +89,35 @@ export function renderAnalyticsSection() {
   const maxElev     = safeMax(elevPoints);
   const highestStn  = stations.find(s => s.elevationM === maxElev);
 
+  // ── Compute distance to next halting station ──────────────────────────────
+  // Next station = first future station after current
+  const nextStnIdx  = curIdx + 1 < stations.length ? curIdx + 1 : null;
+  const nextStn     = nextStnIdx != null ? stations[nextStnIdx] : null;
+  const currStnDist = curIdx >= 0 && stations[curIdx]?.distanceKm != null ? stations[curIdx].distanceKm : null;
+  const nextStnDist = nextStn?.distanceKm != null ? nextStn.distanceKm : null;
+  const kmToNext    = (currStnDist != null && nextStnDist != null)
+                        ? Math.round((nextStnDist - currStnDist) * 10) / 10
+                        : null;
+
   return `
     <div class="analytics-container" aria-label="Journey Analytics">
 
-      <!-- Key Metrics Row -->
-      <div class="analytics-row split-3">
+      <!-- 1. Full Journey Timeline & Station Events — shown FIRST -->
+      <div class="card-panel" style="padding:var(--space-6);margin-bottom:var(--space-6);">
+        <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-1);">Full Journey Timeline &amp; Station Events</h3>
+        ${kmToNext != null ? `
+          <div class="next-stn-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            <span>Next station <strong>${nextStn.name}</strong> — <strong>${kmToNext} km</strong> remaining</span>
+          </div>
+        ` : ""}
+
+        <!-- Legend for stop types -->
+        <div class="tl-legend">
+          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--halt"></span>Scheduled stop</span>
+          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--through"></span>Pass-through</span>
+          <span class="tl-legend-item"><span class="tl-legend-dot tl-legend-dot--done"></span>Passed</span>
+        </div>
         <div class="analytics-metric-card">
           <div class="metric-card-top">
             <span class="metric-card-title">Schedule Variance</span>
@@ -123,8 +148,29 @@ export function renderAnalyticsSection() {
         </div>
       </div>
 
-      <!-- Elevation Profile Card -->
-      <div class="elevation-card">
+      <!-- 3. Live Speed Telemetry & History Card -->
+      <div class="elevation-card speed-card" style="margin-top:var(--space-6);">
+        <div class="chart-header">
+          <div class="chart-title-group">
+            <h3>Live Speed Telemetry &amp; Velocity Curve</h3>
+            <p>Real-time locomotive velocity measurements and session speed telemetry</p>
+          </div>
+          <div class="highest-elevation-pill" style="background:var(--color-bg-subtle);border-color:var(--color-border);color:var(--color-text-primary);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 14l4-4"/>
+              <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+            </svg>
+            <span>Current: <strong style="color:var(--color-accent);">${currentSpeed != null ? `${currentSpeed} km/h` : "—"}</strong>${maxSpeed ? ` · Peak: <strong>${maxSpeed} km/h</strong>` : ""}</span>
+          </div>
+        </div>
+        <div class="elevation-canvas-container" style="height:190px;">
+          <canvas id="speedCanvas" class="elevation-canvas"></canvas>
+          <div id="speedTooltip" class="elevation-tooltip"></div>
+        </div>
+      </div>
+
+      <!-- 4. Route Elevation Profile -->
+      <div class="elevation-card" style="margin-top:var(--space-6);">
         <div class="chart-header">
           <div class="chart-title-group">
             <h3>Route Elevation Profile</h3>
@@ -150,33 +196,8 @@ export function renderAnalyticsSection() {
         </div>
       </div>
 
-      <!-- Speed Telemetry & History Card -->
-      <div class="elevation-card speed-card" style="margin-top:var(--space-6);">
-        <div class="chart-header">
-          <div class="chart-title-group">
-            <h3>Live Speed Telemetry &amp; Velocity Curve</h3>
-            <p>Real-time locomotive velocity measurements and session speed telemetry</p>
-          </div>
-          <div class="highest-elevation-pill" style="background:var(--color-bg-subtle);border-color:var(--color-border);color:var(--color-text-primary);">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 14l4-4"/>
-              <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
-            </svg>
-            <span>Current: <strong style="color:var(--color-accent);">${currentSpeed != null ? `${currentSpeed} km/h` : "—"}</strong>${maxSpeed ? ` · Peak: <strong>${maxSpeed} km/h</strong>` : ""}</span>
-          </div>
-        </div>
-        <div class="elevation-canvas-container" style="height:190px;">
-          <canvas id="speedCanvas" class="elevation-canvas"></canvas>
-          <div id="speedTooltip" class="elevation-tooltip"></div>
-        </div>
-      </div>
-
-      <!-- Full Journey Timetable Table -->
-      <div class="card-panel" style="padding:var(--space-6);">
-        <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-2);">Full Journey Timeline &amp; Station Events</h3>
-        <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:var(--space-4);">
-          Live scheduled vs. actual arrival times and station details
-        </p>
+      <!-- (timeline table was moved to top — rendered first above) -->
+      <div style="display:none">
 
         ${stations.length === 0 ? `
           <p style="color:var(--color-text-muted);text-align:center;padding:var(--space-8);">Station schedule not available from provider</p>
@@ -237,8 +258,27 @@ export function renderAnalyticsSection() {
                     nodeMarkup = `<span class="tl-node tl-node--future"></span>`;
                   }
 
+                  // Halt vs pass-through detection: haltMin 0 or undefined = through station
+                  const haltMin   = s.haltMin ?? s.halt_min ?? s.haltMinutes ?? null;
+                  const isHalting = haltMin == null ? true : haltMin > 0; // if no data assume halting
+                  const isThrough = haltMin != null && haltMin === 0;
+
+                  // Distance remaining to THIS station (for upcoming stations only)
+                  const currTrainDistKm = curIdx >= 0 && stations[curIdx]?.distanceKm != null ? stations[curIdx].distanceKm : null;
+                  const thisStnDistKm   = s.distanceKm != null ? s.distanceKm : null;
+                  const kmRemaining     = (!isPassed && !isCurrent && currTrainDistKm != null && thisStnDistKm != null)
+                                            ? Math.round((thisStnDistKm - currTrainDistKm) * 10) / 10
+                                            : null;
+
+                  const stopBadge = isThrough
+                    ? `<span class="stop-type-badge stop-type-badge--through">Pass</span>`
+                    : `<span class="stop-type-badge stop-type-badge--halt">${haltMin ? `${haltMin} min` : "Stop"}</span>`;
+
+                  // Row class: halting stations get stronger highlight, through stations are muted
+                  const extraRowClass = isThrough ? "row-through" : "row-halting";
+
                   return `
-                    <tr class="${rowClass}">
+                    <tr class="${rowClass} ${extraRowClass}">
                       <td class="col-no">
                         <div class="tl-col-cell">
                           <div class="tl-line tl-line--top ${isPassed || isCurrent ? "tl-line--done" : ""} ${isFirst ? "tl-line--invisible" : ""}"></div>
@@ -248,8 +288,15 @@ export function renderAnalyticsSection() {
                         <span class="tl-seq">${s.sequence || idx + 1}</span>
                       </td>
                       <td>
-                        <div class="station-name-cell ${isCurrent ? "station-name-cell--current" : ""}">${s.name}</div>
-                        <div class="station-code-cell">${s.code || s.stationId || ""} ${isCurrent ? "· Live" : isPassed ? "· Done" : ""}</div>
+                        <div class="station-name-cell ${isCurrent ? "station-name-cell--current" : ""} ${isThrough ? "station-name-cell--through" : ""}">
+                          ${s.name}
+                          ${stopBadge}
+                        </div>
+                        <div class="station-code-cell">
+                          ${s.code || s.stationId || ""}
+                          ${isCurrent ? "· 🟢 Live" : isPassed ? "· Done" : ""}
+                          ${kmRemaining != null ? `<span class="km-remaining">· ${kmRemaining} km away</span>` : ""}
+                        </div>
                       </td>
                       <td>
                         <div>${s.scheduledArr !== "—" ? s.scheduledArr : "—"}</div>
