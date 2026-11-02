@@ -11,7 +11,7 @@ import { ElevationService } from "../services/elevationService.js";
 const elevationAttemptedTrains = new Set();
 
 // Persistent state for interactive accordion and view switcher
-let isTimelineOpen = false;
+let isTimelineOpen = true;
 let timelineViewMode = "wimt"; // "wimt" | "table"
 
 /* ── helpers ──────────────────────────────────────────────── */
@@ -166,7 +166,7 @@ export function renderAnalyticsSection() {
 
             <!-- Dynamic CTA Trigger -->
             <div class="next-stn-banner-right">
-              <span class="next-stn-cta-text">${isTimelineOpen ? "Hide Description" : "Tap to view full description"}</span>
+              <span class="next-stn-cta-text">${isTimelineOpen ? "Hide Description" : "Show Description"}</span>
               <svg class="next-stn-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -189,11 +189,11 @@ export function renderAnalyticsSection() {
             <div class="wimt-view-switcher" role="tablist" aria-label="Timeline View Format">
               <button type="button" class="wimt-switch-btn ${timelineViewMode === "wimt" ? "active" : ""}" id="btnSwitchWimt" data-view="wimt" onclick="window.setTimelineViewMode('wimt', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3"/></svg>
-                <span>Where Is My Train View</span>
+                <span>Overview</span>
               </button>
               <button type="button" class="wimt-switch-btn ${timelineViewMode === "table" ? "active" : ""}" id="btnSwitchTable" data-view="table" onclick="window.setTimelineViewMode('table', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-                <span>Detailed Table (No., ETA, PF, etc.)</span>
+                <span>Description</span>
               </button>
             </div>
           </div>
@@ -293,7 +293,7 @@ export function renderAnalyticsSection() {
                           <div class="wimt-train-speech-card">
                             <div class="wimt-bubble-pointer"></div>
                             <div class="wimt-bubble-header">
-                              <span class="wimt-bubble-title">Arrived at ${s.name}</span>
+                              <span class="wimt-bubble-title">At ${s.name}</span>
                               <span class="wimt-bubble-live-dot">● LIVE</span>
                             </div>
                             <div class="wimt-bubble-status ${isLate ? "is-late-text" : "is-ontime-text"}">
@@ -515,7 +515,7 @@ if (typeof window !== "undefined") {
       summaryBtn.classList.toggle("is-expanded", isTimelineOpen);
       summaryBtn.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
       const cta = summaryBtn.querySelector(".next-stn-cta-text");
-      if (cta) cta.textContent = isTimelineOpen ? "Hide Description" : "Tap to view full description";
+      if (cta) cta.textContent = isTimelineOpen ? "Hide Description" : "Show Description";
     }
   };
 
