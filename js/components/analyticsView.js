@@ -123,54 +123,48 @@ export function renderAnalyticsSection() {
   return `
     <div class="analytics-container" aria-label="Journey Analytics">
 
-      <!-- 1. Full Journey Timeline & Station Events — Dynamic Interactive Accordion Button -->
+      <!-- 1. Full Journey Timeline & Station Events -->
       <div class="card-panel wimt-accordion-card" id="journeyTimelineAccordion">
 
-        <!-- Header Bar (Clickable) -->
-        <button type="button" class="wimt-accordion-bar ${isTimelineOpen ? "is-open" : ""}" id="journeyTimelineToggle" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody">
-          <div class="wimt-accordion-bar-left">
-            <div class="wimt-accordion-icon-badge">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="4" y="3" width="16" height="16" rx="2"/>
-                <path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3M9 15h.01M15 15h.01"/>
-              </svg>
-            </div>
-            <div class="wimt-accordion-titles">
-              <div class="wimt-accordion-title-row">
-                <span class="wimt-accordion-title">Full Journey Timeline &amp; Station Events</span>
-                <span class="wimt-accordion-live-pill">● LIVE TRACKER</span>
-              </div>
-              <div class="wimt-accordion-meta">
-                <span>${stations.length} Stations</span>
-                <span class="wimt-meta-dot">·</span>
-                <span>${progressPct}% Covered</span>
-                ${kmToNext != null ? `<span class="wimt-meta-dot">·</span><span class="wimt-next-stn-highlight">Next: <strong>${nextStn?.name}</strong> (${kmToNext} km)</span>` : ""}
-              </div>
-            </div>
-          </div>
-          <div class="wimt-accordion-bar-right">
-            <span class="wimt-accordion-status-chip ${delay > 0 ? "is-late" : "is-ontime"}">
-              ${delay == null ? "Scheduled" : delay === 0 ? "On Time" : delay > 0 ? `+${delay}m Late` : `${Math.abs(delay)}m Early`}
-            </span>
-            <div class="wimt-chevron-pill" title="Click to expand/collapse timeline">
-              <svg class="wimt-chevron-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </div>
-          </div>
-        </button>
+        <!-- Totally Clear Tagline Header -->
+        <div class="wimt-tagline-header">
+          <h3 class="wimt-tagline-text">Full Journey Timeline &amp; Station Events</h3>
+        </div>
 
-        <!-- Prominent Interactive Blue Next-Station Summary Bar (Primary trigger requested by user) -->
+        <!-- Fully Functional Dynamic Blue Summary Bar with all journey stats -->
         <div class="wimt-summary-bar-wrapper">
           <button type="button" class="next-stn-interactive-btn ${isTimelineOpen ? "is-expanded" : ""}" id="nextStnSummaryBar" aria-expanded="${isTimelineOpen ? "true" : "false"}" aria-controls="journeyTimelineBody" title="Touch to view or collapse all station events">
-            <div class="next-stn-banner-left">
-              <div class="next-stn-icon-ring">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/>
-                </svg>
+            <div class="next-stn-bar-content">
+              <!-- Primary Line: Next Station and remaining distance -->
+              <div class="next-stn-primary-row">
+                <div class="next-stn-icon-ring">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v10m0 0 3-3m-3 3-3-3"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+                  </svg>
+                </div>
+                <div class="next-stn-main-title">
+                  ${kmToNext != null ? `Next Station: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> remaining` : `Train en-route — <strong>${stations.length} stations</strong>`}
+                </div>
               </div>
-              <span>${kmToNext != null ? `Next Station: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> remaining` : `Train en-route — <strong>${stations.length} stations total</strong>`}</span>
+
+              <!-- Summary Badges: Stations count, Covered progress, Delay minutes -->
+              <div class="next-stn-summary-badges">
+                <span class="next-stn-chip next-stn-chip-count">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  ${stations.length} Stations
+                </span>
+                <span class="next-stn-chip next-stn-chip-progress">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                  ${progressPct}% Covered
+                </span>
+                <span class="next-stn-chip next-stn-chip-delay ${delay > 0 ? "is-late" : "is-ontime"}">
+                  <span class="delay-dot">●</span>
+                  ${delay == null ? "Scheduled" : delay === 0 ? "On Time" : delay > 0 ? `+${delay}m Late` : `${Math.abs(delay)}m Early`}
+                </span>
+              </div>
             </div>
+
+            <!-- Dynamic CTA Trigger -->
             <div class="next-stn-banner-right">
               <span class="next-stn-cta-text">${isTimelineOpen ? "Hide Description" : "Tap to view full description"}</span>
               <svg class="next-stn-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
