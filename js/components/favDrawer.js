@@ -31,22 +31,22 @@ export function renderFavDrawer() {
     .slice(0, 6)
     .map(getTrainInfo);
 
-  function trainRow(t, isFav) {
-    const isActive = t.id === activeTrainId;
+  function trainRow(trainItem, isFav) {
+    const isActive = trainItem.id === activeTrainId;
     return `
-      <div class="fav-train-row ${isActive ? "active" : ""}" data-train-id="${t.id}">
+      <div class="fav-train-row ${isActive ? "active" : ""}" data-train-id="${trainItem.id}">
         <div class="fav-train-info">
-          <div class="fav-train-number-badge">${t.number}</div>
+          <div class="fav-train-number-badge">${trainItem.number}</div>
           <div class="fav-train-meta">
-            <div class="fav-train-name">${translateTrainName(t.name)}</div>
-            ${t.origin && t.dest ? `
-              <div class="fav-train-route">${translateStationName(t.origin)} → ${translateStationName(t.dest)}</div>
+            <div class="fav-train-name">${translateTrainName(trainItem.name)}</div>
+            ${trainItem.origin && trainItem.dest ? `
+              <div class="fav-train-route">${translateStationName(trainItem.origin)} → ${translateStationName(trainItem.dest)}</div>
             ` : ""}
           </div>
         </div>
         <div class="fav-train-row-actions">
-          <span class="fav-type-tag">${(t.type || "Express").split("/")[0]}</span>
-          <button class="fav-unstar-btn" data-train-id="${t.id}" title="${isFav ? "Remove from favourites" : "Add to favourites"}">
+          <span class="fav-type-tag">${(trainItem.type || "Express").split("/")[0]}</span>
+          <button class="fav-unstar-btn" data-train-id="${trainItem.id}" title="${isFav ? t("fav_remove", "Remove from favourites") : t("fav_add", "Add to favourites")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFav ? "#ef4444" : "none"}" stroke="${isFav ? "#ef4444" : "currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
             </svg>

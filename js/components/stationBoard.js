@@ -240,40 +240,40 @@ export function renderStationBoard() {
               </tr>
             </thead>
             <tbody>
-              ${filteredTrains.map(t => {
-                const typeColor = Object.entries(trainTypeColors).find(([k]) => t.type?.includes(k))?.[1] || "#1e40af";
+              ${filteredTrains.map(train => {
+                const typeColor = Object.entries(trainTypeColors).find(([k]) => train.type?.includes(k))?.[1] || "#1e40af";
                 return `
-                  <tr class="board-train-row" data-train-id="${t.trainId}">
+                  <tr class="board-train-row" data-train-id="${train.trainId}">
                     <td>
                       <div style="display:flex;align-items:center;gap:10px;">
                         <div style="width:5px;height:40px;border-radius:3px;background:${typeColor};flex-shrink:0;"></div>
                         <div>
-                          <div style="font-weight:700;font-family:var(--font-mono);color:var(--color-text-primary);">${t.number}</div>
-                          <div style="font-size:11px;color:var(--color-text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${translateTrainName(t.name)}</div>
+                          <div style="font-weight:700;font-family:var(--font-mono);color:var(--color-text-primary);">${train.number}</div>
+                          <div style="font-size:11px;color:var(--color-text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${translateTrainName(train.name)}</div>
                         </div>
                       </div>
                     </td>
                     <td>
                       <div style="font-weight:600;font-size:var(--text-sm);">
-                        ${boardMode === "departure" ? t.destination : t.origin}
+                        ${boardMode === "departure" ? translateStationName(train.destination) : translateStationName(train.origin)}
                       </div>
                     </td>
                     <td>
                       <div style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-md);color:var(--color-text-primary);">
-                        ${fmtTime(t[timeField]) || "—"}
+                        ${fmtTime(train[timeField]) || "—"}
                       </div>
-                      ${t.haltMin ? `<div style="font-size:11px;color:var(--color-text-muted);">Halt: ${t.haltMin}m</div>` : ""}
+                      ${train.haltMin ? `<div style="font-size:11px;color:var(--color-text-muted);">Halt: ${train.haltMin}m</div>` : ""}
                     </td>
                     <td>
-                      ${t.platform && t.platform !== "—" ? `
+                      ${train.platform && train.platform !== "—" ? `
                         <div style="width:36px;height:36px;background:var(--color-accent-subtle);border:2px solid var(--color-accent-border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:var(--text-sm);color:var(--color-accent);">
-                          ${t.platform}
+                          ${train.platform}
                         </div>
                       ` : `<span style="color:var(--color-text-muted);">—</span>`}
                     </td>
-                    <td>${statusBadge(t.delayMinutes)}</td>
+                    <td>${statusBadge(train.delayMinutes)}</td>
                     <td>
-                      <button class="board-track-btn" data-train-id="${t.trainId}" title="Track this train">
+                      <button class="board-track-btn" data-train-id="${train.trainId}" title="Track this train">
                         ${t("board_track", "Track")}
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
@@ -289,22 +289,22 @@ export function renderStationBoard() {
 
         <!-- Mobile card list (shown on mobile via CSS, hidden on desktop) -->
         <div class="board-mobile-list" role="list">
-          ${filteredTrains.map(t => {
-            const typeColor = Object.entries(trainTypeColors).find(([k]) => t.type?.includes(k))?.[1] || "#1e40af";
+          ${filteredTrains.map(train => {
+            const typeColor = Object.entries(trainTypeColors).find(([k]) => train.type?.includes(k))?.[1] || "#1e40af";
             return `
-              <div class="board-mobile-card board-train-row" data-train-id="${t.trainId}" role="listitem">
+              <div class="board-mobile-card board-train-row" data-train-id="${train.trainId}" role="listitem">
                 <div style="width:4px;align-self:stretch;border-radius:4px;background:${typeColor};flex-shrink:0;"></div>
                 <div class="board-mobile-card-left">
-                  <div class="board-mobile-card-name">${translateTrainName(t.name)}</div>
+                  <div class="board-mobile-card-name">${translateTrainName(train.name)}</div>
                   <div class="board-mobile-card-route">
-                    ${boardMode === "departure" ? "→ " + t.destination : "← " + t.origin}
+                    ${boardMode === "departure" ? "→ " + translateStationName(train.destination) : "← " + translateStationName(train.origin)}
                   </div>
-                  <div class="board-mobile-card-num">${t.number}</div>
+                  <div class="board-mobile-card-num">${train.number}</div>
                 </div>
                 <div class="board-mobile-card-right">
-                  <div class="board-mobile-card-time">${fmtTime(t[timeField]) || "—"}</div>
-                  ${statusBadge(t.delayMinutes)}
-                  ${t.platform && t.platform !== "—" ? `<div style="font-size:11px;font-weight:700;color:var(--color-accent);">${t("board_plt", "Plt")} ${t.platform}</div>` : ""}
+                  <div class="board-mobile-card-time">${fmtTime(train[timeField]) || "—"}</div>
+                  ${statusBadge(train.delayMinutes)}
+                  ${train.platform && train.platform !== "—" ? `<div style="font-size:11px;font-weight:700;color:var(--color-accent);">${t("board_plt", "Plt")} ${train.platform}</div>` : ""}
                 </div>
               </div>
             `;

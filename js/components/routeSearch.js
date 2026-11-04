@@ -116,9 +116,9 @@ function fmtDuration(minutes) {
   return `${m} ${t("mins", "mins")}`;
 }
 
-function fmtTime(t) {
-  if (!t || t === "—") return "—";
-  return t.replace(/^(\d):/, "0$1:").slice(0, 5);
+function fmtTime(timeStr) {
+  if (!timeStr || timeStr === "—") return "—";
+  return timeStr.replace(/^(\d):/, "0$1:").slice(0, 5);
 }
 
 /** Station autocomplete — searches all 8,690+ stations matching any alphabet or word */
@@ -234,12 +234,12 @@ function getTrainsToDisplay() {
     { number: "51974", name: "Jaipur - Mathura Passenger", origin: "Jaipur Jn", destination: "Mathura Jn", type: "Passenger/Local", departureTime: "14:30", arrivalTime: "20:45", durationMinutes: 375, runningDays: "YYYYYYY", platform: "4" }
   ];
 
-  const topCatalog = (catalog || []).slice(0, 25).map(t => ({
-    number: t.number,
-    name: t.name,
-    origin: t.origin,
-    destination: t.destination,
-    type: t.type || "Express",
+  const topCatalog = (catalog || []).slice(0, 25).map(catTrain => ({
+    number: catTrain.number,
+    name: catTrain.name,
+    origin: catTrain.origin,
+    destination: catTrain.destination,
+    type: catTrain.type || "Express",
     departureTime: "—",
     arrivalTime: "—",
     runningDays: "YYYYYYY"
@@ -518,25 +518,25 @@ function renderRouteResultsContent() {
             <p class="rs-empty-sub">Try searching by any train number (e.g. 12404, 22436), train name (Rajdhani, Vande Bharat), or station name.</p>
             ${liveFilterQuery ? `<button class="rs-reset-filter-btn" id="rsResetLiveFilterBtn">Clear Search</button>` : ""}
           </div>
-        ` : filtered.map(t => {
-          const days = parseDays(t.runningDays || t.days);
+        ` : filtered.map(train => {
+          const days = parseDays(train.runningDays || train.days);
           const runsToday = days[TODAY_IDX];
-          const depTime = fmtTime(t.departureTime || t.dep || t.departure);
-          const arrTime = fmtTime(t.arrivalTime || t.arr || t.arrival);
-          const duration = t.durationMinutes || t.duration;
-          const originText = t.origin || (fromStation ? fromStation.name : "Origin");
-          const destText = t.destination || (toStation ? toStation.name : "Destination");
+          const depTime = fmtTime(train.departureTime || train.dep || train.departure);
+          const arrTime = fmtTime(train.arrivalTime || train.arr || train.arrival);
+          const duration = train.durationMinutes || train.duration;
+          const originText = train.origin || (fromStation ? fromStation.name : "Origin");
+          const destText = train.destination || (toStation ? toStation.name : "Destination");
 
           return `
             <div class="rs-result-card ${runsToday ? "" : "rs-result-card--not-today"}"
-                 data-train-id="${t.trainId || t.number}"
+                 data-train-id="${train.trainId || train.number}"
                  role="listitem">
 
               <!-- Train number & title -->
               <div class="rs-result-top">
                 <div class="rs-result-identity">
-                  <span class="rs-result-num">${t.number}</span>
-                  <span class="rs-result-name">${translateTrainName(t.name)}</span>
+                  <span class="rs-result-num">${train.number}</span>
+                  <span class="rs-result-name">${translateTrainName(train.name)}</span>
                 </div>
                 ${runsToday
                   ? `<span class="rs-runs-badge rs-runs-badge--today">${t("running_today", "Runs today")}</span>`
@@ -583,12 +583,12 @@ function renderRouteResultsContent() {
 
               <!-- Action footer -->
               <div class="rs-result-footer">
-                ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${translateTrainName(t.type)}</span>` : ""}
-                ${t.platform && t.platform !== "—"
-                  ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>${t("platform", "PF")} ${t.platform}</span></span>`
+                ${train.type ? `<span class="rs-train-type-pill ${train.type?.toLowerCase().includes('pass') || train.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${translateTrainName(train.type)}</span>` : ""}
+                ${train.platform && train.platform !== "—"
+                  ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>${t("platform", "PF")} ${train.platform}</span></span>`
                   : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>${t("platform", "PF")}</span><span>TBA</span></span>`
                 }
-                <button class="rs-track-btn" data-train-id="${t.trainId || t.number}" aria-label="Track live train ${t.number}">
+                <button class="rs-track-btn" data-train-id="${train.trainId || train.number}" aria-label="Track live train ${train.number}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polygon points="5 3 19 12 5 21 5 3"/>
                   </svg>

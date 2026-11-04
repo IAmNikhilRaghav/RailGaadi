@@ -244,20 +244,20 @@ export function attachSearchEvents() {
     }
 
     selectedIndex = -1;
-    dropdown.innerHTML = results.map((t, idx) => `
-      <div class="search-result-item" data-index="${idx}" data-train-id="${t.trainId}" role="option" tabindex="-1">
+    dropdown.innerHTML = results.map((item, idx) => `
+      <div class="search-result-item" data-index="${idx}" data-train-id="${item.trainId}" role="option" tabindex="-1">
         <div class="result-main">
           <div class="result-train-title">
-            <span class="train-number-badge">${t.number}</span>
-            <span class="train-name-text">${t.name}</span>
+            <span class="train-number-badge">${item.number}</span>
+            <span class="train-name-text">${item.name}</span>
           </div>
           <div class="result-route-sub">
-            <span>${t.origin || "Origin"}</span>
+            <span>${item.origin || "Origin"}</span>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            <span>${t.destination || "Destination"}</span>
+            <span>${item.destination || "Destination"}</span>
           </div>
         </div>
-        <span class="result-type-tag">${(t.type || "Express").split("/")[0].trim()}</span>
+        <span class="result-type-tag">${(item.type || "Express").split("/")[0].trim()}</span>
       </div>
     `).join("");
 
