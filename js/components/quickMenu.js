@@ -25,7 +25,6 @@ export function renderQuickMenu() {
       <!-- Drawer Header -->
       <div class="rg-sheet-header">
         <div class="rg-sheet-header-title">
-          <div class="rg-sheet-brand-dot"></div>
           <h2>${t("menu_title", "Preferences")}</h2>
         </div>
         <button class="rg-sheet-close-btn" id="closeQuickMenuBtn" aria-label="Close preferences">
