@@ -801,3 +801,96 @@
     padding: 8px 12px;
   }
 }
+
+/* ── Dark Theme for Quick Menu & Language Dialog ─────────── */
+[data-theme="dark"] .rg-menu-sheet,
+[data-theme="dark"] .rg-lang-dialog {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .rg-sheet-header {
+  border-bottom-color: #1e293b;
+}
+
+[data-theme="dark"] .rg-sheet-close-btn {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .rg-sheet-close-btn:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .rg-menu-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .rg-menu-clickable:hover,
+[data-theme="dark"] .rg-menu-clickable:active {
+  background: #243247;
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .rg-menu-item-icon {
+  background: #0f172a;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .rg-menu-section {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .rg-map-chip {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .rg-map-chip.is-active {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .rg-lang-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .rg-lang-card:hover {
+  background: #243247;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .rg-lang-card.is-selected {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .rg-lang-card-pill {
+  background: #0f172a;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .rg-toggle-slider {
+  background-color: #334155;
+}
+
+[data-theme="dark"] .header-lang-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .header-lang-btn:hover {
+  background: #243247;
+  border-color: #475569;
+}
+

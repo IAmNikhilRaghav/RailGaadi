@@ -19,6 +19,8 @@ import { renderShareModal, attachShareModalEvents } from "./components/shareModa
 import { renderStationBoard, attachStationBoardEvents } from "./components/stationBoard.js";
 import { renderFavDrawer, attachFavDrawerEvents } from "./components/favDrawer.js";
 import { renderRouteSearch, attachRouteSearchEvents } from "./components/routeSearch.js";
+import { renderQuickMenu, attachQuickMenuEvents, renderLangModal, attachLangModalEvents } from "./components/quickMenu.js";
+import { t } from "./i18n/index.js";
 
 // ── Tab definitions (used for both desktop segmented-control & mobile bottom nav) ──
 
@@ -57,6 +59,17 @@ function setInnerHTML(id, html) {
   if (el) el.innerHTML = html;
 }
 
+function getTabLabel(tabId, fallback) {
+  const map = {
+    tracking: "tab_live_map",
+    routes: "tab_routes",
+    analytics: "tab_analytics",
+    companion: "tab_weather",
+    board: "tab_station"
+  };
+  return t(map[tabId] || tabId, fallback);
+}
+
 /** Render the mobile bottom navigation bar HTML */
 function renderBottomNav() {
   const state = store.getState();
@@ -68,13 +81,13 @@ function renderBottomNav() {
           data-tab="${tab.id}"
           role="tab"
           aria-selected="${state.activeTab === tab.id}"
-          aria-label="${tab.label}"
+          aria-label="${getTabLabel(tab.id, tab.label)}"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             ${tab.icon}
           </svg>
-          <span>${tab.label}</span>
+          <span>${getTabLabel(tab.id, tab.label)}</span>
         </button>
       `).join("")}
     </nav>
@@ -135,6 +148,26 @@ function renderApp(changedKeys = []) {
     return;
   }
 
+  // --- Quick Menu Sheet only ---
+  if (changedKeys.length === 1 && changed.has("isQuickMenuOpen")) {
+    setInnerHTML("quickMenuRoot", renderQuickMenu());
+    attachQuickMenuEvents();
+    return;
+  }
+
+  // --- Language Modal only ---
+  if (changedKeys.length === 1 && changed.has("isLangModalOpen")) {
+    setInnerHTML("langModalRoot", renderLangModal());
+    attachLangModalEvents();
+    return;
+  }
+
+  // --- Language switch ---
+  if (changed.has("language")) {
+    fullRender();
+    return;
+  }
+
   // --- Dark mode toggle — no DOM rebuild needed (CSS handles it) ---
   if (changedKeys.length === 1 && changed.has("darkMode")) {
     const hdrWrapper = document.querySelector(".app-header");
@@ -143,6 +176,10 @@ function renderApp(changedKeys = []) {
       const headerHtml = fullHeader.split("\n    <!-- Favourites")[0];
       hdrWrapper.outerHTML = headerHtml;
       attachHeaderEvents();
+    }
+    if (state.isQuickMenuOpen) {
+      setInnerHTML("quickMenuRoot", renderQuickMenu());
+      attachQuickMenuEvents();
     }
     return;
   }
@@ -155,6 +192,10 @@ function renderApp(changedKeys = []) {
       const headerHtml = fullHeader.split("\n    <!-- Favourites")[0];
       hdrWrapper.outerHTML = headerHtml;
       attachHeaderEvents();
+    }
+    if (state.isQuickMenuOpen) {
+      setInnerHTML("quickMenuRoot", renderQuickMenu());
+      attachQuickMenuEvents();
     }
     return;
   }
@@ -281,7 +322,7 @@ function fullRender() {
                   aria-selected="${state.activeTab === tab.id}"
                   id="tab-${tab.id}">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${tab.icon}</svg>
-                  <span>${tab.label}</span>
+                  <span>${getTabLabel(tab.id, tab.label)}</span>
                 </button>
               `).join("")}
             </nav>
@@ -304,6 +345,12 @@ function fullRender() {
 
         <!-- Favourites Drawer -->
         <div id="favDrawerRoot">${renderFavDrawer()}</div>
+
+        <!-- Quick Menu Drawer -->
+        <div id="quickMenuRoot">${renderQuickMenu()}</div>
+
+        <!-- Language Modal -->
+        <div id="langModalRoot">${renderLangModal()}</div>
       </div>
     `;
 
@@ -312,6 +359,8 @@ function fullRender() {
     attachSearchEvents();
     attachShareModalEvents();
     attachFavDrawerEvents();
+    attachQuickMenuEvents();
+    attachLangModalEvents();
     attachTabAndViewEvents();
   } catch (err) {
     console.error("[RailGaadi] Boot render error:", err);

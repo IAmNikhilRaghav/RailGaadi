@@ -115,13 +115,13 @@ html, body {
 
 @media (max-width: 768px) {
   .app-header {
-    height: 52px;
+    height: 54px;
     padding: 0 var(--space-3);
   }
 
   .brand-logo {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
   }
 
   .brand-text h1 {
@@ -133,13 +133,39 @@ html, body {
     padding: 1px 5px;
   }
 
-  /* Hide secondary header actions on smallest screens */
+  /* Keep only 2 frequent actions ([🌐 EN] + [🌙 theme]) + [☰ mini bar menu] */
   .header-actions {
-    gap: var(--space-1);
+    gap: 6px;
   }
 
-  /* Keep only: theme toggle + notifications + share — hide map style picker label */
-  .header-btn:not(.btn-icon-only) {
+  .desktop-only-actions {
+    display: none !important;
+  }
+
+  .header-lang-btn {
+    height: 34px;
+    padding: 0 9px;
+    gap: 4px;
+  }
+
+  .header-lang-text {
+    font-size: 11px;
+  }
+
+  .dark-toggle-btn.btn-icon-only {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+  }
+
+  .header-menu-btn.btn-icon-only {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: inline-flex !important;
+  }
+
+  .header-btn:not(.btn-icon-only):not(.header-lang-btn) {
     padding: 0 var(--space-2);
     font-size: var(--text-xs);
     height: 34px;
@@ -148,6 +174,12 @@ html, body {
   .btn-icon-only {
     width: 34px;
     height: 34px;
+  }
+}
+
+@media (min-width: 769px) {
+  .header-menu-btn {
+    display: none !important;
   }
 }
 

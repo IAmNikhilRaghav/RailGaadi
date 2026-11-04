@@ -7,6 +7,7 @@
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { ElevationService } from "../services/elevationService.js";
+import { t } from "../i18n/index.js";
 
 const elevationAttemptedTrains = new Set();
 
@@ -143,7 +144,7 @@ export function renderAnalyticsSection() {
                   </svg>
                 </div>
                 <div class="next-stn-main-title">
-                  ${kmToNext != null ? `Next Station: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> remaining` : `Train en-route — <strong>${stations.length} stations</strong>`}
+                  ${kmToNext != null ? `${t("next_station", "Next Station")}: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> ${t("remaining", "remaining")}` : `Train en-route — <strong>${stations.length} ${t("stations", "Stations")}</strong>`}
                 </div>
               </div>
 
@@ -151,22 +152,22 @@ export function renderAnalyticsSection() {
               <div class="next-stn-summary-badges">
                 <span class="next-stn-chip next-stn-chip-count">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                  ${stations.length} Stations
+                  ${stations.length} ${t("stations", "Stations")}
                 </span>
                 <span class="next-stn-chip next-stn-chip-progress">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                  ${progressPct}% Covered
+                  ${progressPct}% ${t("covered", "Covered")}
                 </span>
                 <span class="next-stn-chip next-stn-chip-delay ${delay > 0 ? "is-late" : "is-ontime"}">
                   <span class="delay-dot">●</span>
-                  ${delay == null ? "Scheduled" : delay === 0 ? "On Time" : delay > 0 ? `+${delay}m Late` : `${Math.abs(delay)}m Early`}
+                  ${delay == null ? "Scheduled" : delay === 0 ? t("on_time", "On Time") : delay > 0 ? `+${delay}m Late` : `${Math.abs(delay)}m Early`}
                 </span>
               </div>
             </div>
 
             <!-- Dynamic CTA Trigger -->
             <div class="next-stn-banner-right">
-              <span class="next-stn-cta-text">${isTimelineOpen ? "Hide Description" : "Show Description"}</span>
+              <span class="next-stn-cta-text">${isTimelineOpen ? t("hide_desc", "Hide Description") : t("show_desc", "Show Description")}</span>
               <svg class="next-stn-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -189,11 +190,11 @@ export function renderAnalyticsSection() {
             <div class="wimt-view-switcher" role="tablist" aria-label="Timeline View Format">
               <button type="button" class="wimt-switch-btn ${timelineViewMode === "wimt" ? "active" : ""}" id="btnSwitchWimt" data-view="wimt" onclick="window.setTimelineViewMode('wimt', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3"/></svg>
-                <span>Overview</span>
+                <span>${t("overview", "Overview")}</span>
               </button>
               <button type="button" class="wimt-switch-btn ${timelineViewMode === "table" ? "active" : ""}" id="btnSwitchTable" data-view="table" onclick="window.setTimelineViewMode('table', event)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-                <span>Description</span>
+                <span>${t("description", "Description")}</span>
               </button>
             </div>
           </div>
@@ -293,19 +294,19 @@ export function renderAnalyticsSection() {
                           <div class="wimt-train-speech-card">
                             <div class="wimt-bubble-pointer"></div>
                             <div class="wimt-bubble-header">
-                              <span class="wimt-bubble-title">At ${s.name}</span>
+                              <span class="wimt-bubble-title">${t("at_station", "At")} ${s.name}</span>
                               <span class="wimt-bubble-live-dot">● LIVE</span>
                             </div>
                             <div class="wimt-bubble-status ${isLate ? "is-late-text" : "is-ontime-text"}">
                               <span class="wimt-signal-icon">((•))</span>
-                              ${isLate ? `Delayed by ${delayMin} mins` : delayMin === 0 ? "Running on time" : `${Math.abs(delayMin || 0)} mins early`}
+                              ${isLate ? `${t("delayed_by", "Delayed by")} ${delayMin} ${t("mins", "mins")}` : delayMin === 0 ? t("on_time", "On Time") : `${Math.abs(delayMin || 0)} ${t("mins", "mins")} early`}
                             </div>
                             <div class="wimt-bubble-time">Updated a few seconds ago</div>
                           </div>
                         ` : ""}
 
                         ${isUpcoming && kmRemaining != null ? `
-                          <div class="wimt-upcoming-km">📍 ${kmRemaining} km remaining</div>
+                          <div class="wimt-upcoming-km">📍 ${kmRemaining} km ${t("remaining", "remaining")}</div>
                         ` : ""}
                       </div>
                     </div>
@@ -515,7 +516,7 @@ if (typeof window !== "undefined") {
       summaryBtn.classList.toggle("is-expanded", isTimelineOpen);
       summaryBtn.setAttribute("aria-expanded", isTimelineOpen ? "true" : "false");
       const cta = summaryBtn.querySelector(".next-stn-cta-text");
-      if (cta) cta.textContent = isTimelineOpen ? "Hide Description" : "Show Description";
+      if (cta) cta.textContent = isTimelineOpen ? t("hide_desc", "Hide Description") : t("show_desc", "Show Description");
     }
   };
 

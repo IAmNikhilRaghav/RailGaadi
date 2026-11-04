@@ -3,6 +3,8 @@
  * Extended to carry async loading, error states, and live train data objects
  */
 
+import { getLanguage, setLanguage } from "../i18n/index.js";
+
 const STORAGE_KEY_FAVS     = "railgaadi_favs_v1";
 const STORAGE_KEY_RECENTS  = "railgaadi_recents_v1";
 const STORAGE_KEY_SETTINGS = "railgaadi_settings_v1";
@@ -65,6 +67,9 @@ class Store {
       selectedPoi:     null,
       isShareModalOpen: false,
       isFavDrawerOpen:  false,
+      isQuickMenuOpen:  false,
+      isLangModalOpen:  false,
+      language:        getLanguage(),
       toast:           null,
 
       /* app theme */
@@ -194,6 +199,18 @@ class Store {
 
   openFavDrawer()  { this.setState({ isFavDrawerOpen: true }); }
   closeFavDrawer() { this.setState({ isFavDrawerOpen: false }); }
+
+  openQuickMenu()   { this.setState({ isQuickMenuOpen: true }); }
+  closeQuickMenu()  { this.setState({ isQuickMenuOpen: false }); }
+  toggleQuickMenu() { this.setState({ isQuickMenuOpen: !this.state.isQuickMenuOpen }); }
+
+  openLangModal()   { this.setState({ isLangModalOpen: true }); }
+  closeLangModal()  { this.setState({ isLangModalOpen: false }); }
+
+  setLanguage(code) {
+    const nextLang = setLanguage(code);
+    this.setState({ language: nextLang });
+  }
 
   setNotificationsEnabled(enabled) { this.setState({ notificationsEnabled: enabled }); }
 
