@@ -9,7 +9,7 @@ import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { searchTrainsBetweenStations } from "../services/railradarService.js";
 import { stationDataService } from "../services/stationDataService.js";
-import { t, translateStationName, translateTrainName } from "../i18n/index.js";
+import { t, translateStationName, translateTrainName, getDayName, getDayLabels } from "../i18n/index.js";
 
 // ── Module state ──────────────────────────────────────────────────────────
 
@@ -93,12 +93,13 @@ function parseDays(raw) {
 }
 
 function renderDaysBadges(days) {
+  const labels = getDayLabels();
   return `
     <div class="rs-days-row" aria-label="Day-wise running schedule">
-      ${DAY_LABELS.map((label, i) => `
+      ${labels.map((label, i) => `
         <span class="rs-day-pill ${days[i] ? "rs-day-on" : "rs-day-off"} ${i === TODAY_IDX && days[i] ? "rs-day-today" : ""}"
-              title="${DAY_NAMES[i]}${days[i] ? " (runs)" : " (no service)"}"
-              aria-label="${DAY_NAMES[i]}${days[i] ? " (runs)" : " (no service)"}">
+              title="${getDayName(i)}${days[i] ? " (" + t("running_today", "runs") + ")" : " (" + t("not_today", "no service") + ")"}"
+              aria-label="${getDayName(i)}${days[i] ? " (" + t("running_today", "runs") + ")" : " (" + t("not_today", "no service") + ")"}">
           ${label}
         </span>
       `).join("")}
@@ -110,9 +111,9 @@ function fmtDuration(minutes) {
   if (!minutes || isNaN(minutes)) return "";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h} hrs ${m} mins`;
-  if (h > 0) return `${h} hrs`;
-  return `${m} mins`;
+  if (h > 0 && m > 0) return `${h} ${t("hrs", "hrs")} ${m} ${t("mins", "mins")}`;
+  if (h > 0) return `${h} ${t("hrs", "hrs")}`;
+  return `${m} ${t("mins", "mins")}`;
 }
 
 function fmtTime(t) {
@@ -454,7 +455,7 @@ function renderRouteResultsContent() {
             type="text"
             id="rsLiveFilterInput"
             class="rs-live-filter-input"
-            placeholder="Search by train no., name, or any route word..."
+            placeholder="${t('rs_live_filter_placeholder', 'Search by train no., name, or any route word...')}"
             value="${liveFilterQuery}"
             autocomplete="off"
             spellcheck="false"
@@ -466,14 +467,14 @@ function renderRouteResultsContent() {
       <!-- Filter bar: Day Filter and Count -->
       <div class="rs-filter-bar">
         <div class="rs-filter-left">
-          <label for="rsDayFilter" class="rs-filter-label">Filter by:</label>
+          <label for="rsDayFilter" class="rs-filter-label">${t("rs_filter_by", "Filter by:")}</label>
           <div class="rs-filter-select-wrap">
             <select id="rsDayFilter" class="rs-filter-select" aria-label="Filter trains by day">
-              <option value="all" ${dayFilter === "all" ? "selected" : ""}>All Dates</option>
-              <option value="today" ${dayFilter === "today" ? "selected" : ""}>Today (${DAY_NAMES[TODAY_IDX]})</option>
-              <option value="tomorrow" ${dayFilter === "tomorrow" ? "selected" : ""}>Tomorrow (${DAY_NAMES[TOMORROW_IDX]})</option>
-              ${DAY_NAMES.map((name, idx) => `
-                <option value="${idx}" ${dayFilter === String(idx) ? "selected" : ""}>Every ${name}</option>
+              <option value="all" ${dayFilter === "all" ? "selected" : ""}>${t("rs_all_dates", "All Dates")}</option>
+              <option value="today" ${dayFilter === "today" ? "selected" : ""}>${t("rs_today", "Today")} (${getDayName(TODAY_IDX)})</option>
+              <option value="tomorrow" ${dayFilter === "tomorrow" ? "selected" : ""}>${t("rs_tomorrow", "Tomorrow")} (${getDayName(TOMORROW_IDX)})</option>
+              ${[0, 1, 2, 3, 4, 5, 6].map(idx => `
+                <option value="${idx}" ${dayFilter === String(idx) ? "selected" : ""}>${t("rs_every", "Every")} ${getDayName(idx)}</option>
               `).join("")}
             </select>
             <svg class="rs-select-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
@@ -490,7 +491,7 @@ function renderRouteResultsContent() {
         <div class="rs-route-summary-card">
           <div class="rs-summary-stn">
             <div class="rs-summary-code">${fromStation.code}</div>
-            <div class="rs-summary-name">${fromStation.name}</div>
+            <div class="rs-summary-name">${translateStationName(fromStation.name)}</div>
           </div>
           <div class="rs-summary-divider">
             <div class="rs-summary-line"></div>
@@ -498,7 +499,7 @@ function renderRouteResultsContent() {
           </div>
           <div class="rs-summary-stn rs-summary-stn--right">
             <div class="rs-summary-code">${toStation.code}</div>
-            <div class="rs-summary-name">${toStation.name}</div>
+            <div class="rs-summary-name">${translateStationName(toStation.name)}</div>
           </div>
         </div>
       ` : `
@@ -535,19 +536,19 @@ function renderRouteResultsContent() {
               <div class="rs-result-top">
                 <div class="rs-result-identity">
                   <span class="rs-result-num">${t.number}</span>
-                  <span class="rs-result-name">${t.name}</span>
+                  <span class="rs-result-name">${translateTrainName(t.name)}</span>
                 </div>
                 ${runsToday
-                  ? `<span class="rs-runs-badge rs-runs-badge--today">Runs today</span>`
-                  : `<span class="rs-runs-badge rs-runs-badge--not-today">Not running today</span>`
+                  ? `<span class="rs-runs-badge rs-runs-badge--today">${t("running_today", "Runs today")}</span>`
+                  : `<span class="rs-runs-badge rs-runs-badge--not-today">${t("not_today", "Not running today")}</span>`
                 }
               </div>
 
               <!-- Route Endpoints -->
               <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                <span style="font-weight:600;color:var(--color-text-secondary);">${originText}</span>
+                <span style="font-weight:600;color:var(--color-text-secondary);">${translateStationName(originText)}</span>
                 <span>→</span>
-                <span style="font-weight:600;color:var(--color-text-secondary);">${destText}</span>
+                <span style="font-weight:600;color:var(--color-text-secondary);">${translateStationName(destText)}</span>
               </div>
 
               <!-- Timings row (if available) -->
@@ -555,7 +556,7 @@ function renderRouteResultsContent() {
                 <div class="rs-result-timing">
                   <div class="rs-time-block">
                     <span class="rs-time">${depTime}</span>
-                    <span class="rs-time-stn-label">${fromStation ? fromStation.code : "DEP"}</span>
+                    <span class="rs-time-stn-label">${fromStation ? fromStation.code : t("board_departs", "DEP")}</span>
                   </div>
 
                   <div class="rs-duration-line">
@@ -569,29 +570,29 @@ function renderRouteResultsContent() {
 
                   <div class="rs-time-block rs-time-block--right">
                     <span class="rs-time">${arrTime}</span>
-                    <span class="rs-time-stn-label">${toStation ? toStation.code : "ARR"}</span>
+                    <span class="rs-time-stn-label">${toStation ? toStation.code : t("board_arrives", "ARR")}</span>
                   </div>
                 </div>
               ` : ""}
 
               <!-- Week Calendar Routine (S M T W T F S) -->
               <div class="rs-calendar-wrap">
-                <div class="rs-calendar-label">Weekly Schedule:</div>
+                <div class="rs-calendar-label">${t("weekly_schedule", "Weekly Schedule:")}</div>
                 ${renderDaysBadges(days)}
               </div>
 
               <!-- Action footer -->
               <div class="rs-result-footer">
-                ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${t.type}</span>` : ""}
+                ${t.type ? `<span class="rs-train-type-pill ${t.type?.toLowerCase().includes('pass') || t.type?.toLowerCase().includes('emu') ? 'rs-type-local' : ''}">${translateTrainName(t.type)}</span>` : ""}
                 ${t.platform && t.platform !== "—"
-                  ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>PF ${t.platform}</span></span>`
-                  : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>PF</span><span>TBA</span></span>`
+                  ? `<span class="rs-platform-tag" style="background:#0284c7;color:#fff;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;"><span>🚆</span><span>${t("platform", "PF")} ${t.platform}</span></span>`
+                  : `<span class="rs-platform-tag rs-platform-tag--expected" style="background:var(--color-bg-subtle);color:var(--color-text-muted);font-weight:600;font-size:11px;padding:3px 8px;border-radius:4px;border:1px dashed var(--color-border);display:inline-flex;align-items:center;gap:3px;"><span>${t("platform", "PF")}</span><span>TBA</span></span>`
                 }
                 <button class="rs-track-btn" data-train-id="${t.trainId || t.number}" aria-label="Track live train ${t.number}">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polygon points="5 3 19 12 5 21 5 3"/>
                   </svg>
-                  Track Live
+                  ${t("search_track_live", "Track Live")}
                 </button>
               </div>
 

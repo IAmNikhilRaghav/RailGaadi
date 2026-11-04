@@ -9,18 +9,24 @@
  */
 
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English",   native: "English",  pill: "EN", flag: "🇮🇳" },
-  { code: "hi", label: "Hindi",     native: "हिन्दी",    pill: "HI", flag: "🇮🇳" },
-  { code: "bn", label: "Bengali",   native: "বাংলা",    pill: "BN", flag: "🇮🇳" },
-  { code: "mr", label: "Marathi",   native: "मराठी",    pill: "MR", flag: "🇮🇳" },
-  { code: "te", label: "Telugu",    native: "తెలుగు",   pill: "TE", flag: "🇮🇳" },
-  { code: "ta", label: "Tamil",     native: "தமிழ்",    pill: "TA", flag: "🇮🇳" },
-  { code: "gu", label: "Gujarati",  native: "ગુજરાતી",  pill: "GU", flag: "🇮🇳" },
-  { code: "kn", label: "Kannada",   native: "ಕನ್ನಡ",    pill: "KN", flag: "🇮🇳" }
+  { code: "en", label: "English",   native: "English",  pill: "EN",   flag: "🇮🇳" },
+  { code: "hi", label: "Hindi",     native: "हिन्दी",    pill: "हिंद", flag: "🇮🇳" },
+  { code: "bn", label: "Bengali",   native: "বাংলা",    pill: "বাং",  flag: "🇮🇳" },
+  { code: "mr", label: "Marathi",   native: "मराठी",    pill: "मरा",  flag: "🇮🇳" },
+  { code: "te", label: "Telugu",    native: "తెలుగు",   pill: "తెలు", flag: "🇮🇳" },
+  { code: "ta", label: "Tamil",     native: "தமிழ்",    pill: "தமி",  flag: "🇮🇳" },
+  { code: "gu", label: "Gujarati",  native: "ગુજરાતી",  pill: "ગુજ",  flag: "🇮🇳" },
+  { code: "kn", label: "Kannada",   native: "ಕನ್ನಡ",    pill: "ಕನ್ನ", flag: "🇮🇳" }
 ];
 
 const TRANSLATIONS = {
   "en": {
+    "rs_filter_by": "Filter by:",
+    "rs_all_dates": "All Dates",
+    "rs_every": "Every",
+    "weekly_schedule": "Weekly Schedule:",
+    "rs_live_filter_placeholder": "Search by train no., name, or any route word...",
+    "hrs": "hrs",
     "tab_live_map": "Live Map",
     "tab_routes": "Routes",
     "tab_analytics": "Analytics",
@@ -167,6 +173,12 @@ const TRANSLATIONS = {
     "your_location": "Your Location"
   },
   "hi": {
+    "rs_filter_by": "फ़िल्टर करें:",
+    "rs_all_dates": "सभी तारीखें",
+    "rs_every": "प्रत्येक",
+    "weekly_schedule": "साप्ताहिक शेड्यूल:",
+    "rs_live_filter_placeholder": "ट्रेन नंबर, नाम या मार्ग से खोजें...",
+    "hrs": "घंटे",
     "tab_live_map": "लाइव मैप",
     "tab_routes": "ट्रेन मार्ग",
     "tab_analytics": "यात्रा विवरण",
@@ -313,6 +325,12 @@ const TRANSLATIONS = {
     "your_location": "आपका स्थान"
   },
   "bn": {
+    "rs_filter_by": "ফিল্টার:",
+    "rs_all_dates": "সব তারিখ",
+    "rs_every": "প্রতি",
+    "weekly_schedule": "সাপ্তাহিক সময়সূচী:",
+    "rs_live_filter_placeholder": "ট্রেন নম্বর, নাম বা রুট দিয়ে খুঁজুন...",
+    "hrs": "ঘণ্টা",
     "tab_live_map": "লাইভ ম্যাপ",
     "tab_routes": "ট্রেন রুট",
     "tab_analytics": "যাত্রার বিবরণ",
@@ -459,6 +477,12 @@ const TRANSLATIONS = {
     "your_location": "আপনার অবস্থান"
   },
   "mr": {
+    "rs_filter_by": "फिल्टर करा:",
+    "rs_all_dates": "सर्व तारखा",
+    "rs_every": "प्रत्येक",
+    "weekly_schedule": "साप्ताहिक वेळापत्रक:",
+    "rs_live_filter_placeholder": "गाडी क्रमांक, नाव किंवा मार्गाने शोधा...",
+    "hrs": "तास",
     "tab_live_map": "थेट नकाशा",
     "tab_routes": "गाडीचे मार्ग",
     "tab_analytics": "प्रवासाचा तपशील",
@@ -605,6 +629,12 @@ const TRANSLATIONS = {
     "your_location": "आपले स्थान"
   },
   "te": {
+    "rs_filter_by": "ఫిల్టర్:",
+    "rs_all_dates": "అన్ని తేదీలు",
+    "rs_every": "ప్రతి",
+    "weekly_schedule": "వారపు షెడ్యూల్:",
+    "rs_live_filter_placeholder": "రైలు సంఖ్య, పేరు లేదా మార్గంతో వెతకండి...",
+    "hrs": "గం",
     "tab_live_map": "లైవ్ మ్యాప్",
     "tab_routes": "రైలు మార్గాలు",
     "tab_analytics": "ప్రయాణ వివరాలు",
@@ -751,6 +781,12 @@ const TRANSLATIONS = {
     "your_location": "మీ స్థానం"
   },
   "ta": {
+    "rs_filter_by": "வடிகட்டுதல்:",
+    "rs_all_dates": "அனைத்து தேதிகள்",
+    "rs_every": "ஒவ்வொரு",
+    "weekly_schedule": "வாராந்திர அட்டவணை:",
+    "rs_live_filter_placeholder": "ரயில் எண், பெயர் அல்லது வழியால் தேடுக...",
+    "hrs": "மணி",
     "tab_live_map": "லைவ் மேப்",
     "tab_routes": "ரயில் பாதைகள்",
     "tab_analytics": "பயண விவரம்",
@@ -897,6 +933,12 @@ const TRANSLATIONS = {
     "your_location": "உங்கள் இருப்பிடம்"
   },
   "gu": {
+    "rs_filter_by": "ફિલ્ટર કરો:",
+    "rs_all_dates": "બધી તારીખો",
+    "rs_every": "દરેક",
+    "weekly_schedule": "સાપ્તાહિક શેડ્યૂલ:",
+    "rs_live_filter_placeholder": "ટ્રેન નંબર, નામ અથવા રૂટથી શોધો...",
+    "hrs": "કલાક",
     "tab_live_map": "લાઈવ નકશો",
     "tab_routes": "ટ્રેન રૂટ્સ",
     "tab_analytics": "મુસાફરી વિગત",
@@ -1043,6 +1085,12 @@ const TRANSLATIONS = {
     "your_location": "તમારું સ્થાન"
   },
   "kn": {
+    "rs_filter_by": "ಫಿಲ್ಟರ್ ಮಾಡಿ:",
+    "rs_all_dates": "ಎಲ್ಲಾ ದಿನಾಂಕಗಳು",
+    "rs_every": "ಪ್ರತಿ",
+    "weekly_schedule": "ಸಾಪ್ತಾಹಿಕ ವೇಳಾಪಟ್ಟಿ:",
+    "rs_live_filter_placeholder": "ರೈಲು ಸಂಖ್ಯೆ, ಹೆಸರು ಅಥವಾ ಮಾರ್ಗದಿಂದ ಹುಡುಕಿ...",
+    "hrs": "ಗಂಟೆ",
     "tab_live_map": "ಲೈವ್ ನಕ್ಷೆ",
     "tab_routes": "ರೈಲು ಮಾರ್ಗಗಳು",
     "tab_analytics": "ಪ್ರಯಾಣದ ವಿವರ",
@@ -2471,6 +2519,35 @@ export function getLanguage() {
 export function getLanguagePill(code = currentLanguage) {
   const match = SUPPORTED_LANGUAGES.find(l => l.code === code);
   return match ? match.pill : "EN";
+}
+
+
+export function getDayName(dayIndex, lang = getLanguage()) {
+  const days = {
+    en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    hi: ["रविवार", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"],
+    bn: ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"],
+    mr: ["रविवार", "सोमवार", "मंगळवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"],
+    te: ["ఆదివారం", "సోమవారం", "మంగళవారం", "బుధవారం", "గురువారం", "శుక్రవారం", "శనివారం"],
+    ta: ["ஞாயிறு", "திங்கள்", "செவ்வாய்", "புதன்", "வியாழன்", "வெள்ளி", "சனி"],
+    gu: ["રવિવાર", "સોમવાર", "મંગળવાર", "બુધવાર", "ગુરુવાર", "શુક્રવાર", "શનિવાર"],
+    kn: ["ಭಾನುವಾರ", "ಸೋಮವಾರ", "ಮಂಗಳವಾರ", "ಬುಧವಾರ", "ಗುರುವಾರ", "ಶುಕ್ರವಾರ", "ಶನಿವಾರ"]
+  };
+  return (days[lang] || days.en)[dayIndex] || days.en[dayIndex] || "";
+}
+
+export function getDayLabels(lang = getLanguage()) {
+  const labels = {
+    en: ["S", "M", "T", "W", "T", "F", "S"],
+    hi: ["र", "सो", "मं", "बु", "गु", "शु", "श"],
+    bn: ["র", "সো", "ম", "বু", "বৃ", "শু", "শ"],
+    mr: ["र", "सो", "मं", "बु", "गु", "शु", "श"],
+    te: ["ఆ", "సో", "మం", "బు", "గు", "శు", "శ"],
+    ta: ["ஞா", "தி", "செ", "பு", "வி", "வெ", "ச"],
+    gu: ["ર", "સો", "મં", "બુ", "ગુ", "શુ", "શ"],
+    kn: ["ಭಾ", "ಸೋ", "ಮಂ", "ಬು", "ಗು", "ಶು", "ಶ"]
+  };
+  return labels[lang] || labels.en;
 }
 
 export function setLanguage(code) {

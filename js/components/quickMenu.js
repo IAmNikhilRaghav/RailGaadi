@@ -258,14 +258,13 @@ export function renderLangModal() {
                 <div class="rg-lang-native">${lang.native}</div>
                 <div class="rg-lang-label">${lang.label}</div>
               </div>
-              <div class="rg-lang-card-indicator">
+              <div class="rg-lang-card-indicator" style="display:flex;align-items:center;gap:6px;">
+                <span class="rg-lang-card-pill">${lang.pill}</span>
                 ${isSelected ? `
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent, #2563eb)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent, #2563eb)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
-                ` : `
-                  <span class="rg-lang-card-pill">${lang.pill}</span>
-                `}
+                ` : ""}
               </div>
             </button>
           `;
