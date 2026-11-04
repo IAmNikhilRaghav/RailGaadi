@@ -8,6 +8,7 @@ import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { GeoService } from "../services/geoService.js";
 import { ENV } from "../config/env.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 let mapInstance        = null;
 let trainMarkerEl      = null;
@@ -132,14 +133,14 @@ export function renderMapSection() {
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:.5;">
               <circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/>
             </svg>
-            <p style="font-weight:600;font-size:14px;">Search a train to display its route</p>
+            <p style="font-weight:600;font-size:14px;">${t("map_search_prompt", "Search a train to display its route")}</p>
           </div>
         ` : isLoadingRoute && !hasRoute ? `
           <div style="text-align:center;color:var(--color-text-muted);">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite;margin-bottom:10px;">
               <path d="M21 12a9 9 0 1 1-6.22-8.56"/>
             </svg>
-            <p style="font-size:13px;font-weight:600;">Loading live route &amp; telemetry…</p>
+            <p style="font-size:13px;font-weight:600;">${t("map_loading_route", "Loading live route & telemetry…")}</p>
           </div>
         ` : ""}
       </div>
@@ -283,7 +284,7 @@ export function initOrUpdateMap() {
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:.5;">
             <circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/>
           </svg>
-          <p style="font-weight:600;font-size:14px;">Search a train to display its route</p>
+          <p style="font-weight:600;font-size:14px;">${t("map_search_prompt", "Search a train to display its route")}</p>
         </div>
       `;
     } else if (state.isLoadingRoute && !route?.routeCoordinates?.length) {
@@ -295,7 +296,7 @@ export function initOrUpdateMap() {
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite;margin-bottom:10px;">
             <path d="M21 12a9 9 0 1 1-6.22-8.56"/>
           </svg>
-          <p style="font-size:13px;font-weight:600;">Loading live route &amp; telemetry…</p>
+          <p style="font-size:13px;font-weight:600;">${t("map_loading_route", "Loading live route & telemetry…")}</p>
         </div>
       `;
     } else if (route?.routeCoordinates?.length) {
@@ -572,7 +573,8 @@ function drawFullRoute(route, pos) {
       geometry: { type: "Point", coordinates: [Number(stn.longitude), Number(stn.latitude)] },
       properties: {
         idx,
-        name: stn.name,
+        name: translateStationName(stn.name),
+        rawName: stn.name,
         code: stn.code,
         scheduledArr: stn.scheduledArr || "—",
         scheduledDep: stn.scheduledDep || "—",
@@ -657,13 +659,13 @@ function drawFullRoute(route, pos) {
         .setLngLat(coords)
         .setHTML(`
           <div style="font-family:sans-serif;min-width:160px;padding:2px;">
-            <strong style="font-size:14px;color:#0f172a;">${p.name}${p.code ? ` (${p.code})` : ""}</strong>
+            <strong style="font-size:14px;color:#0f172a;">${translateStationName(p.name)}${p.code ? ` (${p.code})` : ""}</strong>
             <div style="font-size:12px;color:#64748b;margin-top:4px;">
-              ${p.scheduledArr && p.scheduledArr !== "—" ? `Arr: <strong>${p.scheduledArr}</strong>` : ""}
-              ${p.scheduledDep && p.scheduledDep !== "—" ? ` · Dep: <strong>${p.scheduledDep}</strong>` : ""}
+              ${p.scheduledArr && p.scheduledArr !== "—" ? `${t("board_arrives", "Arr")}: <strong>${p.scheduledArr}</strong>` : ""}
+              ${p.scheduledDep && p.scheduledDep !== "—" ? ` · ${t("board_departs", "Dep")}: <strong>${p.scheduledDep}</strong>` : ""}
             </div>
-            ${p.platform ? `<div style="font-size:11px;color:#1e40af;margin-top:2px;font-weight:600;">Platform ${p.platform}</div>` : ""}
-            <div style="font-size:11px;color:#64748b;margin-top:2px;">${p.distanceKm ? `${p.distanceKm} km from origin` : ""}</div>
+            ${p.platform ? `<div style="font-size:11px;color:#1e40af;margin-top:2px;font-weight:600;">${t("platform", "Platform")} ${p.platform}</div>` : ""}
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">${p.distanceKm ? `${p.distanceKm} km ${t("distance_from_origin", "from origin")}` : ""}</div>
           </div>
         `)
         .addTo(mapInstance);
@@ -701,6 +703,12 @@ function drawFullRoute(route, pos) {
         pitchAlignment: "map"
       })
         .setLngLat([pos.lon, pos.lat])
+        .setPopup(new window.maplibregl.Popup({ offset: 12 }).setHTML(`
+          <div style="font-family:sans-serif;min-width:140px;padding:2px;">
+            <strong style="font-size:13px;color:#0f172a;">${translateTrainName(state.activeTrain?.name || "Train #" + state.activeTrainId)}</strong>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">#${state.activeTrain?.number || state.activeTrainId}${state.liveStatus?.speedKmh ? ` · ${state.liveStatus.speedKmh} km/h` : ""}</div>
+          </div>
+        `))
         .addTo(mapInstance);
     } catch (e) {}
   }
@@ -752,7 +760,8 @@ function updateRouteLayers(route, pos) {
         geometry: { type: "Point", coordinates: [Number(stn.longitude), Number(stn.latitude)] },
         properties: {
           idx,
-          name: stn.name,
+          name: translateStationName(stn.name),
+          rawName: stn.name,
           code: stn.code,
           scheduledArr: stn.scheduledArr || "—",
           scheduledDep: stn.scheduledDep || "—",
@@ -818,13 +827,13 @@ export function locateUserOnMap() {
           }
         }
         if (nearStn && minDist < 200) {
-          nearestText = `<div style="font-size:12px;color:#1e40af;margin-top:4px;">📍 <strong>${minDist.toFixed(1)} km</strong> from ${nearStn.name} (${nearStn.code})</div>`;
+          nearestText = `<div style="font-size:12px;color:#1e40af;margin-top:4px;">📍 <strong>${minDist.toFixed(1)} km</strong> from ${translateStationName(nearStn.name)} (${nearStn.code})</div>`;
         }
       }
 
       const popup = new window.maplibregl.Popup({ offset: 12 }).setHTML(`
         <div style="font-family:sans-serif;min-width:140px;padding:2px;">
-          <strong style="font-size:13px;color:#0f172a;">Your Location</strong>
+          <strong style="font-size:13px;color:#0f172a;">${t("your_location", "Your Location")}</strong>
           <div style="font-size:11px;color:#64748b;margin-top:2px;">Accuracy: ~${Math.round(accuracy || 10)}m</div>
           ${nearestText}
         </div>
@@ -1211,7 +1220,7 @@ export function focusLocationOnMap(lon, lat, name) {
   mapInstance.flyTo({ center: [lon, lat], zoom: 10, duration: 1200 });
   new window.maplibregl.Popup({ offset: 12 })
     .setLngLat([lon, lat])
-    .setHTML(`<strong>${name}</strong>`)
+    .setHTML(`<strong>${translateStationName(name)}</strong>`)
     .addTo(mapInstance);
 }
 
