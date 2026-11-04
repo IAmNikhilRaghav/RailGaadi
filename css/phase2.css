@@ -820,9 +820,14 @@
   }
 }
 
-/* ── Dark Theme for Quick Menu & Language Dialog (iPhone Glass) ─── */
+/* ── Dark Theme for Preferences Drawer & Language Dialog (iPhone Glass) ─── */
+[data-theme="dark"] .rg-menu-drawer {
+  background: #0f172a !important;
+  border-left: 1px solid #1e293b !important;
+  box-shadow: -12px 0 44px rgba(0, 0, 0, 0.65) !important;
+}
+
 [data-theme="dark"] .ios-glass-sheet,
-[data-theme="dark"] .rg-menu-sheet,
 [data-theme="dark"] .rg-lang-dialog {
   background: rgba(15, 23, 42, 0.82) !important;
   backdrop-filter: blur(32px) saturate(190%);

@@ -82,8 +82,8 @@ export function renderHeader() {
         <!-- 3. Mini Bar / Hamburger Menu Trigger (Mobile Primary, houses secondary tools) -->
         <button class="header-btn btn-icon-only header-menu-btn" id="headerMenuBtn"
           type="button"
-          title="Menu & Tools"
-          aria-label="Open menu and tools"
+          title="Preferences"
+          aria-label="Open preferences"
           aria-expanded="${state.isQuickMenuOpen}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" x2="20" y1="6" y2="6"/>

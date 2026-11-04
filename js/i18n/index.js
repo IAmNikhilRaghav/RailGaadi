@@ -24,7 +24,7 @@ const TRANSLATIONS = {
     tab_station: "Station",
 
     // Quick Menu & Header
-    menu_title: "Menu & Quick Tools",
+    menu_title: "Preferences",
     appearance: "Appearance",
     dark_mode: "Dark Theme",
     dark_mode_sub: "Comfortable viewing at night",
@@ -68,7 +68,7 @@ const TRANSLATIONS = {
     tab_weather: "मौसम",
     tab_station: "स्टेशन",
 
-    menu_title: "मेनू और टूल्स",
+    menu_title: "Preferences (प्राथमिकताएं)",
     appearance: "डार्क थीम",
     dark_mode: "डार्क मोड",
     dark_mode_sub: "रात में देखने के लिए आरामदायक",

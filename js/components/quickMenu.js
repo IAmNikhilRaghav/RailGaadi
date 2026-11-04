@@ -20,20 +20,15 @@ export function renderQuickMenu() {
 
   return `
     <div class="rg-drawer-backdrop" id="quickMenuBackdrop" role="presentation"></div>
-    <aside class="rg-menu-sheet ios-glass-sheet" id="quickMenuSheet" role="dialog" aria-modal="true" aria-label="Quick Actions & Tools">
+    <aside class="rg-menu-drawer" id="quickMenuSheet" role="dialog" aria-modal="true" aria-label="Preferences">
       
-      <!-- iOS Bottom Sheet Handle -->
-      <div class="ios-sheet-handle-wrap">
-        <div class="ios-sheet-handle"></div>
-      </div>
-
-      <!-- Sheet Header -->
+      <!-- Drawer Header -->
       <div class="rg-sheet-header">
         <div class="rg-sheet-header-title">
           <div class="rg-sheet-brand-dot"></div>
-          <h2>${t("menu_title", "Menu & Tools")}</h2>
+          <h2>${t("menu_title", "Preferences")}</h2>
         </div>
-        <button class="rg-sheet-close-btn" id="closeQuickMenuBtn" aria-label="Close menu">
+        <button class="rg-sheet-close-btn" id="closeQuickMenuBtn" aria-label="Close preferences">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
           </svg>
