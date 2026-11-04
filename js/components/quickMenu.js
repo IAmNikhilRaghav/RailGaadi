@@ -20,8 +20,13 @@ export function renderQuickMenu() {
 
   return `
     <div class="rg-drawer-backdrop" id="quickMenuBackdrop" role="presentation"></div>
-    <aside class="rg-menu-sheet" id="quickMenuSheet" role="dialog" aria-modal="true" aria-label="Quick Actions & Tools">
+    <aside class="rg-menu-sheet ios-glass-sheet" id="quickMenuSheet" role="dialog" aria-modal="true" aria-label="Quick Actions & Tools">
       
+      <!-- iOS Bottom Sheet Handle -->
+      <div class="ios-sheet-handle-wrap">
+        <div class="ios-sheet-handle"></div>
+      </div>
+
       <!-- Sheet Header -->
       <div class="rg-sheet-header">
         <div class="rg-sheet-header-title">
@@ -29,7 +34,7 @@ export function renderQuickMenu() {
           <h2>${t("menu_title", "Menu & Tools")}</h2>
         </div>
         <button class="rg-sheet-close-btn" id="closeQuickMenuBtn" aria-label="Close menu">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
           </svg>
         </button>
@@ -228,17 +233,23 @@ export function renderLangModal() {
 
   return `
     <div class="rg-drawer-backdrop" id="langModalBackdrop" role="presentation"></div>
-    <div class="rg-lang-dialog" id="langModalDialog" role="dialog" aria-modal="true" aria-labelledby="langDialogTitle">
+    <div class="rg-lang-dialog ios-glass-sheet" id="langModalDialog" role="dialog" aria-modal="true" aria-labelledby="langDialogTitle">
+      
+      <!-- iOS Bottom Sheet Handle -->
+      <div class="ios-sheet-handle-wrap">
+        <div class="ios-sheet-handle"></div>
+      </div>
+
       <div class="rg-sheet-header">
         <div class="rg-sheet-header-title">
-          <span style="font-size:20px;">🌐</span>
+          <span style="font-size:22px;line-height:1;">🌐</span>
           <div>
-            <h2 id="langDialogTitle" style="font-size:var(--text-md);font-weight:700;margin:0;">Select Language</h2>
-            <div style="font-size:var(--text-xs);color:var(--color-text-tertiary);">भाषा चुनें • உங்கள் மொழியைத் தேர்வுசெய்க</div>
+            <h2 id="langDialogTitle" style="font-size:var(--text-md, 16px);font-weight:700;margin:0;">Select Language</h2>
+            <div style="font-size:var(--text-xs, 12px);color:var(--color-text-tertiary);">भाषा चुनें • உங்கள் மொழியைத் தேர்வுசெய்க</div>
           </div>
         </div>
         <button class="rg-sheet-close-btn" id="closeLangModalBtn" aria-label="Close language selector">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
           </svg>
         </button>
@@ -287,3 +298,4 @@ export function attachLangModalEvents() {
     });
   });
 }
+

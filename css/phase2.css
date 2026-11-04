@@ -436,6 +436,24 @@
   to   { transform: none; opacity: 1; }
 }
 
+@media (max-width: 768px) {
+  .fav-drawer {
+    top: auto;
+    left: 50%;
+    right: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    max-height: 85vh;
+    border-radius: 28px 28px 0 0;
+    border-top: 1px solid var(--color-border);
+    border-left: none;
+    box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.25);
+    animation: iosSheetSlideUp 0.32s cubic-bezier(0.2, 0.85, 0.32, 1.05) forwards;
+  }
+}
+
 .fav-drawer-header {
   display: flex;
   align-items: center;
@@ -802,80 +820,95 @@
   }
 }
 
-/* ── Dark Theme for Quick Menu & Language Dialog ─────────── */
+/* ── Dark Theme for Quick Menu & Language Dialog (iPhone Glass) ─── */
+[data-theme="dark"] .ios-glass-sheet,
 [data-theme="dark"] .rg-menu-sheet,
 [data-theme="dark"] .rg-lang-dialog {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  background: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.65), 0 -1px 0 rgba(255, 255, 255, 0.1) inset !important;
+}
+
+[data-theme="dark"] .ios-sheet-handle {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 [data-theme="dark"] .rg-sheet-header {
-  border-bottom-color: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .rg-sheet-close-btn {
-  background: #1e293b;
+  background: rgba(255, 255, 255, 0.08);
   color: #94a3b8;
 }
 
 [data-theme="dark"] .rg-sheet-close-btn:hover {
-  background: #334155;
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
 }
 
 [data-theme="dark"] .rg-menu-item {
-  background: #1e293b;
-  border-color: #334155;
+  background: rgba(30, 41, 59, 0.65);
+  border-color: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 [data-theme="dark"] .rg-menu-clickable:hover,
 [data-theme="dark"] .rg-menu-clickable:active {
-  background: #243247;
+  background: rgba(30, 41, 59, 0.88);
   border-color: #3b82f6;
 }
 
 [data-theme="dark"] .rg-menu-item-icon {
-  background: #0f172a;
-  border-color: #334155;
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
   color: #94a3b8;
 }
 
 [data-theme="dark"] .rg-menu-section {
-  background: #1e293b;
-  border-color: #334155;
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .rg-map-chip {
-  background: #0f172a;
-  border-color: #334155;
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
   color: #e2e8f0;
 }
 
 [data-theme="dark"] .rg-map-chip.is-active {
-  background: #1e3a8a;
+  background: rgba(30, 58, 138, 0.8);
   border-color: #3b82f6;
   color: #93c5fd;
 }
 
 [data-theme="dark"] .rg-lang-card {
-  background: #1e293b;
-  border-color: #334155;
+  background: rgba(30, 41, 59, 0.65);
+  border-color: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-[data-theme="dark"] .rg-lang-card:hover {
-  background: #243247;
-  border-color: #475569;
+[data-theme="dark"] .rg-lang-card:hover,
+[data-theme="dark"] .rg-lang-card:active {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 [data-theme="dark"] .rg-lang-card.is-selected {
-  background: #1e3a8a;
+  background: rgba(37, 99, 235, 0.22);
   border-color: #3b82f6;
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.3);
 }
 
 [data-theme="dark"] .rg-lang-card-pill {
-  background: #0f172a;
-  border-color: #334155;
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(255, 255, 255, 0.12);
   color: #94a3b8;
 }
 

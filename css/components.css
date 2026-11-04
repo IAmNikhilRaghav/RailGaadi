@@ -161,66 +161,97 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   RailGaadi Quick Menu Sheet & Language Dialog (Mobile-Optimised)
+   RailGaadi iPhone Liquid Glass Bottom Sheets (iOS Glassmorphism)
    ────────────────────────────────────────────────────────────────────────── */
 
 .rg-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   z-index: 100;
-  animation: fadeIn 0.2s ease;
+  animation: iosBackdropFadeIn 0.25s ease;
 }
 
-.rg-menu-sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 88vh;
-  background: var(--color-bg-surface, #ffffff);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+@keyframes iosBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* iOS Sheet Handle (Top Drag Bar) */
+.ios-sheet-handle-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 2px;
+  cursor: grab;
+  user-select: none;
+}
+
+.ios-sheet-handle {
+  width: 42px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(60, 60, 67, 0.32);
+  transition: all 0.2s ease;
+}
+
+/* Common iPhone Glass Bottom Sheet — Starts from DOWN on all screen sizes */
+.ios-glass-sheet,
+.rg-menu-sheet,
+.rg-lang-dialog {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: 0 !important;
+  top: auto !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  width: 100% !important;
+  max-width: 480px !important;
+  max-height: 86vh;
+  
+  /* Authentic Apple Liquid Glass */
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border-top: 1px solid rgba(255, 255, 255, 0.85);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  border-bottom: none;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  box-shadow: 0 -16px 50px rgba(0, 0, 0, 0.2), 0 -1px 0 rgba(255, 255, 255, 0.6) inset;
+  
   z-index: 101;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: iosSheetSlideUp 0.34s cubic-bezier(0.2, 0.85, 0.32, 1.05) forwards;
 }
 
-@media (min-width: 768px) {
-  .rg-menu-sheet {
-    left: auto;
-    right: 20px;
-    bottom: auto;
-    top: 64px;
-    width: 380px;
-    max-height: 80vh;
-    border-radius: 20px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
-    animation: fadeInScale 0.2s ease;
+@keyframes iosSheetSlideUp {
+  0% {
+    transform: translate(-50%, 100%) !important;
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, 0) !important;
+    opacity: 1;
   }
 }
 
-@keyframes slideUpSheet {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-@keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+.rg-lang-dialog {
+  z-index: 102;
 }
 
 .rg-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 12px 20px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
 .rg-sheet-header-title {
@@ -494,40 +525,14 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Language Selection Dialog
+   Language Selection Grid & Glass Cards
    ────────────────────────────────────────────────────────────────────────── */
-
-.rg-lang-dialog {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 460px;
-  background: var(--color-bg-surface, #ffffff);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
-  z-index: 102;
-  overflow: hidden;
-  animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@media (min-width: 640px) {
-  .rg-lang-dialog {
-    top: 50%;
-    bottom: auto;
-    transform: translate(-50%, -50%);
-    border-radius: 24px;
-    animation: fadeInScale 0.2s ease;
-  }
-}
 
 .rg-lang-grid {
   padding: 16px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 12px;
   max-height: 60vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -537,23 +542,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-bg-subtle, #f8fafc);
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
 }
 
-.rg-lang-card:hover {
-  background: var(--color-bg-surface);
-  border-color: var(--color-border-hover);
+.rg-lang-card:hover,
+.rg-lang-card:active {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(37, 99, 235, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
 }
 
 .rg-lang-card.is-selected {
-  border-color: var(--color-accent, #2563eb);
-  background: var(--color-accent-subtle, #eff6ff);
+  border-color: rgba(37, 99, 235, 0.65);
+  background: rgba(37, 99, 235, 0.12);
+  box-shadow: 0 6px 22px rgba(37, 99, 235, 0.2);
 }
 
 .rg-lang-card-main {
