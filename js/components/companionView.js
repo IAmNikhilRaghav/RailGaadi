@@ -10,6 +10,7 @@ import { trackerService } from "../services/trackerService.js";
 import { WeatherService } from "../services/weatherService.js";
 import { GeoService } from "../services/geoService.js";
 import { focusLocationOnMap } from "./maplibreView.js";
+import { t } from "../i18n/index.js";
 
 let activePoiCategory = "all";
 let cachedPois = null;
@@ -100,9 +101,9 @@ function renderWeatherCard(label, stn, weather) {
       </div>
       <div style="font-size:var(--text-xs);font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">${w.condition}</div>
       <div class="weather-sub-metrics">
-        <div class="sub-metric-item">💧 Humidity: <strong>${w.humidityPercent}%</strong></div>
-        <div class="sub-metric-item">💨 Wind: <strong>${w.windSpeedKmh} km/h</strong></div>
-        <div class="sub-metric-item" style="grid-column:span 2;">🌧️ Rain Chance: <strong>${w.rainProbability}%</strong></div>
+        <div class="sub-metric-item">💧 ${t("humidity", "Humidity")}: <strong>${w.humidityPercent}%</strong></div>
+        <div class="sub-metric-item">💨 ${t("wind_speed", "Wind")}: <strong>${w.windSpeedKmh} km/h</strong></div>
+        <div class="sub-metric-item" style="grid-column:span 2;">🌧️ ${t("rain_chance", "Rain Chance")}: <strong>${w.rainProbability}%</strong></div>
       </div>
       <div style="font-size:10px;color:var(--color-text-muted);margin-top:6px;display:flex;align-items:center;justify-content:space-between;">
         <span>Source: ${w.source || "Open-Meteo Live"}</span>
@@ -138,7 +139,7 @@ function renderPoiCards(pois) {
       <h4 class="poi-name" style="margin-top:8px;">${p.name}</h4>
       <p class="poi-desc" style="font-size:12px;color:var(--color-text-secondary);line-height:1.4;margin:6px 0 12px 0;">${p.description || "Geographic feature visible from the train corridor."}</p>
       <button class="poi-action-btn" data-lat="${p.lat}" data-lon="${p.lon}" data-name="${p.name}">
-        <span>View on Map</span>
+        <span>${t("view_on_map", "View on Map")}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
         </svg>
@@ -335,18 +336,18 @@ export function renderCompanionSection() {
       <div>
         <div class="weather-section-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div>
-            <h3 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">Live Weather Along Route</h3>
+            <h3 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">${t("weather_hero_title", "Live Weather Along Route")}</h3>
             <span style="font-size:var(--text-xs);color:var(--color-text-muted);">Real-time meteorological readings for active train stops</span>
           </div>
           <span style="font-size:11px;font-weight:600;padding:4px 10px;background:rgba(34,197,94,0.1);color:#16a34a;border-radius:20px;">
-            ● Live Weather Sync
+            ● ${t("live_weather_sync", "Live Weather Sync")}
           </span>
         </div>
 
         <div class="weather-cards-grid" id="weatherCardsGrid">
-          ${renderWeatherCard("Current Station", curStn, curW)}
-          ${renderWeatherCard("Next Stop", nextStn, nextW)}
-          ${renderWeatherCard("Destination", destStn, destW)}
+          ${renderWeatherCard(t("weather_current_stn", "Current Station"), curStn, curW)}
+          ${renderWeatherCard(t("weather_next_stop", "Next Stop"), nextStn, nextW)}
+          ${renderWeatherCard(t("weather_destination", "Destination"), destStn, destW)}
         </div>
       </div>
 
@@ -374,7 +375,7 @@ export function renderCompanionSection() {
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <div>
               <h3 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">
-                Landmarks &amp; Natural Features Along the Route
+                ${t("landmarks_title", "Landmarks & Natural Features Along the Route")}
               </h3>
               <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:2px;">
                 Instantaneous geographic context at train coordinates 

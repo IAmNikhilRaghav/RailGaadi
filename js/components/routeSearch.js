@@ -9,6 +9,7 @@ import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { searchTrainsBetweenStations } from "../services/railradarService.js";
 import { stationDataService } from "../services/stationDataService.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 // ── Module state ──────────────────────────────────────────────────────────
 
@@ -244,7 +245,7 @@ function getTrainsToDisplay() {
   }));
 
   return {
-    title: `Pan-India Trains & Routes`,
+    title: `${t("rs_pan_india_trains", "Pan-India Trains & Routes")}`,
     trains: [...prominent, ...topCatalog]
   };
 }
@@ -261,7 +262,7 @@ export function renderRouteSearch() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>
           </svg>
-          <h2>Find Trains Between Stations</h2>
+          <h2>${t("rs_hero_title", "Find Trains Between Stations")}</h2>
         </div>
 
         <!-- From / To Card -->
@@ -277,7 +278,7 @@ export function renderRouteSearch() {
               </div>
               <div class="rs-field-input-wrap" id="rsFromWrap">
                 <div class="rs-field-top">
-                  <label class="rs-field-label" for="rsFromInput">From station</label>
+                  <label class="rs-field-label" for="rsFromInput">${t("rs_from_label", "From station")}</label>
                   ${fromStation ? `<span class="rs-station-code-badge">${fromStation.code}</span>` : ""}
                 </div>
                 <input
@@ -287,7 +288,7 @@ export function renderRouteSearch() {
                   inputmode="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="From station (e.g. NDLS, New Delhi)"
+                  placeholder="${t('rs_from_placeholder', 'From station (e.g. NDLS, New Delhi)')}"
                   value="${fromStation ? fromStation.name : fromQuery}"
                   aria-label="Departure station"
                 />
@@ -324,7 +325,7 @@ export function renderRouteSearch() {
               </div>
               <div class="rs-field-input-wrap" id="rsToWrap">
                 <div class="rs-field-top">
-                  <label class="rs-field-label" for="rsToInput">To station</label>
+                  <label class="rs-field-label" for="rsToInput">${t("rs_to_label", "To station")}</label>
                   ${toStation ? `<span class="rs-station-code-badge">${toStation.code}</span>` : ""}
                 </div>
                 <input
@@ -334,7 +335,7 @@ export function renderRouteSearch() {
                   inputmode="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="To station (e.g. HWH, Howrah)"
+                  placeholder="${t('rs_to_placeholder', 'To station (e.g. HWH, Howrah)')}"
                   value="${toStation ? toStation.name : toQuery}"
                   aria-label="Destination station"
                 />
@@ -362,7 +363,7 @@ export function renderRouteSearch() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
                 </svg>
-                Find trains
+                ${t("rs_find_trains", "Find trains")}
               `
             }
           </button>
@@ -480,7 +481,7 @@ function renderRouteResultsContent() {
         </div>
 
         <div class="rs-filter-count">
-          Showing <strong>${filtered.length}</strong> trains
+          ${t("rs_showing", "Showing")} <strong>${filtered.length}</strong> ${t("rs_trains", "trains")}
         </div>
       </div>
 

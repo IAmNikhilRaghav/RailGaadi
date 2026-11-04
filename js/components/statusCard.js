@@ -6,6 +6,7 @@
 
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 /* ── Running Days Calendar ────────────────────────────────── */
 
@@ -60,9 +61,9 @@ function renderRunningDaysCalendar(raw) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>
         </svg>
-        <span>Runs on</span>
+        <span>${t("runs_on", "Runs on")}</span>
         <span class="sc-days-today-tag ${runsToday ? "sc-days-today-tag--yes" : "sc-days-today-tag--no"}">
-          ${runsToday ? "✓ Running today" : "✗ Not today"}
+          ${runsToday ? t("running_today", "✓ Running today") : t("not_today", "✗ Not today")}
         </span>
       </div>
       <div class="sc-days-pills">
@@ -125,12 +126,12 @@ function renderLanding() {
             </svg>
           </div>
           <div>
-            <div style="font-weight:700;font-size:14px;letter-spacing:-0.01em;">Find Trains Between Stations</div>
-            <div style="font-size:12px;opacity:0.85;">Station A → Station B &amp; Running Routine</div>
+            <div style="font-weight:700;font-size:14px;letter-spacing:-0.01em;">${t("find_between", "Find Trains Between Stations")}</div>
+            <div style="font-size:12px;opacity:0.85;">${t("find_between_sub", "Station A → Station B & Running Routine")}</div>
           </div>
         </div>
         <div style="background:rgba(255,255,255,0.22);padding:6px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px;">
-          <span>Find</span>
+          <span>${t("find_btn", "Find")}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
         </div>
       </div>
@@ -270,25 +271,25 @@ export function renderStatusCard() {
   const updatedAt   = status?.updatedAt       || lastUpdatedAt?.toISOString();
 
   // Status badge
-  let badgeClass = "on-time", badgeText = "ON TIME";
+  let badgeClass = "on-time", badgeText = t("status_on_time", "ON TIME");
   if (status?.status === "NOT_STARTED") {
     badgeClass = "early";
-    badgeText = "SCHEDULED";
+    badgeText = t("status_scheduled", "SCHEDULED");
   } else if (status?.status === "COMPLETED") {
     badgeClass = "on-time";
-    badgeText = "ARRIVED";
+    badgeText = t("status_arrived", "ARRIVED");
   } else if (status?.status === "CANCELLED") {
     badgeClass = "delayed";
-    badgeText = "CANCELLED";
+    badgeText = t("status_cancelled", "CANCELLED");
   } else if (delay > 0) {
     badgeClass = "delayed";
-    badgeText = `DELAYED ${delay} MIN`;
+    badgeText = `${t("status_delayed", "DELAYED")} ${delay} MIN`;
   } else if (delay < 0) {
     badgeClass = "early";
-    badgeText = `EARLY ${Math.abs(delay)} MIN`;
+    badgeText = `${t("status_early", "EARLY")} ${Math.abs(delay)} MIN`;
   } else if (!status || status.status === "UNKNOWN") {
     badgeClass = "";
-    badgeText = "RUNNING";
+    badgeText = t("status_running", "RUNNING");
   }
 
   return `
@@ -297,7 +298,7 @@ export function renderStatusCard() {
       ${isStale ? `
         <div style="background:#fef3c7;border-bottom:1px solid #fde68a;padding:6px 16px;font-size:12px;font-weight:600;color:#92400e;display:flex;align-items:center;gap:6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          Showing latest verified telemetry
+          ${t("telemetry_verified", "Showing latest verified telemetry")}
         </div>
       ` : ""}
 
@@ -315,15 +316,15 @@ export function renderStatusCard() {
         </div>
 
         <div class="train-headline">
-          <h2 class="train-headline-name">${train.name || "Train #" + activeTrainId}</h2>
+          <h2 class="train-headline-name">${translateTrainName(train.name || "Train #" + activeTrainId)}</h2>
           <span class="train-headline-number">#${train.number || activeTrainId}</span>
         </div>
 
         <div class="train-endpoints">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span>${train.origin || route?.stations?.[0]?.name || "Origin"}</span>
+          <span>${translateStationName(train.origin || route?.stations?.[0]?.name || "Origin")}</span>
           <span style="color:var(--color-text-muted)">→</span>
-          <span>${train.destination || route?.stations?.[route?.stations?.length - 1]?.name || "Destination"}</span>
+          <span>${translateStationName(train.destination || route?.stations?.[route?.stations?.length - 1]?.name || "Destination")}</span>
         </div>
 
         <!-- Running Days Calendar -->
@@ -333,7 +334,7 @@ export function renderStatusCard() {
       <!-- Progress -->
       <div class="progress-card-section">
         <div class="progress-header">
-          <span style="color:var(--color-text-secondary)">Journey Progress</span>
+          <span style="color:var(--color-text-secondary)">${t("journey_progress", "Journey Progress")}</span>
           <span style="font-family:var(--font-mono);font-weight:700;color:var(--color-accent);">${Math.round(progressPct)}%</span>
         </div>
         <div class="progress-track" role="progressbar" aria-valuenow="${Math.round(progressPct)}" aria-valuemin="0" aria-valuemax="100">
@@ -350,24 +351,24 @@ export function renderStatusCard() {
               <div class="bullet-line"></div>
             </div>
             <div class="station-details">
-              <div class="station-badge-label current">Current / Last Reported Station</div>
-              <div class="station-name-lg">${curStation.name} ${curStation.stationId ? `(${curStation.stationId})` : ""}</div>
+              <div class="station-badge-label current">${t("current_station_spotlight", "Current / Last Reported Station")}</div>
+              <div class="station-name-lg">${translateStationName(curStation.name)} ${curStation.stationId ? `(${curStation.stationId})` : ""}</div>
               <div class="station-timing-row">
                 ${curStation.scheduledArrival || curStation.scheduledArr ? `
                   <div class="timing-item">
-                    <span class="timing-label">Scheduled</span>
+                    <span class="timing-label">${t("scheduled", "Scheduled")}</span>
                     <span class="timing-value">${formatTime(curStation.scheduledArrival || curStation.scheduledArr)}</span>
                   </div>
                 ` : ""}
                 ${curStation.actualArrival || curStation.actualArr || curStation.estimatedArrival ? `
                   <div class="timing-item">
-                    <span class="timing-label">Reported</span>
+                    <span class="timing-label">${t("reported", "Reported")}</span>
                     <span class="timing-value ${delay > 0 ? "delayed-time" : ""}">${formatTime(curStation.actualArrival || curStation.actualArr || curStation.estimatedArrival)}</span>
                   </div>
                 ` : ""}
                 ${curStation.platform ? `
                   <div class="timing-item">
-                    <span class="timing-label">Platform</span>
+                    <span class="timing-label">${t("platform", "Platform")}</span>
                     <span class="timing-value">PF ${curStation.platform}</span>
                   </div>
                 ` : ""}
@@ -382,30 +383,30 @@ export function renderStatusCard() {
               <div class="bullet-circle"></div>
             </div>
             <div class="station-details">
-              <div class="station-badge-label next">Next Halting Station</div>
-              <div class="station-name-lg">${nextStation.name} ${nextStation.stationId ? `(${nextStation.stationId})` : ""}</div>
+              <div class="station-badge-label next">${t("next_station_spotlight", "Next Upcoming Station")}</div>
+              <div class="station-name-lg">${translateStationName(nextStation.name)} ${nextStation.stationId ? `(${nextStation.stationId})` : ""}</div>
               <div class="station-timing-row">
                 ${nextStation.scheduledArrival || nextStation.scheduledArr ? `
                   <div class="timing-item">
-                    <span class="timing-label">Scheduled</span>
+                    <span class="timing-label">${t("scheduled", "Scheduled")}</span>
                     <span class="timing-value">${formatTime(nextStation.scheduledArrival || nextStation.scheduledArr)}</span>
                   </div>
                 ` : ""}
                 ${nextStation.estimatedArrival || nextStation.actualArr ? `
                   <div class="timing-item">
-                    <span class="timing-label">Estimated ETA</span>
+                    <span class="timing-label">ETA</span>
                     <span class="timing-value" style="color:var(--color-accent);">${formatTime(nextStation.estimatedArrival || nextStation.actualArr)}</span>
                   </div>
                 ` : ""}
                 ${nextStation.platform ? `
                   <div class="timing-item">
-                    <span class="timing-label">Platform</span>
+                    <span class="timing-label">${t("platform", "Platform")}</span>
                     <span class="timing-value">PF ${nextStation.platform}</span>
                   </div>
                 ` : ""}
                 ${nextStation.haltMin ? `
                   <div class="timing-item">
-                    <span class="timing-label">Halt</span>
+                    <span class="timing-label">${t("halt", "Halt")}</span>
                     <span class="timing-value">${nextStation.haltMin} min</span>
                   </div>
                 ` : ""}
@@ -418,15 +419,15 @@ export function renderStatusCard() {
       <!-- Metrics grid -->
       <div class="metrics-grid">
         <div class="metric-cell">
-          <div class="metric-cell-label">Speed</div>
+          <div class="metric-cell-label">${t("speed", "Speed")}</div>
           <div class="metric-cell-value" style="color:var(--color-accent)">${fmt(speedKmh, " km/h", "—")}</div>
         </div>
         <div class="metric-cell">
-          <div class="metric-cell-label">Covered</div>
+          <div class="metric-cell-label">${t("distance_covered", "Covered")}</div>
           <div class="metric-cell-value">${fmt(coveredKm, " km", "—")}</div>
         </div>
         <div class="metric-cell">
-          <div class="metric-cell-label">Remaining</div>
+          <div class="metric-cell-label">${t("distance_remaining", "Remaining")}</div>
           <div class="metric-cell-value">${fmt(remainingKm, " km", "—")}</div>
         </div>
       </div>

@@ -5,6 +5,7 @@
 
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 export function renderFavDrawer() {
   const state = store.getState();
@@ -37,9 +38,9 @@ export function renderFavDrawer() {
         <div class="fav-train-info">
           <div class="fav-train-number-badge">${t.number}</div>
           <div class="fav-train-meta">
-            <div class="fav-train-name">${t.name}</div>
+            <div class="fav-train-name">${translateTrainName(t.name)}</div>
             ${t.origin && t.dest ? `
-              <div class="fav-train-route">${t.origin} → ${t.dest}</div>
+              <div class="fav-train-route">${translateStationName(t.origin)} → ${translateStationName(t.dest)}</div>
             ` : ""}
           </div>
         </div>
@@ -63,7 +64,7 @@ export function renderFavDrawer() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
           </svg>
-          <h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">Saved Trains</h2>
+          <h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-text-primary);">${t("saved_trains", "Saved Trains")}</h2>
         </div>
         <button class="header-btn btn-icon-only" id="closeFavDrawerBtn" aria-label="Close drawer">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -79,11 +80,11 @@ export function renderFavDrawer() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
             </svg>
-            <span>Favourites (${favTrains.length})</span>
+            <span>${t("fav_favourites", "Favourites")} (${favTrains.length})</span>
           </div>
           ${favTrains.length > 0
             ? favTrains.map(t => trainRow(t, true)).join("")
-            : `<div class="fav-drawer-empty">❤️ No favourites yet — tap the heart on any train to save it</div>`}
+            : `<div class="fav-drawer-empty">❤️ ${t("fav_empty", "No favourites yet — tap the heart on any train to save it")}</div>`}
         </div>
 
         <!-- Recent Searches -->
@@ -93,7 +94,7 @@ export function renderFavDrawer() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
-              <span>Recent (${recentTrains.length})</span>
+              <span>${t("fav_recent", "Recent")} (${recentTrains.length})</span>
             </div>
             ${recentTrains.map(t => trainRow(t, false)).join("")}
           </div>

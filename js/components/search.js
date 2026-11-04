@@ -6,6 +6,7 @@
 
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
+import { t } from "../i18n/index.js";
 
 let selectedIndex   = -1;
 let debounceTimer   = null;
@@ -36,7 +37,7 @@ export function renderQuickChips() {
   if (chips.length === 0) return "";
 
   return `
-    <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;white-space:nowrap;margin-right:4px;">Recent:</span>
+    <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;white-space:nowrap;margin-right:4px;">${t("search_recent", "Recent:")}</span>
     ${chips.map(c => `
       <button class="quick-chip ${c.id === activeTrainId ? "active" : ""}" data-train-id="${c.id}" title="Load ${c.number}">
         ${c.isFav ? "❤️" : "🕒"} <strong>${c.number}</strong>${c.shortName ? ` · ${c.shortName}` : ""}
@@ -78,9 +79,9 @@ export function renderSearchSection() {
           <div class="search-ticker-container" id="searchTickerContainer">
             <div class="search-ticker-track" id="searchTickerTrack">
               <div class="search-ticker-item">
-                <span>Search by train no. or name</span>
+                <span>${t("search_placeholder", "Search by train no. or name")}</span>
                 <span class="ticker-dot">•</span>
-                <span>Track live train status</span>
+                <span>${t("search_ticker_1", "Track live train status")}</span>
                 <span class="ticker-dot">•</span>
                 <span>12404 Prayagraj SF Express</span>
                 <span class="ticker-dot">•</span>
@@ -88,13 +89,13 @@ export function renderSearchSection() {
                 <span class="ticker-dot">•</span>
                 <span>12301 Howrah Rajdhani</span>
                 <span class="ticker-dot">•</span>
-                <span>Track Any Indian Train Live</span>
+                <span>${t("search_ticker_2", "Track Any Indian Train Live")}</span>
                 <span class="ticker-dot">•</span>
               </div>
               <div class="search-ticker-item" aria-hidden="true">
-                <span>Search by train no. or name</span>
+                <span>${t("search_placeholder", "Search by train no. or name")}</span>
                 <span class="ticker-dot">•</span>
-                <span>Track live train status</span>
+                <span>${t("search_ticker_1", "Track live train status")}</span>
                 <span class="ticker-dot">•</span>
                 <span>12404 Prayagraj SF Express</span>
                 <span class="ticker-dot">•</span>
@@ -102,7 +103,7 @@ export function renderSearchSection() {
                 <span class="ticker-dot">•</span>
                 <span>12301 Howrah Rajdhani</span>
                 <span class="ticker-dot">•</span>
-                <span>Track Any Indian Train Live</span>
+                <span>${t("search_ticker_2", "Track Any Indian Train Live")}</span>
                 <span class="ticker-dot">•</span>
               </div>
             </div>
@@ -135,7 +136,7 @@ export function renderSearchSection() {
 
           <!-- Track Live Action Button -->
           <button class="search-submit-btn" id="searchSubmitBtn" title="Track Train">
-            <span>Track Live</span>
+            <span>${t("search_track_live", "Track Live")}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
             </svg>

@@ -7,6 +7,7 @@
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { fetchStationBoardAPI, POPULAR_TRAINS } from "../services/railradarService.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 let boardStationCode = null; // current station code being shown
 let boardMode        = "departure"; // "departure" | "arrival"
@@ -27,10 +28,10 @@ function fmtTime(str) {
 }
 
 function statusBadge(delay) {
-  if (delay == null) return `<span class="board-badge neutral">Scheduled</span>`;
-  if (delay === 0)   return `<span class="board-badge on-time">On Time</span>`;
+  if (delay == null) return `<span class="board-badge neutral">${t("board_scheduled", "Scheduled")}</span>`;
+  if (delay === 0)   return `<span class="board-badge on-time">${t("status_on_time", "On Time")}</span>`;
   if (delay > 0)     return `<span class="board-badge delayed">+${delay}m</span>`;
-  return `<span class="board-badge early">${Math.abs(delay)}m early</span>`;
+  return `<span class="board-badge early">${Math.abs(delay)}m ${t("early", "early")}</span>`;
 }
 
 /* ── Generate departure board from curated data ─────────────── */
@@ -175,13 +176,13 @@ export function renderStationBoard() {
             </div>
             <div>
               <h3 style="font-size:var(--text-xl);font-weight:800;color:var(--color-text-primary);">
-                ${displayStation?.name || "Unknown Station"}
+                ${translateStationName(displayStation?.name || "Unknown Station")}
                 <span style="font-size:var(--text-sm);font-weight:600;color:var(--color-text-muted);font-family:var(--font-mono);">
                   ${targetCode}
                 </span>
               </h3>
               <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:2px;">
-                ${isLiveBoard ? "🟢 Live Telemetry · " : ""}${filteredTrains.length} trains ${boardMode === "departure" ? "departing" : "arriving"}
+                ${isLiveBoard ? "🟢 Live · " : ""}${filteredTrains.length} ${t("board_trains", "trains")} ${boardMode === "departure" ? t("board_departing", "departing") : t("board_arriving", "arriving")}
               </p>
             </div>
           </div>
@@ -208,13 +209,13 @@ export function renderStationBoard() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
           </svg>
-          Departures (${trains.filter(t => t.scheduledDep).length})
+          ${t("board_departures", "Departures")} (${trains.filter(t => t.scheduledDep).length})
         </button>
         <button class="board-mode-btn ${boardMode === "arrival" ? "active" : ""}" data-mode="arrival" id="boardArriveBtn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
           </svg>
-          Arrivals (${trains.filter(t => t.scheduledArr).length})
+          ${t("board_arrivals", "Arrivals")} (${trains.filter(t => t.scheduledArr).length})
         </button>
       </div>
 
@@ -222,7 +223,7 @@ export function renderStationBoard() {
       ${filteredTrains.length === 0 ? `
         <div style="text-align:center;padding:var(--space-12);color:var(--color-text-muted);">
           <div style="font-size:36px;margin-bottom:12px;">🔍</div>
-          <p>No ${boardMode === "departure" ? "departures" : "arrivals"} currently listed for ${displayStation?.name || targetCode}</p>
+          <p>${t("board_no_trains", "No")} ${boardMode === "departure" ? t("board_departures", "departures") : t("board_arrivals", "arrivals")} ${t("board_listed_for", "currently listed for")} ${translateStationName(displayStation?.name || targetCode)}</p>
         </div>
       ` : `
         <!-- Desktop table (hidden on mobile via CSS) -->
@@ -230,11 +231,11 @@ export function renderStationBoard() {
           <table class="board-table" aria-label="${boardMode === "departure" ? "Departures" : "Arrivals"} from ${displayStation?.name}">
             <thead>
               <tr>
-                <th>Train</th>
-                <th>${boardMode === "departure" ? "Destination" : "Origin"}</th>
-                <th>${boardMode === "departure" ? "Departs" : "Arrives"}</th>
-                <th>Platform</th>
-                <th>Status</th>
+                <th>${t("board_th_train", "Train")}</th>
+                <th>${boardMode === "departure" ? t("board_th_destination", "Destination") : t("board_th_origin", "Origin")}</th>
+                <th>${boardMode === "departure" ? t("board_departs", "Departs") : t("board_arrives", "Arrives")}</th>
+                <th>${t("platform", "Platform")}</th>
+                <th>${t("board_th_status", "Status")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -248,7 +249,7 @@ export function renderStationBoard() {
                         <div style="width:5px;height:40px;border-radius:3px;background:${typeColor};flex-shrink:0;"></div>
                         <div>
                           <div style="font-weight:700;font-family:var(--font-mono);color:var(--color-text-primary);">${t.number}</div>
-                          <div style="font-size:11px;color:var(--color-text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div>
+                          <div style="font-size:11px;color:var(--color-text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${translateTrainName(t.name)}</div>
                         </div>
                       </div>
                     </td>
@@ -273,7 +274,7 @@ export function renderStationBoard() {
                     <td>${statusBadge(t.delayMinutes)}</td>
                     <td>
                       <button class="board-track-btn" data-train-id="${t.trainId}" title="Track this train">
-                        Track
+                        ${t("board_track", "Track")}
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
                         </svg>
@@ -294,7 +295,7 @@ export function renderStationBoard() {
               <div class="board-mobile-card board-train-row" data-train-id="${t.trainId}" role="listitem">
                 <div style="width:4px;align-self:stretch;border-radius:4px;background:${typeColor};flex-shrink:0;"></div>
                 <div class="board-mobile-card-left">
-                  <div class="board-mobile-card-name">${t.name}</div>
+                  <div class="board-mobile-card-name">${translateTrainName(t.name)}</div>
                   <div class="board-mobile-card-route">
                     ${boardMode === "departure" ? "→ " + t.destination : "← " + t.origin}
                   </div>
@@ -303,7 +304,7 @@ export function renderStationBoard() {
                 <div class="board-mobile-card-right">
                   <div class="board-mobile-card-time">${fmtTime(t[timeField]) || "—"}</div>
                   ${statusBadge(t.delayMinutes)}
-                  ${t.platform && t.platform !== "—" ? `<div style="font-size:11px;font-weight:700;color:var(--color-accent);">Plt ${t.platform}</div>` : ""}
+                  ${t.platform && t.platform !== "—" ? `<div style="font-size:11px;font-weight:700;color:var(--color-accent);">${t("board_plt", "Plt")} ${t.platform}</div>` : ""}
                 </div>
               </div>
             `;
@@ -312,7 +313,7 @@ export function renderStationBoard() {
       `}
 
       <div style="padding:var(--space-4);font-size:11px;color:var(--color-text-muted);text-align:center;border-top:1px solid var(--color-border);">
-        Live station timetable · Station: ${displayStation?.name} (${targetCode})
+        ${t("board_live_timetable", "Live station timetable")} · ${t("board_station_label", "Station")}: ${translateStationName(displayStation?.name)} (${targetCode})
       </div>
     </div>
   `;

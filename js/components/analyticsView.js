@@ -7,7 +7,7 @@
 import { store } from "../state/store.js";
 import { trackerService } from "../services/trackerService.js";
 import { ElevationService } from "../services/elevationService.js";
-import { t } from "../i18n/index.js";
+import { t, translateStationName, translateTrainName } from "../i18n/index.js";
 
 const elevationAttemptedTrains = new Set();
 
@@ -129,7 +129,7 @@ export function renderAnalyticsSection() {
 
         <!-- Totally Clear Tagline Header -->
         <div class="wimt-tagline-header" onclick="window.toggleJourneyTimeline(event)" role="button" tabindex="0" title="Touch to toggle journey description">
-          <h3 class="wimt-tagline-text">Full Journey Timeline &amp; Station Events</h3>
+          <h3 class="wimt-tagline-text">${t("full_journey_timeline", "Full Journey Timeline & Station Events")}</h3>
         </div>
 
         <!-- Fully Functional Dynamic Blue Summary Bar with all journey stats -->
@@ -144,7 +144,7 @@ export function renderAnalyticsSection() {
                   </svg>
                 </div>
                 <div class="next-stn-main-title">
-                  ${kmToNext != null ? `${t("next_station", "Next Station")}: <strong>${nextStn?.name || "Next Halt"}</strong> — <strong>${kmToNext} km</strong> ${t("remaining", "remaining")}` : `Train en-route — <strong>${stations.length} ${t("stations", "Stations")}</strong>`}
+                  ${kmToNext != null ? `${t("next_station", "Next Station")}: <strong>${translateStationName(nextStn?.name || "Next Halt")}</strong> — <strong>${kmToNext} km</strong> ${t("remaining", "remaining")}` : `Train en-route — <strong>${stations.length} ${t("stations", "Stations")}</strong>`}
                 </div>
               </div>
 
@@ -181,9 +181,9 @@ export function renderAnalyticsSection() {
           <!-- Top Toolbar: View Mode Switcher -->
           <div class="wimt-toolbar-row">
             <div class="wimt-toolbar-info">
-              <span class="wimt-legend-dot dot-halt"></span> Scheduled Stop
-              <span class="wimt-legend-dot dot-through" style="margin-left:12px;"></span> Pass-through
-              <span class="wimt-legend-dot dot-current" style="margin-left:12px;"></span> Live Train
+              <span class="wimt-legend-dot dot-halt"></span> ${t("scheduled_stop", "Scheduled Stop")}
+              <span class="wimt-legend-dot dot-through" style="margin-left:12px;"></span> ${t("pass_through", "Pass-through")}
+              <span class="wimt-legend-dot dot-current" style="margin-left:12px;"></span> ${t("live_train", "Live Train")}
             </div>
 
             <!-- View Switcher Tabs -->
@@ -279,7 +279,7 @@ export function renderAnalyticsSection() {
                       <!-- Station Details and Live Bubble -->
                       <div class="wimt-station-details">
                         <div class="wimt-stn-title-row">
-                          <span class="wimt-station-name ${isThrough ? "name-through" : ""}">${s.name}</span>
+                          <span class="wimt-station-name ${isThrough ? "name-through" : ""}">${translateStationName(s.name)}</span>
                           ${isThrough ? `<span class="wimt-pass-tag">Pass-through</span>` : ""}
                         </div>
 
@@ -294,7 +294,7 @@ export function renderAnalyticsSection() {
                           <div class="wimt-train-speech-card">
                             <div class="wimt-bubble-pointer"></div>
                             <div class="wimt-bubble-header">
-                              <span class="wimt-bubble-title">${t("at_station", "At")} ${s.name}</span>
+                              <span class="wimt-bubble-title">${t("at_station", "At")} ${translateStationName(s.name)}</span>
                               <span class="wimt-bubble-live-dot">● LIVE</span>
                             </div>
                             <div class="wimt-bubble-status ${isLate ? "is-late-text" : "is-ontime-text"}">
@@ -383,7 +383,7 @@ export function renderAnalyticsSection() {
                           <span class="tl-seq">${s.sequence || idx + 1}</span>
                         </td>
                         <td>
-                          <div class="station-name-cell ${isCurrent ? "station-name-cell--current" : ""}">${s.name}</div>
+                          <div class="station-name-cell ${isCurrent ? "station-name-cell--current" : ""}">${translateStationName(s.name)}</div>
                           <div class="station-code-cell">
                             ${s.code || s.stationId || ""}
                             ${isCurrent ? "· 🟢 Live" : isPassed ? "· ✓" : ""}
@@ -415,31 +415,31 @@ export function renderAnalyticsSection() {
       <div class="analytics-row split-3">
         <div class="analytics-metric-card">
           <div class="metric-card-top">
-            <span class="metric-card-title">Schedule Variance</span>
+            <span class="metric-card-title">${t("schedule_variance", "Schedule Variance")}</span>
             <span style="font-size:20px;">⏱️</span>
           </div>
           <div class="metric-card-value-hero" style="color:${delay == null ? "var(--color-text-muted)" : delay === 0 ? "var(--color-success)" : delay > 0 ? "var(--color-danger)" : "var(--color-success)"};">
             ${fmtDelay(delay)}
           </div>
-          <div class="metric-card-note">${delay == null ? "Live delay data unavailable" : delay <= 0 ? "Running on schedule" : "En-route operational delay"}</div>
+          <div class="metric-card-note">${delay == null ? t("delay_data_unavailable", "Live delay data unavailable") : delay <= 0 ? t("running_on_schedule", "Running on schedule") : t("enroute_delay", "En-route operational delay")}</div>
         </div>
 
         <div class="analytics-metric-card">
           <div class="metric-card-top">
-            <span class="metric-card-title">Journey Distance</span>
+            <span class="metric-card-title">${t("journey_distance", "Journey Distance")}</span>
             <span style="font-size:20px;">📏</span>
           </div>
           <div class="metric-card-value-hero">${totalKm ? `${totalKm} <span style="font-size:14px;font-weight:500;">km</span>` : "—"}</div>
-          <div class="metric-card-note">${stations.length ? `${stations.length} stations · ${progressPct}% complete` : "Route data loading"}</div>
+          <div class="metric-card-note">${stations.length ? `${stations.length} ${t("stations", "Stations")} · ${progressPct}% ${t("complete", "complete")}` : t("route_data_loading", "Route data loading")}</div>
         </div>
 
         <div class="analytics-metric-card">
           <div class="metric-card-top">
-            <span class="metric-card-title">Highest Route Point</span>
+            <span class="metric-card-title">${t("highest_route_point", "Highest Route Point")}</span>
             <span style="font-size:20px;">⛰️</span>
           </div>
           <div class="metric-card-value-hero">${maxElev ? `${maxElev} <span style="font-size:14px;font-weight:500;">m</span>` : `<span style="color:var(--color-text-muted);font-size:16px;">Loading…</span>`}</div>
-          <div class="metric-card-note">${highestStn ? `Near ${highestStn.name}` : "Fetching SRTM elevation data"}</div>
+          <div class="metric-card-note">${highestStn ? `${t("near_station", "Near")} ${translateStationName(highestStn.name)}` : t("fetching_elevation", "Fetching elevation data")}</div>
         </div>
       </div>
 
@@ -447,7 +447,7 @@ export function renderAnalyticsSection() {
       <div class="elevation-card speed-card">
         <div class="chart-header">
           <div class="chart-title-group">
-            <h3>Live Speed Telemetry &amp; Velocity Curve</h3>
+            <h3>${t("live_telemetry_velocity", "Live Speed Telemetry & Velocity Curve")}</h3>
             <p>Real-time locomotive velocity measurements and session speed telemetry</p>
           </div>
           <div class="highest-elevation-pill" style="background:var(--color-bg-subtle);border-color:var(--color-border);color:var(--color-text-primary);">
@@ -468,7 +468,7 @@ export function renderAnalyticsSection() {
       <div class="elevation-card">
         <div class="chart-header">
           <div class="chart-title-group">
-            <h3>Route Elevation Profile</h3>
+            <h3>${t("route_elevation_profile", "Route Elevation Profile")}</h3>
             <p>Terrain altitude along the rail corridor (Source: OpenTopography SRTM)</p>
           </div>
           ${maxElev ? `
@@ -476,7 +476,7 @@ export function renderAnalyticsSection() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
               </svg>
-              <span>Peak: <strong>${maxElev} m</strong>${highestStn ? ` (${highestStn.name})` : ""}</span>
+              <span>${t("peak_elevation", "Peak")}: <strong>${maxElev} m</strong>${highestStn ? ` (${highestStn.name})` : ""}</span>
             </div>
           ` : `<div style="font-size:12px;color:var(--color-text-muted);">Elevation: loading…</div>`}
         </div>
