@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,9 +26,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.state.TrainTrackerState
@@ -47,6 +51,8 @@ fun LiveMapScreen() {
     // Fullscreen Map & Collapsible Tools State (Web App Parity)
     var isFullscreen by remember { mutableStateOf(false) }
     var isToolsCollapsed by remember { mutableStateOf(false) }
+    var initializerDragX by remember { mutableStateOf(0f) }
+    var initializerDragY by remember { mutableStateOf(0f) }
 
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
@@ -308,21 +314,31 @@ fun LiveMapScreen() {
             }
         }
 
-        // 3. BLACK LITTLE INITIALIZER TAB (Appears when tools are collapsed)
+        val toolsTopPadding = if (isNavigationMode) 95.dp else if (!isFullscreen) 116.dp else 18.dp
+
+        // 3. BLACK LITTLE INITIALIZER TAB (Placed at Top-Right, Draggable anywhere on the map!)
         AnimatedVisibility(
             visible = isToolsCollapsed,
             enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
             exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 6.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = toolsTopPadding, end = 12.dp)
+                .offset { IntOffset(initializerDragX.roundToInt(), initializerDragY.roundToInt()) }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        initializerDragX += dragAmount.x
+                        initializerDragY += dragAmount.y
+                    }
+                }
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 32.dp, height = 48.dp)
-                    .shadow(8.dp, RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
-                    .background(Color(0xFF0F172A), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
+                    .size(38.dp)
+                    .shadow(8.dp, RoundedCornerShape(10.dp))
+                    .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
                     .clickable { isToolsCollapsed = false },
                 contentAlignment = Alignment.Center
             ) {
@@ -335,14 +351,14 @@ fun LiveMapScreen() {
             }
         }
 
-        // 4. FLOATING TOOLS STACK (Collapsible via top collapse button)
+        // 4. FLOATING TOOLS STACK (Placed at Top-Right so the whole central map is 100% visible)
         AnimatedVisibility(
             visible = !isToolsCollapsed,
             enter = fadeIn(animationSpec = tween(180)) + slideInHorizontally(initialOffsetX = { it / 2 }),
             exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(targetOffsetX = { it / 2 }),
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 12.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = toolsTopPadding, end = 12.dp)
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
