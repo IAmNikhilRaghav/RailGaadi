@@ -81,3 +81,4 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
         else -> "Pleasant" to "🌤️"
     }
 }
+

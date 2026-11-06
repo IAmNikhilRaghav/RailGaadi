@@ -39,4 +39,5 @@ composeApp/build/
 # Kotlin
 *.class
 *.kotlin_module
+.kotlin/
 

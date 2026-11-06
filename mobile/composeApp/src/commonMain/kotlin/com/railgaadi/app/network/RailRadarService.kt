@@ -103,3 +103,4 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
         Train("20901", "Vande Bharat Express", "Vande Bharat", "MMCT - Mumbai Central", "GNC - Gandhinagar", "06:10", "12:30", 380, "5")
     )
 }
+
