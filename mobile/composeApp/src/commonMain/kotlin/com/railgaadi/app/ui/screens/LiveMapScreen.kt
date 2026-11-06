@@ -35,6 +35,7 @@ import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
     var isNavigationMode by remember { mutableStateOf(false) }
