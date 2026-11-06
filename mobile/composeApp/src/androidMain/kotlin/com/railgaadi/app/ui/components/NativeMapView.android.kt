@@ -34,6 +34,7 @@ actual fun NativeMapView(
     stations: List<Station>,
     is3DMode: Boolean,
     followTrain: Boolean,
+    mapStyle: String,
     onStationClick: (Station) -> Unit,
     onNavigateToStation: (Station) -> Unit,
     onVoiceInstruction: (String) -> Unit,
@@ -67,7 +68,7 @@ actual fun NativeMapView(
 
     val htmlContent = remember(
         isNavigationMode, userLat, userLon, destLat, destLon, stationName,
-        trainNumber, trainProgress, stationsJson, is3DMode, followTrain
+        trainNumber, trainProgress, stationsJson, is3DMode, followTrain, mapStyle
     ) {
         generateMapHtml(
             isNav = isNavigationMode,
@@ -80,7 +81,8 @@ actual fun NativeMapView(
             progress = trainProgress,
             stationsJson = stationsJson,
             is3D = is3DMode,
-            followTrain = followTrain
+            followTrain = followTrain,
+            styleType = mapStyle
         )
     }
 
@@ -192,7 +194,8 @@ private fun generateMapHtml(
     progress: Float,
     stationsJson: String,
     is3D: Boolean,
-    followTrain: Boolean
+    followTrain: Boolean,
+    styleType: String
 ): String {
     return """
 <!DOCTYPE html>
@@ -291,10 +294,20 @@ private fun generateMapHtml(
             inputStations = ${stationsJson};
         } catch(e) {}
 
+        const styleType = '${styleType}';
         const mapTilerKey = '${AppConfig.MAPTILER_API_KEY}';
+        let styleUrl = 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + mapTilerKey;
+        if (styleType === 'dark') {
+            styleUrl = 'https://api.maptiler.com/maps/dataviz-dark/style.json?key=' + mapTilerKey;
+        } else if (styleType === 'satellite') {
+            styleUrl = 'https://api.maptiler.com/maps/hybrid/style.json?key=' + mapTilerKey;
+        } else if (styleType === 'terrain') {
+            styleUrl = 'https://api.maptiler.com/maps/topo-v2/style.json?key=' + mapTilerKey;
+        }
+
         const map = new maplibregl.Map({
             container: 'map',
-            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + mapTilerKey,
+            style: styleUrl,
             center: isNav ? [(uLon + dLon)/2, (uLat + dLat)/2] : [77.2090, 28.6139],
             zoom: isNav ? 12.8 : 6.5,
             pitch: is3D ? 58 : 0,

@@ -80,6 +80,7 @@ fun LiveMapScreen() {
             stations = trainStations,
             is3DMode = is3DMode,
             followTrain = followTrain,
+            mapStyle = TrainTrackerState.currentMapStyle,
             onStationClick = { station ->
                 selectedStation = station
                 showStationSheet = true

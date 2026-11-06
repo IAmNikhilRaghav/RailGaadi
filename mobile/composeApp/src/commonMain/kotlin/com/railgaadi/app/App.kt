@@ -1,11 +1,13 @@
 package com.railgaadi.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,7 @@ import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.TabItem
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.PreferencesModal
 import com.railgaadi.app.ui.screens.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,47 +30,83 @@ fun App() {
     var isDarkMode by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(TabItem.LIVE_MAP) }
     var showLanguageModal by remember { mutableStateOf(false) }
+    var showPreferencesModal by remember { mutableStateOf(false) }
 
     RailGaadiTheme(darkTheme = isDarkMode) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("🚆", fontSize = 20.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Professional App Logo (Blue rounded square with train icon)
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(RailBluePrimary, RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🚆", fontSize = 20.sp)
+                            }
+
                             Text(
                                 "RailGaadi",
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 18.sp,
+                                fontSize = 19.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
                     actions = {
-                        // Language Pill Button
+                        // 1. Language Pill Button (e.g. 🌐 EN)
                         Box(
                             modifier = Modifier
                                 .background(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    RailBluePrimary.copy(alpha = 0.12f),
                                     RoundedCornerShape(20.dp)
                                 )
                                 .clickable { showLanguageModal = true }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = "🌐 ${I18n.currentPill}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                color = RailBluePrimary
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
-                        // Theme Toggle Button
-                        IconButton(onClick = { isDarkMode = !isDarkMode }) {
+                        // 2. Circular Theme Toggle Button (🌙 / ☀️)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .border(1.dp, Color(0xFFE2E8F0), CircleShape)
+                                .background(MaterialTheme.colorScheme.surface, CircleShape)
+                                .clickable { isDarkMode = !isDarkMode },
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(if (isDarkMode) "☀️" else "🌙", fontSize = 16.sp)
                         }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // 3. Circular Hamburger Menu Button (☰)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .border(1.dp, Color(0xFFE2E8F0), CircleShape)
+                                .background(MaterialTheme.colorScheme.surface, CircleShape)
+                                .clickable { showPreferencesModal = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("☰", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
@@ -117,7 +156,20 @@ fun App() {
                     TabItem.STATION -> StationBoardScreen()
                 }
 
-                // Language Selector BottomSheet / Dialog
+                // Preferences Drawer / BottomSheet (Web App Parity)
+                if (showPreferencesModal) {
+                    PreferencesModal(
+                        isDarkMode = isDarkMode,
+                        onDarkModeChanged = { isDarkMode = it },
+                        onOpenLanguageModal = {
+                            showPreferencesModal = false
+                            showLanguageModal = true
+                        },
+                        onDismiss = { showPreferencesModal = false }
+                    )
+                }
+
+                // Language Selector BottomSheet
                 if (showLanguageModal) {
                     ModalBottomSheet(
                         onDismissRequest = { showLanguageModal = false },
@@ -185,4 +237,3 @@ fun App() {
         }
     }
 }
-

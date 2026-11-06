@@ -29,6 +29,11 @@ object TrainTrackerState {
     var liveStatus by mutableStateOf<LiveStatus?>(null)
     var isLoadingStatus by mutableStateOf(false)
 
+    // Web App Preferences & Features
+    var currentMapStyle by mutableStateOf("terrain") // "light", "dark", "satellite", "terrain"
+    var tripDelayAlerts by mutableStateOf(false)
+    var savedTrains by mutableStateOf(listOf("12404", "22436", "12952"))
+
     init {
         // Load default train
         selectTrain(activeTrain)

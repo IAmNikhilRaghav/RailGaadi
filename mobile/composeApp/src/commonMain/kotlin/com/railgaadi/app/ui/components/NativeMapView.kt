@@ -18,6 +18,7 @@ expect fun NativeMapView(
     stations: List<Station> = emptyList(),
     is3DMode: Boolean = false,
     followTrain: Boolean = false,
+    mapStyle: String = "terrain",
     onStationClick: (Station) -> Unit = {},
     onNavigateToStation: (Station) -> Unit = {},
     onVoiceInstruction: (String) -> Unit = {},

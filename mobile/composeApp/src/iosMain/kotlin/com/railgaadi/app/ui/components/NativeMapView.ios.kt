@@ -23,6 +23,7 @@ actual fun NativeMapView(
     stations: List<Station>,
     is3DMode: Boolean,
     followTrain: Boolean,
+    mapStyle: String,
     onStationClick: (Station) -> Unit,
     onNavigateToStation: (Station) -> Unit,
     onVoiceInstruction: (String) -> Unit,
@@ -33,6 +34,6 @@ actual fun NativeMapView(
         modifier = modifier.background(Color(0xFFE2E8F0)),
         contentAlignment = Alignment.Center
     ) {
-        Text("🗺️ Map View ($stationName)")
+        Text("🗺️ Map View ($stationName - $mapStyle)")
     }
 }
