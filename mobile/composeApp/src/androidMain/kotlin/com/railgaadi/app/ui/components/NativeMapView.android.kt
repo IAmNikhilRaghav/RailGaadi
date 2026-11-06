@@ -1,14 +1,22 @@
 package com.railgaadi.app.ui.components
 
 import android.annotation.SuppressLint
+import android.speech.tts.TextToSpeech
 import android.view.ViewGroup
+import android.webkit.GeolocationPermissions
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.railgaadi.app.model.Station
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.util.Locale
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -21,16 +29,64 @@ actual fun NativeMapView(
     destLon: Double,
     stationName: String,
     trainNumber: String,
-    trainProgress: Float
+    trainProgress: Float,
+    stations: List<Station>,
+    is3DMode: Boolean,
+    followTrain: Boolean,
+    onStationClick: (Station) -> Unit,
+    onNavigateToStation: (Station) -> Unit,
+    onVoiceInstruction: (String) -> Unit,
+    onCompassRotationChanged: (Float) -> Unit,
+    onNavStatsUpdated: (distM: Double, durS: Double, instruction: String, icon: String) -> Unit
 ) {
-    val htmlContent = remember(isNavigationMode, userLat, userLon, destLat, destLon, trainProgress) {
-        generateMapHtml(isNavigationMode, userLat, userLon, destLat, destLon, stationName, trainNumber, trainProgress)
+    val context = LocalContext.current
+    var ttsInstance by remember { mutableStateOf<TextToSpeech?>(null) }
+
+    // Initialize Android Text-To-Speech for Turn-by-Turn Voice Directions
+    DisposableEffect(context) {
+        val tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                ttsInstance?.language = Locale("en", "IN")
+            }
+        }
+        ttsInstance = tts
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
+
+    val stationsJson = remember(stations) {
+        try {
+            Json.encodeToString(stations)
+        } catch (_: Exception) {
+            "[]"
+        }
+    }
+
+    val htmlContent = remember(
+        isNavigationMode, userLat, userLon, destLat, destLon, stationName,
+        trainNumber, trainProgress, stationsJson, is3DMode, followTrain
+    ) {
+        generateMapHtml(
+            isNav = isNavigationMode,
+            uLat = userLat,
+            uLon = userLon,
+            dLat = destLat,
+            dLon = destLon,
+            station = stationName,
+            trainNo = trainNumber,
+            progress = trainProgress,
+            stationsJson = stationsJson,
+            is3D = is3DMode,
+            followTrain = followTrain
+        )
     }
 
     AndroidView(
         modifier = modifier,
-        factory = { context ->
-            WebView(context).apply {
+        factory = { ctx ->
+            WebView(ctx).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -42,9 +98,60 @@ actual fun NativeMapView(
                     useWideViewPort = true
                     builtInZoomControls = false
                     displayZoomControls = false
+                    setGeolocationEnabled(true)
                     cacheMode = WebSettings.LOAD_DEFAULT
                 }
+
+                webChromeClient = object : WebChromeClient() {
+                    override fun onGeolocationPermissionsShowPrompt(
+                        origin: String?,
+                        callback: GeolocationPermissions.Callback?
+                    ) {
+                        callback?.invoke(origin, true, false)
+                    }
+                }
+
                 webViewClient = WebViewClient()
+
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun onStationClick(code: String, name: String, lat: Double, lon: Double, dep: String, arr: String, pf: String, halt: Int) {
+                        val st = Station(
+                            code = code,
+                            name = name,
+                            latitude = lat,
+                            longitude = lon,
+                            scheduledDep = dep,
+                            scheduledArr = arr,
+                            platform = pf,
+                            haltMinutes = halt
+                        )
+                        onStationClick(st)
+                    }
+
+                    @JavascriptInterface
+                    fun onNavigateToStation(code: String, name: String, lat: Double, lon: Double) {
+                        val st = Station(code = code, name = name, latitude = lat, longitude = lon)
+                        onNavigateToStation(st)
+                    }
+
+                    @JavascriptInterface
+                    fun onCompassUpdate(bearing: Float) {
+                        onCompassRotationChanged(bearing)
+                    }
+
+                    @JavascriptInterface
+                    fun onNavUpdate(distM: Double, durS: Double, instruction: String, icon: String) {
+                        onNavStatsUpdated(distM, durS, instruction, icon)
+                    }
+
+                    @JavascriptInterface
+                    fun speak(text: String) {
+                        onVoiceInstruction(text)
+                        ttsInstance?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "NavGuidance")
+                    }
+                }, "RailBridge")
+
                 loadDataWithBaseURL("https://railgaadi.app", htmlContent, "text/html", "UTF-8", null)
             }
         },
@@ -62,7 +169,10 @@ private fun generateMapHtml(
     dLon: Double,
     station: String,
     trainNo: String,
-    progress: Float
+    progress: Float,
+    stationsJson: String,
+    is3D: Boolean,
+    followTrain: Boolean
 ): String {
     return """
 <!DOCTYPE html>
@@ -75,16 +185,24 @@ private fun generateMapHtml(
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         #map { width: 100%; height: 100%; }
+        
         .train-marker {
-            width: 38px; height: 38px;
+            width: 40px; height: 40px;
             background: #2563eb;
             color: #fff;
-            border: 2.5px solid #fff;
+            border: 3px solid #fff;
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 19px;
-            box-shadow: 0 4px 14px rgba(37,99,235,0.45);
+            font-size: 20px;
+            box-shadow: 0 4px 16px rgba(37,99,235,0.5);
+            animation: pulse-ring 2s infinite;
         }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
+            70% { box-shadow: 0 0 0 14px rgba(37,99,235,0); }
+            100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+        }
+
         .user-marker {
             width: 22px; height: 22px;
             background: #0284c7;
@@ -92,16 +210,51 @@ private fun generateMapHtml(
             border-radius: 50%;
             box-shadow: 0 0 0 6px rgba(2,132,199,0.3);
         }
-        .station-marker {
-            width: 32px; height: 32px;
+
+        .station-pin {
+            width: 20px; height: 20px;
+            background: #ffffff;
+            border: 3px solid #0f172a;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .station-pin:hover { transform: scale(1.3); border-color: #2563eb; }
+
+        .dest-marker {
+            width: 36px; height: 36px;
             background: #dc2626;
             color: #fff;
             border: 2px solid #fff;
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 15px;
-            box-shadow: 0 3px 10px rgba(220,38,38,0.4);
+            font-size: 18px;
+            box-shadow: 0 3px 12px rgba(220,38,38,0.5);
         }
+
+        /* Station Popup Styling */
+        .maplibregl-popup-content {
+            border-radius: 14px;
+            padding: 12px 14px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+            font-family: inherit;
+        }
+        .popup-title { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+        .popup-row { font-size: 11px; color: #475569; margin-bottom: 2px; }
+        .popup-nav-btn {
+            margin-top: 8px;
+            width: 100%;
+            background: #044e42;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
         .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none !important; }
     </style>
 </head>
@@ -111,86 +264,139 @@ private fun generateMapHtml(
         const isNav = ${isNav};
         const uLat = ${uLat}, uLon = ${uLon};
         const dLat = ${dLat}, dLon = ${dLon};
-        
+        const is3D = ${is3D};
+        const followTrain = ${followTrain};
+        let inputStations = [];
+        try {
+            inputStations = ${stationsJson};
+        } catch(e) {}
+
         const map = new maplibregl.Map({
             container: 'map',
             style: {
                 version: 8,
                 sources: {
-                    'osm': {
+                    'carto': {
                         type: 'raster',
-                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tiles: [
+                            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+                            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
+                        ],
                         tileSize: 256,
-                        attribution: '&copy; OpenStreetMap'
+                        attribution: '&copy; CartoDB &copy; OpenStreetMap'
                     }
                 },
                 layers: [{
-                    id: 'osm-layer',
+                    id: 'carto-layer',
                     type: 'raster',
-                    source: 'osm',
+                    source: 'carto',
                     minzoom: 0,
                     maxzoom: 19
                 }]
             },
             center: isNav ? [(uLon + dLon)/2, (uLat + dLat)/2] : [77.2090, 28.6139],
-            zoom: isNav ? 12.5 : 6,
+            zoom: isNav ? 12.8 : 6.5,
+            pitch: is3D ? 58 : 0,
+            bearing: 0,
             attributionControl: false
+        });
+
+        // Listen for compass rotation and send to Kotlin
+        map.on('rotate', () => {
+            const bearing = map.getBearing();
+            if (window.RailBridge && window.RailBridge.onCompassUpdate) {
+                window.RailBridge.onCompassUpdate(bearing);
+            }
         });
 
         map.on('load', () => {
             if (isNav) {
-                // NAVIGATION MODE: User to Station Route
+                // NAVIGATION MODE
                 const userEl = document.createElement('div');
                 userEl.className = 'user-marker';
                 new maplibregl.Marker({ element: userEl }).setLngLat([uLon, uLat]).addTo(map);
 
                 const stationEl = document.createElement('div');
-                stationEl.className = 'station-marker';
+                stationEl.className = 'dest-marker';
                 stationEl.innerHTML = '🚉';
                 new maplibregl.Marker({ element: stationEl }).setLngLat([dLon, dLat]).addTo(map);
 
-                // Fetch OSRM Road Route
-                const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + uLon + ',' + uLat + ';' + dLon + ',' + dLat + '?overview=full&geometries=geojson';
+                // Fetch OSRM Road Route with Step-by-Step Directions
+                const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + uLon + ',' + uLat + ';' + dLon + ',' + dLat + '?steps=true&overview=full&geometries=geojson';
                 fetch(osrmUrl)
                     .then(res => res.json())
                     .then(data => {
-                        const coordinates = (data.routes && data.routes[0]) 
-                            ? data.routes[0].geometry.coordinates 
-                            : [[uLon, uLat], [dLon, dLat]];
+                        if (data.routes && data.routes[0]) {
+                            const route = data.routes[0];
+                            const coordinates = route.geometry.coordinates;
 
-                        map.addSource('route', {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                geometry: { type: 'LineString', coordinates: coordinates }
+                            map.addSource('nav-route', {
+                                type: 'geojson',
+                                data: {
+                                    type: 'Feature',
+                                    geometry: { type: 'LineString', coordinates: coordinates }
+                                }
+                            });
+
+                            // Road Casing (Dark Blue/Indigo Border)
+                            map.addLayer({
+                                id: 'nav-casing',
+                                type: 'line',
+                                source: 'nav-route',
+                                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                                paint: { 'line-color': '#1e3a8a', 'line-width': 10 }
+                            });
+
+                            // Main Navigation Purple Line
+                            map.addLayer({
+                                id: 'nav-line',
+                                type: 'line',
+                                source: 'nav-route',
+                                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                                paint: { 'line-color': '#3b82f6', 'line-width': 6.5 }
+                            });
+
+                            // Fit bounds to route
+                            const bounds = new maplibregl.LngLatBounds();
+                            coordinates.forEach(coord => bounds.extend(coord));
+                            map.fitBounds(bounds, { padding: 90, duration: 1200 });
+
+                            // Extract Turn-by-Turn Instruction
+                            const legs = route.legs || [];
+                            const steps = legs[0]?.steps || [];
+                            let firstTurnInstruction = "Head northwest";
+                            let maneuverIcon = "⬆";
+
+                            if (steps.length > 1) {
+                                const nextStep = steps[1];
+                                const m = nextStep.maneuver || {};
+                                const modifier = m.modifier || "";
+                                const name = nextStep.name || "Station Road";
+
+                                if (modifier.includes("right")) {
+                                    maneuverIcon = "↱";
+                                    firstTurnInstruction = "Turn right onto " + name;
+                                } else if (modifier.includes("left")) {
+                                    maneuverIcon = "↰";
+                                    firstTurnInstruction = "Turn left onto " + name;
+                                } else if (modifier.includes("straight")) {
+                                    maneuverIcon = "⬆";
+                                    firstTurnInstruction = "Continue straight on " + name;
+                                }
                             }
-                        });
 
-                        // Road Casing (Dark Blue/Indigo Border)
-                        map.addLayer({
-                            id: 'route-casing',
-                            type: 'line',
-                            source: 'route',
-                            layout: { 'line-join': 'round', 'line-cap': 'round' },
-                            paint: { 'line-color': '#1e3a8a', 'line-width': 9 }
-                        });
-
-                        // Main Navigation Purple Line (Google Maps style)
-                        map.addLayer({
-                            id: 'route-line',
-                            type: 'line',
-                            source: 'route',
-                            layout: { 'line-join': 'round', 'line-cap': 'round' },
-                            paint: { 'line-color': '#3b82f6', 'line-width': 6 }
-                        });
-
-                        const bounds = new maplibregl.LngLatBounds();
-                        coordinates.forEach(coord => bounds.extend(coord));
-                        map.fitBounds(bounds, { padding: 80, duration: 1000 });
+                            // Pass stats & voice guidance to Android
+                            if (window.RailBridge && window.RailBridge.onNavUpdate) {
+                                window.RailBridge.onNavUpdate(route.distance, route.duration, firstTurnInstruction, maneuverIcon);
+                            }
+                            if (window.RailBridge && window.RailBridge.speak) {
+                                window.RailBridge.speak(firstTurnInstruction + " toward " + "${station}");
+                            }
+                        }
                     })
                     .catch(() => {
-                        // Fallback straight purple line
-                        map.addSource('route', {
+                        // Fallback line
+                        map.addSource('nav-route', {
                             type: 'geojson',
                             data: {
                                 type: 'Feature',
@@ -198,24 +404,27 @@ private fun generateMapHtml(
                             }
                         });
                         map.addLayer({
-                            id: 'route-line',
+                            id: 'nav-line',
                             type: 'line',
-                            source: 'route',
+                            source: 'nav-route',
                             paint: { 'line-color': '#4f46e5', 'line-width': 6 }
                         });
                     });
             } else {
-                // TRAIN TRACK MODE: Railway Geometry & Live Marker
-                const trackCoords = [
-                    [73.3119, 28.0159], // Lalgarh
-                    [73.3168, 28.0180], // Bikaner
-                    [74.6399, 26.4499], // Ajmer
-                    [75.8189, 26.9196], // Jaipur
-                    [77.6737, 27.4924], // Mathura
-                    [78.0081, 27.1767], // Agra Fort
-                    [80.3319, 26.4499], // Kanpur Central
-                    [81.8463, 25.4358]  // Prayagraj
+                // TRAIN TRACK MODE
+                const defaultTrack = [
+                    { code: "LGNH", name: "Lalgarh Jn", lat: 28.0559, lon: 73.2819, dep: "10:30", arr: "—", pf: "1", halt: 0 },
+                    { code: "BKN",  name: "Bikaner Jn", lat: 28.0180, lon: 73.3168, dep: "10:55", arr: "10:45", pf: "2", halt: 10 },
+                    { code: "JP",   name: "Jaipur Jn", lat: 26.9196, lon: 75.7878, dep: "15:20", arr: "15:10", pf: "4", halt: 10 },
+                    { code: "BTE",  name: "Bharatpur Jn", lat: 27.2152, lon: 77.4930, dep: "18:15", arr: "18:10", pf: "3", halt: 5 },
+                    { code: "AF",   name: "Agra Fort", lat: 27.1767, lon: 78.0081, dep: "19:25", arr: "19:15", pf: "1", halt: 10 },
+                    { code: "TDL",  name: "Tundla Jn", lat: 27.2064, lon: 78.2415, dep: "20:40", arr: "20:35", pf: "5", halt: 5 },
+                    { code: "CNB",  name: "Kanpur Central", lat: 26.4547, lon: 80.3507, dep: "00:45", arr: "00:35", pf: "7", halt: 10 },
+                    { code: "PRYJ", name: "Prayagraj Jn", lat: 25.4358, lon: 81.8463, dep: "—", arr: "04:45", pf: "2", halt: 0 }
                 ];
+
+                const stationsToRender = (inputStations && inputStations.length > 0) ? inputStations : defaultTrack;
+                const trackCoords = stationsToRender.map(s => [s.longitude || s.lon, s.latitude || s.lat]);
 
                 map.addSource('rail-track', {
                     type: 'geojson',
@@ -230,7 +439,7 @@ private fun generateMapHtml(
                     id: 'rail-casing',
                     type: 'line',
                     source: 'rail-track',
-                    paint: { 'line-color': '#0f172a', 'line-width': 6 }
+                    paint: { 'line-color': '#0f172a', 'line-width': 7 }
                 });
 
                 // Dashed Rail Pattern
@@ -240,35 +449,92 @@ private fun generateMapHtml(
                     source: 'rail-track',
                     paint: {
                         'line-color': '#38bdf8',
-                        'line-width': 3,
+                        'line-width': 3.5,
                         'line-dasharray': [2, 2]
                     }
+                });
+
+                // Interactive Station Pins with Popups
+                stationsToRender.forEach(st => {
+                    const el = document.createElement('div');
+                    el.className = 'station-pin';
+
+                    const popupHtml = `
+                        <div class="popup-title">🚉 ` + st.name + ` (` + st.code + `)</div>
+                        <div class="popup-row">⏱️ Arr: ` + (st.scheduledArr || st.arr || "—") + ` | Dep: ` + (st.scheduledDep || st.dep || "—") + `</div>
+                        <div class="popup-row">🚉 Platform: PF ` + (st.platform || "1") + ` | Halt: ` + (st.haltMinutes || st.halt || 2) + ` min</div>
+                        <button class="popup-nav-btn" onclick="triggerNav('` + st.code + `','` + st.name + `',` + (st.latitude || st.lat) + `,` + (st.longitude || st.lon) + `)">🧭 Directions to this Station</button>
+                    `;
+
+                    const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
+
+                    new maplibregl.Marker({ element: el })
+                        .setLngLat([st.longitude || st.lon, st.latitude || st.lat])
+                        .setPopup(popup)
+                        .addTo(map);
+
+                    el.addEventListener('click', () => {
+                        if (window.RailBridge && window.RailBridge.onStationClick) {
+                            window.RailBridge.onStationClick(
+                                st.code, st.name,
+                                st.latitude || st.lat, st.longitude || st.lon,
+                                st.scheduledDep || st.dep || "—",
+                                st.scheduledArr || st.arr || "—",
+                                st.platform || "1",
+                                st.haltMinutes || st.halt || 2
+                            );
+                        }
+                    });
                 });
 
                 // Train Marker
                 const trainEl = document.createElement('div');
                 trainEl.className = 'train-marker';
                 trainEl.innerHTML = '🚆';
-                
-                // Interpolate along route based on progress
-                const idx = Math.min(Math.floor(${progress} * (trackCoords.length - 1)), trackCoords.length - 2);
-                const trainPos = trackCoords[idx];
-                new maplibregl.Marker({ element: trainEl }).setLngLat(trainPos).addTo(map);
 
-                // Add Station markers
-                trackCoords.forEach((coord, i) => {
-                    const stEl = document.createElement('div');
-                    stEl.style.width = '10px';
-                    stEl.style.height = '10px';
-                    stEl.style.backgroundColor = '#ffffff';
-                    stEl.style.border = '2.5px solid #0f172a';
-                    stEl.style.borderRadius = '50%';
-                    new maplibregl.Marker({ element: stEl }).setLngLat(coord).addTo(map);
-                });
+                const progressClamped = Math.max(0, Math.min(1, ${progress}));
+                const totalSegments = trackCoords.length - 1;
+                const exactIdx = progressClamped * totalSegments;
+                const baseIdx = Math.min(Math.floor(exactIdx), totalSegments - 1);
+                const frac = exactIdx - baseIdx;
 
-                map.flyTo({ center: trainPos, zoom: 7, duration: 1500 });
+                const p1 = trackCoords[baseIdx];
+                const p2 = trackCoords[baseIdx + 1];
+                const trainLon = p1[0] + (p2[0] - p1[0]) * frac;
+                const trainLat = p1[1] + (p2[1] - p1[1]) * frac;
+
+                new maplibregl.Marker({ element: trainEl }).setLngLat([trainLon, trainLat]).addTo(map);
+
+                // Auto-center or Follow Mode
+                if (followTrain) {
+                    map.easeTo({ center: [trainLon, trainLat], zoom: 8.5, duration: 1500 });
+                } else {
+                    map.flyTo({ center: [trainLon, trainLat], zoom: 7, duration: 1200 });
+                }
             }
         });
+
+        window.triggerNav = function(code, name, lat, lon) {
+            if (window.RailBridge && window.RailBridge.onNavigateToStation) {
+                window.RailBridge.onNavigateToStation(code, name, lat, lon);
+            }
+        };
+
+        window.resetNorth = function() {
+            map.easeTo({ bearing: 0, duration: 500 });
+        };
+
+        window.rotateMap = function(deltaDeg) {
+            map.easeTo({ bearing: map.getBearing() + deltaDeg, duration: 300 });
+        };
+
+        window.zoomInMap = function() {
+            map.zoomIn({ duration: 300 });
+        };
+
+        window.zoomOutMap = function() {
+            map.zoomOut({ duration: 300 });
+        };
     </script>
 </body>
 </html>

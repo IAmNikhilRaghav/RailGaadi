@@ -11,12 +11,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
+import com.railgaadi.app.model.Station
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.NativeMapView
 
@@ -24,33 +26,79 @@ import com.railgaadi.app.ui.components.NativeMapView
 fun LiveMapScreen() {
     var isNavigationMode by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
+    var is3DMode by remember { mutableStateOf(false) }
+    var followTrain by remember { mutableStateOf(false) }
+    var compassBearing by remember { mutableStateOf(0f) }
+
+    // Selected Station for directions or details
+    var selectedStation by remember {
+        mutableStateOf(
+            Station("ALJN", "Aligarh Junction", 27.8974, 78.0880, scheduledDep = "12:45", scheduledArr = "12:40", platform = "2", haltMinutes = 5)
+        )
+    }
+    var showStationSheet by remember { mutableStateOf(false) }
+
+    // Dynamic Navigation Telemetry
+    var navDistanceKm by remember { mutableStateOf("13 km") }
+    var navDurationMin by remember { mutableStateOf(25) }
+    var navEtaTime by remember { mutableStateOf("6:04 PM") }
+    var navInstruction by remember { mutableStateOf("Head northwest") }
+    var navIcon by remember { mutableStateOf("⬆") }
     var selectedAlternativeRoute by remember { mutableStateOf(0) }
 
-    // Navigation telemetry state (matches the Google Maps reference screenshot)
-    val etaMinutes = if (selectedAlternativeRoute == 0) 25 else 29
-    val distanceKm = if (selectedAlternativeRoute == 0) "13 km" else "15.4 km"
-    val etaTime = if (selectedAlternativeRoute == 0) "6:04 PM" else "6:08 PM"
-    val currentInstruction = remember(selectedAlternativeRoute) {
-        if (selectedAlternativeRoute == 0) "Head northwest" else "Continue on NH-509 straight"
+    // Station list along Prayagraj Express route
+    val trainStations = remember {
+        listOf(
+            Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
+            Station("BKN", "Bikaner Jn", 28.0180, 73.3168, scheduledDep = "10:55", scheduledArr = "10:45", platform = "2", haltMinutes = 10),
+            Station("JP", "Jaipur Jn", 26.9196, 75.7878, scheduledDep = "15:20", scheduledArr = "15:10", platform = "4", haltMinutes = 10),
+            Station("BTE", "Bharatpur Jn", 27.2152, 77.4930, scheduledDep = "18:15", scheduledArr = "18:10", platform = "3", haltMinutes = 5),
+            Station("AF", "Agra Fort", 27.1767, 78.0081, scheduledDep = "19:25", scheduledArr = "19:15", platform = "1", haltMinutes = 10),
+            Station("TDL", "Tundla Jn", 27.2064, 78.2415, scheduledDep = "20:40", scheduledArr = "20:35", platform = "5", haltMinutes = 5),
+            Station("CNB", "Kanpur Central", 26.4547, 80.3507, scheduledDep = "00:45", scheduledArr = "00:35", platform = "7", haltMinutes = 10),
+            Station("PRYJ", "Prayagraj Jn", 25.4358, 81.8463, scheduledDep = "—", scheduledArr = "04:45", platform = "2", haltMinutes = 0)
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 1. FULLSCREEN NATIVE MAP (Supports Train Track mode & Turn-by-Turn Navigation mode)
+        // 1. FULLSCREEN NATIVE MAP
         NativeMapView(
             modifier = Modifier.fillMaxSize(),
             isNavigationMode = isNavigationMode,
             userLat = 27.8974,
             userLon = 78.0880,
-            destLat = 27.9150,
-            destLon = 78.0750,
-            stationName = "Aligarh Junction",
+            destLat = selectedStation.latitude,
+            destLon = selectedStation.longitude,
+            stationName = selectedStation.name,
             trainNumber = "12404",
-            trainProgress = 0.68f
+            trainProgress = 0.68f,
+            stations = trainStations,
+            is3DMode = is3DMode,
+            followTrain = followTrain,
+            onStationClick = { station ->
+                selectedStation = station
+                showStationSheet = true
+            },
+            onNavigateToStation = { station ->
+                selectedStation = station
+                isNavigationMode = true
+                showStationSheet = false
+            },
+            onCompassRotationChanged = { bearing ->
+                compassBearing = bearing
+            },
+            onNavStatsUpdated = { distM, durS, instruction, icon ->
+                val km = distM / 1000.0
+                navDistanceKm = "${(km * 10).toInt() / 10.0} km"
+                navDurationMin = (durS / 60.0).toInt().coerceAtLeast(1)
+                navInstruction = instruction
+                navIcon = icon
+            }
         )
 
         // 2. TOP OVERLAYS
         if (!isNavigationMode) {
-            // NORMAL MODE: Top Search & Navigation Launcher Card
+            // NORMAL MODE: Top Search & Track Header Card
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
@@ -73,7 +121,7 @@ fun LiveMapScreen() {
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Approaching: Aligarh Junction (ALJN)",
+                            text = "Next: ${selectedStation.name} (${selectedStation.code})",
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -81,11 +129,11 @@ fun LiveMapScreen() {
 
                     Button(
                         onClick = { isNavigationMode = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = RailBluePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
                         shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("🧭 " + I18n.t("tab_routes"), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("🧭 Directions", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -108,22 +156,22 @@ fun LiveMapScreen() {
                     // Turn Arrow Indicator
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(44.dp)
                             .background(Color.White.copy(alpha = 0.18f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("⬆", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                        Text(navIcon, fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                     }
 
                     Column {
                         Text(
-                            text = currentInstruction,
-                            fontSize = 19.sp,
+                            text = navInstruction,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            text = "Toward Railway Station Link Rd • In 500m",
+                            text = "Toward ${selectedStation.name} • Pan-India Route",
                             fontSize = 12.sp,
                             color = Color(0xFF99F6E4)
                         )
@@ -132,25 +180,71 @@ fun LiveMapScreen() {
             }
         }
 
-        // 3. RIGHT FLOATING CONTROLS (Only visible during navigation mode, matching the screenshot)
-        AnimatedVisibility(
-            visible = isNavigationMode,
-            enter = fadeIn() + slideInHorizontally { it / 2 },
-            exit = fadeOut() + slideOutHorizontally { it / 2 },
+        // 3. RIGHT FLOATING TOOLS (3D Perspective, Compass, Rotate, GPS Nearest Station, Follow Train)
+        Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 14.dp)
+                .padding(end = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Compass with dynamic heading rotation
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .shadow(4.dp, CircleShape)
+                    .background(Color.White, CircleShape)
+                    .clickable { compassBearing = 0f },
+                contentAlignment = Alignment.Center
             ) {
-                FloatingRoundButton("🧭", onClick = {})
-                FloatingRoundButton(if (isMuted) "🔇" else "🔊", onClick = { isMuted = !isMuted })
-                FloatingRoundButton("🔀", onClick = {
-                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                })
-                FloatingRoundButton("⚠️", onClick = {})
+                Text("🧭", fontSize = 20.sp, modifier = Modifier.rotate(-compassBearing))
+            }
+
+            // 3D Perspective Toggle
+            FloatingRoundButton(
+                label = if (is3DMode) "2D" else "3D",
+                isPill = true,
+                isActive = is3DMode,
+                onClick = { is3DMode = !is3DMode }
+            )
+
+            // Follow Train Camera Toggle
+            FloatingRoundButton(
+                label = "🎥",
+                isActive = followTrain,
+                onClick = { followTrain = !followTrain }
+            )
+
+            // GPS Find Nearest Station
+            FloatingRoundButton(
+                label = "🎯",
+                onClick = {
+                    selectedStation = trainStations.first()
+                    isNavigationMode = true
+                }
+            )
+
+            if (isNavigationMode) {
+                // Voice Mute Toggle
+                FloatingRoundButton(
+                    label = if (isMuted) "🔇" else "🔊",
+                    onClick = { isMuted = !isMuted }
+                )
+
+                // Alternative Routes Switcher
+                FloatingRoundButton(
+                    label = "🔀",
+                    onClick = {
+                        selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                        if (selectedAlternativeRoute == 1) {
+                            navDistanceKm = "15.4 km"
+                            navDurationMin = 29
+                        } else {
+                            navDistanceKm = "13 km"
+                            navDurationMin = 25
+                        }
+                    }
+                )
             }
         }
 
@@ -209,8 +303,8 @@ fun LiveMapScreen() {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         MetricBox(title = I18n.t("speed"), value = "112 km/h", icon = "⚡")
-                        MetricBox(title = I18n.t("platform"), value = "PF 2", icon = "🚉")
-                        MetricBox(title = "Delay", value = "0 min", icon = "⏱️")
+                        MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
+                        MetricBox(title = "Halt", value = "${selectedStation.haltMinutes}m", icon = "⏱️")
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -228,7 +322,7 @@ fun LiveMapScreen() {
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Big Action Button: Launch Turn-by-Turn Directions
+                    // Action Button: Launch Turn-by-Turn Directions
                     Button(
                         onClick = { isNavigationMode = true },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -236,7 +330,7 @@ fun LiveMapScreen() {
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
                     ) {
                         Text(
-                            "📍 Directions & Route to Junction",
+                            "📍 Directions to ${selectedStation.name}",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -245,7 +339,7 @@ fun LiveMapScreen() {
                 }
             }
         } else {
-            // NAVIGATION MODE: Google Maps-style Bottom Sheet (25 min, 13 km, Exit, Re-centre)
+            // NAVIGATION MODE: Google Maps-style Bottom Sheet
             Card(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
@@ -262,7 +356,7 @@ fun LiveMapScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
-                            onClick = {},
+                            onClick = { compassBearing = 0f },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE2E8F0)),
                             shape = RoundedCornerShape(20.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
@@ -270,7 +364,7 @@ fun LiveMapScreen() {
                             Text("▲ Re-centre", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
 
-                        Text("Pan-India Shortest Route", fontSize = 11.sp, color = Color.Gray)
+                        Text("Target: ${selectedStation.name}", fontSize = 11.sp, color = Color.Gray)
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -283,20 +377,20 @@ fun LiveMapScreen() {
                         // Duration & ETA
                         Column {
                             Text(
-                                text = "$etaMinutes min",
+                                text = "$navDurationMin min",
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFB45309) // Amber/Gold color matching Google Maps
+                                color = Color(0xFFB45309)
                             )
                             Text(
-                                text = "$distanceKm • $etaTime",
+                                text = "$navDistanceKm • $navEtaTime",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.Gray
                             )
                         }
 
-                        // Right action buttons: Sparkle & Red Exit Button
+                        // Right action buttons: Voice & Exit Button
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -305,10 +399,10 @@ fun LiveMapScreen() {
                                 modifier = Modifier
                                     .size(44.dp)
                                     .background(Color(0xFFF1F5F9), CircleShape)
-                                    .clickable {},
+                                    .clickable { isMuted = !isMuted },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("✨", fontSize = 18.sp)
+                                Text(if (isMuted) "🔇" else "🔊", fontSize = 18.sp)
                             }
 
                             Button(
@@ -324,33 +418,97 @@ fun LiveMapScreen() {
                 }
             }
         }
+
+        // 5. STATION POPUP MODAL (When tapping any station along the route)
+        if (showStationSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showStationSheet = false },
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = selectedStation.name,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Station Code: ${selectedStation.code}",
+                                fontSize = 13.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text("PF ${selectedStation.platform}", color = RailBluePrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        MetricBox("Scheduled Arr", selectedStation.scheduledArr, "⏱️")
+                        MetricBox("Scheduled Dep", selectedStation.scheduledDep, "⏱️")
+                        MetricBox("Halt Time", "${selectedStation.haltMinutes} min", "🛑")
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = {
+                            isNavigationMode = true
+                            showStationSheet = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("🧭 Navigate to this Station", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun FloatingRoundButton(icon: String, onClick: () -> Unit) {
+fun FloatingRoundButton(
+    label: String,
+    isActive: Boolean = false,
+    isPill: Boolean = false,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .size(46.dp)
             .shadow(4.dp, CircleShape)
-            .background(Color.White, CircleShape)
+            .background(if (isActive) RailBluePrimary else Color.White, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(icon, fontSize = 18.sp)
-    }
-}
-
-@Composable
-fun MetricBox(title: String, value: String, icon: String) {
-    Box(
-        modifier = Modifier
-            .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$icon $value", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
-            Text(title, fontSize = 11.sp, color = Color.Gray)
-        }
+        Text(
+            label,
+            fontSize = if (isPill) 13.sp else 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isActive) Color.White else Color(0xFF0F172A)
+        )
     }
 }

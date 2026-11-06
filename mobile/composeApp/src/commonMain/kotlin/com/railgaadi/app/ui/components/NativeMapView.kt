@@ -2,6 +2,7 @@ package com.railgaadi.app.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.railgaadi.app.model.Station
 
 @Composable
 expect fun NativeMapView(
@@ -13,5 +14,13 @@ expect fun NativeMapView(
     destLon: Double = 78.0750,
     stationName: String = "Aligarh Junction",
     trainNumber: String = "12404",
-    trainProgress: Float = 0.68f
+    trainProgress: Float = 0.68f,
+    stations: List<Station> = emptyList(),
+    is3DMode: Boolean = false,
+    followTrain: Boolean = false,
+    onStationClick: (Station) -> Unit = {},
+    onNavigateToStation: (Station) -> Unit = {},
+    onVoiceInstruction: (String) -> Unit = {},
+    onCompassRotationChanged: (Float) -> Unit = {},
+    onNavStatsUpdated: (distM: Double, durS: Double, instruction: String, icon: String) -> Unit = { _, _, _, _ -> }
 )
