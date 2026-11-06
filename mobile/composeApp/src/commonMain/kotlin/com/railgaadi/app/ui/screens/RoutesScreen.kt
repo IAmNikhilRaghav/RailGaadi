@@ -90,7 +90,7 @@ fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🚆 Station to Station Route Search",
+                        text = "Station to Station Route Search",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -104,7 +104,7 @@ fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
                             fromStationQuery = it
                             isFromFocused = true
                         },
-                        label = { Text("🟢 From Station (Origin)") },
+                        label = { Text("From Station") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
@@ -133,7 +133,7 @@ fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
                             toStationQuery = it
                             isToFocused = true
                         },
-                        label = { Text("🔴 To Station (Destination)") },
+                        label = { Text("To Station") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
