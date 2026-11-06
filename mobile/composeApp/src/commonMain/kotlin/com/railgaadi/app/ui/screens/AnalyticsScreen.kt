@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.MetricBox
 
 @Composable
 fun AnalyticsScreen() {

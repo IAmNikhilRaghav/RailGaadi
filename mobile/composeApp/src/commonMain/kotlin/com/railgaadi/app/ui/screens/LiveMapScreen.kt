@@ -4,6 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -19,7 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.Station
+import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
 
 @Composable
@@ -30,15 +35,28 @@ fun LiveMapScreen() {
     var followTrain by remember { mutableStateOf(false) }
     var compassBearing by remember { mutableStateOf(0f) }
 
-    // Selected Station for directions or details
-    var selectedStation by remember {
-        mutableStateOf(
-            Station("ALJN", "Aligarh Junction", 27.8974, 78.0880, scheduledDep = "12:45", scheduledArr = "12:40", platform = "2", haltMinutes = 5)
+    val activeTrain = TrainTrackerState.activeTrain
+    val liveStatus = TrainTrackerState.liveStatus
+
+    // Station list dynamically obtained from liveStatus
+    val trainStations = remember(liveStatus) {
+        liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: listOf(
+            Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
+            Station("BKN", "Bikaner Jn", 28.0180, 73.3168, scheduledDep = "10:55", scheduledArr = "10:45", platform = "2", haltMinutes = 10),
+            Station("JP", "Jaipur Jn", 26.9196, 75.7878, scheduledDep = "15:20", scheduledArr = "15:10", platform = "4", haltMinutes = 10),
+            Station("AF", "Agra Fort", 27.1767, 78.0081, scheduledDep = "19:25", scheduledArr = "19:15", platform = "1", haltMinutes = 10),
+            Station("ALJN", "Aligarh Jn", 27.8974, 78.0880, scheduledDep = "20:15", scheduledArr = "20:10", platform = "2", haltMinutes = 5),
+            Station("CNB", "Kanpur Central", 26.4547, 80.3507, scheduledDep = "00:45", scheduledArr = "00:35", platform = "7", haltMinutes = 10),
+            Station("PRYJ", "Prayagraj Jn", 25.4358, 81.8463, scheduledDep = "—", scheduledArr = "04:45", platform = "2", haltMinutes = 0)
         )
+    }
+
+    var selectedStation by remember(trainStations) {
+        mutableStateOf(trainStations.getOrNull(1) ?: trainStations.first())
     }
     var showStationSheet by remember { mutableStateOf(false) }
 
-    // Dynamic Navigation Telemetry
+    // Navigation telemetry
     var navDistanceKm by remember { mutableStateOf("13 km") }
     var navDurationMin by remember { mutableStateOf(25) }
     var navEtaTime by remember { mutableStateOf("6:04 PM") }
@@ -46,22 +64,8 @@ fun LiveMapScreen() {
     var navIcon by remember { mutableStateOf("⬆") }
     var selectedAlternativeRoute by remember { mutableStateOf(0) }
 
-    // Station list along Prayagraj Express route
-    val trainStations = remember {
-        listOf(
-            Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
-            Station("BKN", "Bikaner Jn", 28.0180, 73.3168, scheduledDep = "10:55", scheduledArr = "10:45", platform = "2", haltMinutes = 10),
-            Station("JP", "Jaipur Jn", 26.9196, 75.7878, scheduledDep = "15:20", scheduledArr = "15:10", platform = "4", haltMinutes = 10),
-            Station("BTE", "Bharatpur Jn", 27.2152, 77.4930, scheduledDep = "18:15", scheduledArr = "18:10", platform = "3", haltMinutes = 5),
-            Station("AF", "Agra Fort", 27.1767, 78.0081, scheduledDep = "19:25", scheduledArr = "19:15", platform = "1", haltMinutes = 10),
-            Station("TDL", "Tundla Jn", 27.2064, 78.2415, scheduledDep = "20:40", scheduledArr = "20:35", platform = "5", haltMinutes = 5),
-            Station("CNB", "Kanpur Central", 26.4547, 80.3507, scheduledDep = "00:45", scheduledArr = "00:35", platform = "7", haltMinutes = 10),
-            Station("PRYJ", "Prayagraj Jn", 25.4358, 81.8463, scheduledDep = "—", scheduledArr = "04:45", platform = "2", haltMinutes = 0)
-        )
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 1. FULLSCREEN NATIVE MAP
+        // 1. FULLSCREEN NATIVE MAP (Syncs with live status and active train)
         NativeMapView(
             modifier = Modifier.fillMaxSize(),
             isNavigationMode = isNavigationMode,
@@ -70,8 +74,8 @@ fun LiveMapScreen() {
             destLat = selectedStation.latitude,
             destLon = selectedStation.longitude,
             stationName = selectedStation.name,
-            trainNumber = "12404",
-            trainProgress = 0.68f,
+            trainNumber = activeTrain.number,
+            trainProgress = liveStatus?.progressPercent ?: 0.65f,
             stations = trainStations,
             is3DMode = is3DMode,
             followTrain = followTrain,
@@ -96,44 +100,151 @@ fun LiveMapScreen() {
             }
         )
 
-        // 2. TOP OVERLAYS
+        // 2. TOP INTERACTIVE SEARCH BAR & DROPDOWN (Phase 2 Feature)
         if (!isNavigationMode) {
-            // NORMAL MODE: Top Search & Track Header Card
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
                     .align(Alignment.TopCenter)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // Interactive Search Card
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "🚆 12404 - Prayagraj SF",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Next: ${selectedStation.name} (${selectedStation.code})",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("🔍", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            TextField(
+                                value = TrainTrackerState.searchQuery,
+                                onValueChange = { TrainTrackerState.onQueryChanged(it) },
+                                placeholder = {
+                                    Text(
+                                        I18n.t("search_placeholder"),
+                                        fontSize = 13.sp,
+                                        color = Color.Gray
+                                    )
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
 
-                    Button(
-                        onClick = { isNavigationMode = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            if (TrainTrackerState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { TrainTrackerState.onQueryChanged("") }) {
+                                    Text("✕", fontSize = 14.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Button(
+                                onClick = { isNavigationMode = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
+                                shape = RoundedCornerShape(18.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text("🧭 Go", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        // Recent Searches Chips
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            items(TrainTrackerState.recentSearches) { trainNo ->
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (activeTrain.number == trainNo) RailBluePrimary.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable { TrainTrackerState.selectByNumber(trainNo) }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        "🚆 $trainNo",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (activeTrain.number == trainNo) RailBluePrimary else Color(0xFF0F172A)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Live Search Dropdown Suggestions
+                AnimatedVisibility(
+                    visible = TrainTrackerState.isSearchDropdownOpen && TrainTrackerState.searchResults.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .heightIn(max = 260.dp)
                     ) {
-                        Text("🧭 Directions", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            items(TrainTrackerState.searchResults) { train ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { TrainTrackerState.selectTrain(train) }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                train.number,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 13.sp,
+                                                color = RailBluePrimary
+                                            )
+                                            Text(
+                                                train.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Text(
+                                            "${train.origin} → ${train.destination}",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFE2E8F0), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(train.type, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                                    }
+                                }
+                                HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFE2E8F0))
+                            }
+                        }
                     }
                 }
             }
@@ -153,7 +264,6 @@ fun LiveMapScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Turn Arrow Indicator
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -188,7 +298,6 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Compass with dynamic heading rotation
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -200,7 +309,6 @@ fun LiveMapScreen() {
                 Text("🧭", fontSize = 20.sp, modifier = Modifier.rotate(-compassBearing))
             }
 
-            // 3D Perspective Toggle
             FloatingRoundButton(
                 label = if (is3DMode) "2D" else "3D",
                 isPill = true,
@@ -208,14 +316,12 @@ fun LiveMapScreen() {
                 onClick = { is3DMode = !is3DMode }
             )
 
-            // Follow Train Camera Toggle
             FloatingRoundButton(
                 label = "🎥",
                 isActive = followTrain,
                 onClick = { followTrain = !followTrain }
             )
 
-            // GPS Find Nearest Station
             FloatingRoundButton(
                 label = "🎯",
                 onClick = {
@@ -225,13 +331,11 @@ fun LiveMapScreen() {
             )
 
             if (isNavigationMode) {
-                // Voice Mute Toggle
                 FloatingRoundButton(
                     label = if (isMuted) "🔇" else "🔊",
                     onClick = { isMuted = !isMuted }
                 )
 
-                // Alternative Routes Switcher
                 FloatingRoundButton(
                     label = "🔀",
                     onClick = {
@@ -248,9 +352,8 @@ fun LiveMapScreen() {
             }
         }
 
-        // 4. BOTTOM OVERLAYS
+        // 4. BOTTOM HERO TELEMETRY CARD (Updates dynamically with activeTrain & liveStatus)
         if (!isNavigationMode) {
-            // NORMAL MODE: Hero Train Telemetry Card
             Card(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
@@ -271,24 +374,25 @@ fun LiveMapScreen() {
                                     .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("12404", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(activeTrain.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                             Text(
-                                "Prayagraj SF Express",
+                                activeTrain.name,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
+                        val isDelayed = (liveStatus?.delayMinutes ?: 0) > 0
                         Box(
                             modifier = Modifier
-                                .background(Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
+                                .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                I18n.t("status_on_time"),
-                                color = RailGreenOnTime,
+                                if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
+                                color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -302,16 +406,16 @@ fun LiveMapScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        MetricBox(title = I18n.t("speed"), value = "112 km/h", icon = "⚡")
+                        MetricBox(title = I18n.t("speed"), value = "${liveStatus?.speedKmh ?: 112} km/h", icon = "⚡")
                         MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
-                        MetricBox(title = "Halt", value = "${selectedStation.haltMinutes}m", icon = "⏱️")
+                        MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Progress Bar
                     LinearProgressIndicator(
-                        progress = { 0.68f },
+                        progress = { liveStatus?.progressPercent ?: 0.68f },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(7.dp)
@@ -339,7 +443,7 @@ fun LiveMapScreen() {
                 }
             }
         } else {
-            // NAVIGATION MODE: Google Maps-style Bottom Sheet
+            // NAVIGATION MODE: Bottom Sheet
             Card(
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
@@ -349,7 +453,6 @@ fun LiveMapScreen() {
                     .align(Alignment.BottomCenter)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Re-centre Pill Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -374,7 +477,6 @@ fun LiveMapScreen() {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Duration & ETA
                         Column {
                             Text(
                                 text = "$navDurationMin min",
@@ -390,7 +492,6 @@ fun LiveMapScreen() {
                             )
                         }
 
-                        // Right action buttons: Voice & Exit Button
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -419,7 +520,7 @@ fun LiveMapScreen() {
             }
         }
 
-        // 5. STATION POPUP MODAL (When tapping any station along the route)
+        // 5. STATION POPUP MODAL
         if (showStationSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showStationSheet = false },
@@ -486,29 +587,5 @@ fun LiveMapScreen() {
                 }
             }
         }
-    }
-}
-
-@Composable
-fun FloatingRoundButton(
-    label: String,
-    isActive: Boolean = false,
-    isPill: Boolean = false,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(46.dp)
-            .shadow(4.dp, CircleShape)
-            .background(if (isActive) RailBluePrimary else Color.White, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            fontSize = if (isPill) 13.sp else 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isActive) Color.White else Color(0xFF0F172A)
-        )
     }
 }

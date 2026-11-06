@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.railgaadi.app.config.AppConfig
 import com.railgaadi.app.model.Station
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -83,6 +84,10 @@ actual fun NativeMapView(
         )
     }
 
+    var lastNavMode by remember { mutableStateOf(isNavigationMode) }
+    var lastDestStation by remember { mutableStateOf(Pair(destLat, destLon)) }
+    var last3DMode by remember { mutableStateOf(is3DMode) }
+
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -94,15 +99,22 @@ actual fun NativeMapView(
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
+                    databaseEnabled = true
                     loadWithOverviewMode = true
                     useWideViewPort = true
                     builtInZoomControls = false
                     displayZoomControls = false
                     setGeolocationEnabled(true)
+                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     cacheMode = WebSettings.LOAD_DEFAULT
                 }
 
                 webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                        android.util.Log.d("RailMap", "${consoleMessage?.message()} [Line ${consoleMessage?.lineNumber()}]")
+                        return super.onConsoleMessage(consoleMessage)
+                    }
+
                     override fun onGeolocationPermissionsShowPrompt(
                         origin: String?,
                         callback: GeolocationPermissions.Callback?
@@ -156,7 +168,15 @@ actual fun NativeMapView(
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL("https://railgaadi.app", htmlContent, "text/html", "UTF-8", null)
+            if (lastNavMode != isNavigationMode || lastDestStation.first != destLat || lastDestStation.second != destLon) {
+                lastNavMode = isNavigationMode
+                lastDestStation = Pair(destLat, destLon)
+                last3DMode = is3DMode
+                webView.loadDataWithBaseURL("https://railgaadi.app", htmlContent, "text/html", "UTF-8", null)
+            } else if (last3DMode != is3DMode) {
+                last3DMode = is3DMode
+                webView.evaluateJavascript("if (window.set3DMode) window.set3DMode($is3DMode);", null)
+            }
         }
     )
 }
@@ -271,29 +291,10 @@ private fun generateMapHtml(
             inputStations = ${stationsJson};
         } catch(e) {}
 
+        const mapTilerKey = '${AppConfig.MAPTILER_API_KEY}';
         const map = new maplibregl.Map({
             container: 'map',
-            style: {
-                version: 8,
-                sources: {
-                    'carto': {
-                        type: 'raster',
-                        tiles: [
-                            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-                            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
-                        ],
-                        tileSize: 256,
-                        attribution: '&copy; CartoDB &copy; OpenStreetMap'
-                    }
-                },
-                layers: [{
-                    id: 'carto-layer',
-                    type: 'raster',
-                    source: 'carto',
-                    minzoom: 0,
-                    maxzoom: 19
-                }]
-            },
+            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=' + mapTilerKey,
             center: isNav ? [(uLon + dLon)/2, (uLat + dLat)/2] : [77.2090, 28.6139],
             zoom: isNav ? 12.8 : 6.5,
             pitch: is3D ? 58 : 0,
@@ -310,6 +311,34 @@ private fun generateMapHtml(
         });
 
         map.on('load', () => {
+            if (is3D) {
+                try {
+                    const layers = map.getStyle().layers;
+                    let labelLayerId;
+                    for (let i = 0; i < layers.length; i++) {
+                        if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
+                            labelLayerId = layers[i].id;
+                            break;
+                        }
+                    }
+                    if (!map.getLayer('3d-buildings') && map.getSource('openmaptiles')) {
+                        map.addLayer({
+                            'id': '3d-buildings',
+                            'source': 'openmaptiles',
+                            'source-layer': 'building',
+                            'type': 'fill-extrusion',
+                            'minzoom': 14,
+                            'paint': {
+                                'fill-extrusion-color': '#cbd5e1',
+                                'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 16, ['get', 'render_height']],
+                                'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 14, 0, 16, ['get', 'render_min_height']],
+                                'fill-extrusion-opacity': 0.7
+                            }
+                        }, labelLayerId);
+                    }
+                } catch(e) {}
+            }
+
             if (isNav) {
                 // NAVIGATION MODE
                 const userEl = document.createElement('div');
@@ -534,6 +563,10 @@ private fun generateMapHtml(
 
         window.zoomOutMap = function() {
             map.zoomOut({ duration: 300 });
+        };
+
+        window.set3DMode = function(enable3D) {
+            map.easeTo({ pitch: enable3D ? 58 : 0, duration: 600 });
         };
     </script>
 </body>
