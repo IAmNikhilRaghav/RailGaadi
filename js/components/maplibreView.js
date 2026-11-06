@@ -16,6 +16,10 @@ let trainMapMarker     = null;
 let userLocationMarker = null;
 let userLocationEl     = null;
 let stationMarkers     = [];
+
+/* ── Navigation State ─────────────────────────────────────── */
+let navRouteActive     = false;   // true while nav route is drawn
+let navDestStation     = null;    // { name, lat, lon } of destination station
 let lastTrainId        = null;
 let isUserInteracting  = false;
 let loadedMapStyleKey  = null;
@@ -789,6 +793,173 @@ function lineFeature(coordinates) {
 
 /* ── Device Location / User GPS ───────────────────────────── */
 
+/* ── Road-Route Navigation (OSRM — free, no key) ─────────── */
+
+/**
+ * Fetch the actual road route geometry + steps from OSRM public API.
+ * Returns { coordinates, steps, distanceKm, durationMin } or null on failure.
+ */
+async function fetchRoadRoute(userLat, userLon, destLat, destLon) {
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/` +
+    `${userLon},${userLat};${destLon},${destLat}` +
+    `?overview=full&geometries=geojson&steps=true`;
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data?.routes?.length) throw new Error("No route returned");
+    const route = data.routes[0];
+    return {
+      coordinates: route.geometry.coordinates,          // [[lon,lat], ...]
+      steps:       route.legs?.[0]?.steps || [],
+      distanceKm:  (route.distance / 1000).toFixed(1),
+      durationMin: Math.ceil(route.duration / 60)
+    };
+  } catch (err) {
+    console.warn("[NavRoute] OSRM fetch failed:", err);
+    return null;
+  }
+}
+
+/** Draw the purple navigation route polyline on the map */
+function drawNavRoute(coordinates) {
+  if (!mapInstance || !coordinates?.length) return;
+  clearNavRoute();
+
+  const geojson = {
+    type: "Feature",
+    geometry: { type: "LineString", coordinates }
+  };
+
+  try {
+    mapInstance.addSource("nav-route", { type: "geojson", data: geojson });
+    // Glow/halo
+    mapInstance.addLayer({
+      id: "nav-route-glow", type: "line", source: "nav-route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#7c3aed", "line-width": 14, "line-opacity": 0.22, "line-blur": 5 }
+    });
+    // Core road line
+    mapInstance.addLayer({
+      id: "nav-route-line", type: "line", source: "nav-route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#6d28d9", "line-width": 5.5 }
+    });
+    // White arrow dashes for directionality
+    mapInstance.addLayer({
+      id: "nav-route-arrows", type: "line", source: "nav-route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#ffffff", "line-width": 2, "line-dasharray": [0, 4, 2] }
+    });
+  } catch (err) {
+    console.warn("[NavRoute] layer draw warning:", err);
+  }
+  navRouteActive = true;
+}
+
+/** Remove navigation route layers and sources from the map */
+function clearNavRoute() {
+  ["nav-route-glow", "nav-route-line", "nav-route-arrows"].forEach(id => {
+    try { if (mapInstance?.getLayer(id))   mapInstance.removeLayer(id); } catch {}
+  });
+  try { if (mapInstance?.getSource("nav-route")) mapInstance.removeSource("nav-route"); } catch {}
+  navRouteActive  = false;
+  navDestStation  = null;
+}
+
+/**
+ * Compute cardinal bearing name from two lat/lon pairs.
+ * Returns e.g. "northwest", "east", "south-southeast"
+ */
+function getBearingName(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180;
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  const bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+  const dirs = ["north","northeast","east","southeast","south","southwest","west","northwest"];
+  return dirs[Math.round(bearing / 45) % 8];
+}
+
+/** Render the Google Maps-style navigation bottom panel */
+function showNavPanel({ distanceKm, durationMin, stationName, bearing, userLat, userLon, destLat, destLon }) {
+  dismissNavPanel();
+
+  const eta = (() => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + durationMin);
+    return now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  })();
+
+  const bearingLabel = bearing
+    ? `Head <strong>${bearing}</strong>`
+    : `Navigate to <strong>${stationName}</strong>`;
+
+  // Google Maps deep-link (opens in app on mobile, web on desktop)
+  const googleMapsUrl =
+    `https://www.google.com/maps/dir/?api=1` +
+    `&origin=${userLat},${userLon}` +
+    `&destination=${destLat},${destLon}` +
+    `&travelmode=driving`;
+
+  const panel = document.createElement("div");
+  panel.id    = "navPanel";
+  panel.className = "nav-panel";
+  panel.innerHTML = `
+    <div class="nav-panel-header">
+      <div class="nav-panel-direction">
+        <span class="nav-panel-arrow">↑</span>
+        <span class="nav-panel-heading">${bearingLabel}</span>
+      </div>
+      <button class="nav-panel-close" id="navPanelDismiss" aria-label="Dismiss navigation">✕</button>
+    </div>
+    <div class="nav-panel-info">
+      <div class="nav-panel-stat">
+        <span class="nav-panel-stat-value">${durationMin}</span>
+        <span class="nav-panel-stat-unit">min</span>
+      </div>
+      <div class="nav-panel-dot">·</div>
+      <div class="nav-panel-stat">
+        <span class="nav-panel-stat-value">${distanceKm}</span>
+        <span class="nav-panel-stat-unit">km</span>
+      </div>
+      <div class="nav-panel-dot">·</div>
+      <div class="nav-panel-eta">Arriving <strong>${eta}</strong></div>
+    </div>
+    <div class="nav-panel-dest">📍 ${translateStationName(stationName)}</div>
+    <div class="nav-panel-actions">
+      <a class="nav-panel-gmaps-btn" href="${googleMapsUrl}" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        Open in Google Maps
+      </a>
+      <button class="nav-panel-exit-btn" id="navPanelDismiss2">✕ Exit Nav</button>
+    </div>
+  `;
+
+  // Attach inside the map wrapper so it overlays correctly
+  const wrapper = document.querySelector(".map-wrapper");
+  if (wrapper) wrapper.appendChild(panel);
+
+  // Dismiss handlers
+  panel.querySelector("#navPanelDismiss")?.addEventListener("click",  dismissNavPanelAndRoute);
+  panel.querySelector("#navPanelDismiss2")?.addEventListener("click", dismissNavPanelAndRoute);
+
+  // Animate in
+  requestAnimationFrame(() => panel.classList.add("nav-panel--visible"));
+}
+
+function dismissNavPanel() {
+  const existing = document.getElementById("navPanel");
+  if (existing) existing.remove();
+}
+
+function dismissNavPanelAndRoute() {
+  dismissNavPanel();
+  clearNavRoute();
+  store.showToast("Navigation cleared 🗺️");
+}
+
 export function locateUserOnMap() {
   if (!navigator.geolocation) {
     store.showToast("Geolocation is not supported by your browser");
@@ -796,10 +967,11 @@ export function locateUserOnMap() {
   }
   store.showToast("Locating your device… 📍");
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
+    async (pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
       if (!mapInstance) return;
 
+      // Place / update blue dot marker
       if (!userLocationMarker) {
         userLocationEl = document.createElement("div");
         userLocationEl.className = "user-location-marker";
@@ -814,22 +986,24 @@ export function locateUserOnMap() {
         userLocationMarker.setLngLat([longitude, latitude]);
       }
 
-      // Check nearest station on active route
-      const state = store.getState();
-      let nearestText = "";
+      // ── Find nearest station on active route ───────────────
+      const state  = store.getState();
+      let nearStn  = null;
+      let minDist  = Infinity;
+
       if (state.liveRoute?.stations?.length) {
-        let minDist = Infinity;
-        let nearStn = null;
         for (const stn of state.liveRoute.stations) {
           if (stn.latitude && stn.longitude) {
             const d = GeoService.distanceKm(latitude, longitude, stn.latitude, stn.longitude);
             if (d < minDist) { minDist = d; nearStn = stn; }
           }
         }
-        if (nearStn && minDist < 200) {
-          nearestText = `<div style="font-size:12px;color:#1e40af;margin-top:4px;">📍 <strong>${minDist.toFixed(1)} km</strong> from ${translateStationName(nearStn.name)} (${nearStn.code})</div>`;
-        }
       }
+
+      // Show popup with distance info
+      const nearestText = nearStn && minDist < 300
+        ? `<div style="font-size:12px;color:#1e40af;margin-top:4px;">📍 <strong>${minDist.toFixed(1)} km</strong> from ${translateStationName(nearStn.name)} (${nearStn.code})</div>`
+        : "";
 
       const popup = new window.maplibregl.Popup({ offset: 12 }).setHTML(`
         <div style="font-family:sans-serif;min-width:140px;padding:2px;">
@@ -839,10 +1013,45 @@ export function locateUserOnMap() {
         </div>
       `);
       userLocationMarker.setPopup(popup);
-
-      mapInstance.flyTo({ center: [longitude, latitude], zoom: 12, duration: 1400 });
       userLocationMarker.togglePopup();
-      store.showToast("Location centered on map 🎯");
+
+      // ── Fly to user, then fetch road route if station found ─
+      if (nearStn && nearStn.latitude && nearStn.longitude && minDist < 100) {
+        // Fit map to show both user and station
+        const bounds = [
+          [Math.min(longitude, nearStn.longitude) - 0.05, Math.min(latitude, nearStn.latitude) - 0.05],
+          [Math.max(longitude, nearStn.longitude) + 0.05, Math.max(latitude, nearStn.latitude) + 0.05]
+        ];
+        mapInstance.fitBounds(bounds, { padding: 80, duration: 1400, maxZoom: 14 });
+
+        store.showToast("Finding road route to station… 🛣️");
+        navDestStation = { name: nearStn.name, lat: nearStn.latitude, lon: nearStn.longitude };
+
+        const roadRoute = await fetchRoadRoute(latitude, longitude, nearStn.latitude, nearStn.longitude);
+
+        if (roadRoute) {
+          drawNavRoute(roadRoute.coordinates);
+          const bearing = getBearingName(latitude, longitude, nearStn.latitude, nearStn.longitude);
+          showNavPanel({
+            distanceKm:  roadRoute.distanceKm,
+            durationMin: roadRoute.durationMin,
+            stationName: nearStn.name,
+            bearing,
+            userLat: latitude,
+            userLon: longitude,
+            destLat: nearStn.latitude,
+            destLon: nearStn.longitude
+          });
+          store.showToast(`Road route to ${nearStn.name} loaded ✅`);
+        } else {
+          // Fallback: straight-line only, still show distance
+          store.showToast(`${minDist.toFixed(1)} km from ${nearStn.name} — road data unavailable`);
+        }
+      } else {
+        // No active route / station too far — just centre on user
+        mapInstance.flyTo({ center: [longitude, latitude], zoom: 12, duration: 1400 });
+        store.showToast("Location centered on map 🎯");
+      }
     },
     (err) => {
       console.warn("Geolocation error:", err);
