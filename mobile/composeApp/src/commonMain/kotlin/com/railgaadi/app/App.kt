@@ -1,5 +1,6 @@
 package com.railgaadi.app
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +14,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,7 +27,7 @@ import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.TabItem
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
-import com.railgaadi.app.ui.components.PreferencesModal
+import com.railgaadi.app.ui.components.PreferencesDrawer
 import com.railgaadi.app.ui.screens.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +36,7 @@ fun App() {
     var isDarkMode by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(TabItem.LIVE_MAP) }
     var showLanguageModal by remember { mutableStateOf(false) }
-    var showPreferencesModal by remember { mutableStateOf(false) }
+    var showPreferencesDrawer by remember { mutableStateOf(false) }
 
     RailGaadiTheme(darkTheme = isDarkMode) {
         Scaffold(
@@ -41,21 +47,22 @@ fun App() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Professional App Logo (Blue rounded square with train icon)
+                            // Professional App Logo (Blue rounded square with clean vector train icon)
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .background(RailBluePrimary, RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("🚆", fontSize = 20.sp)
+                                MinimalistTrainLogo()
                             }
 
                             Text(
                                 "RailGaadi",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 19.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                letterSpacing = (-0.3).sp
                             )
                         }
                     },
@@ -89,21 +96,21 @@ fun App() {
                                 .clickable { isDarkMode = !isDarkMode },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (isDarkMode) "☀️" else "🌙", fontSize = 16.sp)
+                            Text(if (isDarkMode) "☀️" else "🌙", fontSize = 15.sp)
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        // 3. Circular Hamburger Menu Button (☰)
+                        // 3. Circular Hamburger Menu Button (☰) -> Opens Right-Side Drawer
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .border(1.dp, Color(0xFFE2E8F0), CircleShape)
                                 .background(MaterialTheme.colorScheme.surface, CircleShape)
-                                .clickable { showPreferencesModal = true },
+                                .clickable { showPreferencesDrawer = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("☰", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("☰", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
@@ -156,18 +163,17 @@ fun App() {
                     TabItem.STATION -> StationBoardScreen()
                 }
 
-                // Preferences Drawer / BottomSheet (Web App Parity)
-                if (showPreferencesModal) {
-                    PreferencesModal(
-                        isDarkMode = isDarkMode,
-                        onDarkModeChanged = { isDarkMode = it },
-                        onOpenLanguageModal = {
-                            showPreferencesModal = false
-                            showLanguageModal = true
-                        },
-                        onDismiss = { showPreferencesModal = false }
-                    )
-                }
+                // Right-Side Preferences Drawer (Opens smoothly from right edge)
+                PreferencesDrawer(
+                    isOpen = showPreferencesDrawer,
+                    isDarkMode = isDarkMode,
+                    onDarkModeChanged = { isDarkMode = it },
+                    onOpenLanguageModal = {
+                        showPreferencesDrawer = false
+                        showLanguageModal = true
+                    },
+                    onDismiss = { showPreferencesDrawer = false }
+                )
 
                 // Language Selector BottomSheet
                 if (showLanguageModal) {
@@ -235,5 +241,39 @@ fun App() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun MinimalistTrainLogo() {
+    Canvas(modifier = Modifier.size(22.dp)) {
+        val color = Color.White
+        // Train Body
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.16f, size.height * 0.08f),
+            size = Size(size.width * 0.68f, size.height * 0.74f),
+            cornerRadius = CornerRadius(8f, 8f),
+            style = Stroke(width = 2.2f)
+        )
+        // Windshield
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.26f, size.height * 0.18f),
+            size = Size(size.width * 0.48f, size.height * 0.28f),
+            cornerRadius = CornerRadius(4f, 4f),
+            style = Stroke(width = 1.8f)
+        )
+        // Two Headlights
+        drawCircle(color = color, radius = 2.2f, center = Offset(size.width * 0.34f, size.height * 0.66f))
+        drawCircle(color = color, radius = 2.2f, center = Offset(size.width * 0.66f, size.height * 0.66f))
+        // Rails
+        drawLine(
+            color,
+            Offset(size.width * 0.1f, size.height * 0.94f),
+            Offset(size.width * 0.9f, size.height * 0.94f),
+            strokeWidth = 2f,
+            cap = StrokeCap.Round
+        )
     }
 }
