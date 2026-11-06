@@ -1,0 +1,42 @@
+# Gradle
+.gradle/
+build/
+*.iml
+local.properties
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# iOS
+iosApp/Pods/
+iosApp/*.xcworkspace
+xcuserdata/
+*.xccheckout
+*.moved-to-trash
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.idea/
+*.iws
+*.ipr
+*.swp
+*.swo
+
+# KMP build outputs
+composeApp/build/
+
+# Kotlin
+*.class
+*.kotlin_module
+
