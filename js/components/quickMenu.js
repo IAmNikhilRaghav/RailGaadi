@@ -239,7 +239,7 @@ export function renderLangModal() {
           <span style="font-size:22px;line-height:1;">🌐</span>
           <div>
             <h2 id="langDialogTitle" style="font-size:var(--text-md, 16px);font-weight:700;margin:0;">Select Language</h2>
-            <div style="font-size:var(--text-xs, 12px);color:var(--color-text-tertiary);">भाषा चुनें • உங்கள் மொழியைத் தேர்வுசெய்க • ഭാഷ തിരഞ്ഞെടുക്കുക</div>
+            <div style="font-size:var(--text-xs, 12px);color:var(--color-text-tertiary);">भाषा चुनें • உங்கள் மொழியைத் தேர்வுசெய்க • ਭਾਸ਼ਾ ਚੁਣੋ</div>
           </div>
         </div>
         <button class="rg-sheet-close-btn" id="closeLangModalBtn" aria-label="Close language selector">
