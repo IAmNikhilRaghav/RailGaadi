@@ -1,7 +1,10 @@
 package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,7 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,7 +35,6 @@ import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
     var isNavigationMode by remember { mutableStateOf(false) }
@@ -36,10 +43,13 @@ fun LiveMapScreen() {
     var followTrain by remember { mutableStateOf(false) }
     var compassBearing by remember { mutableStateOf(0f) }
 
+    // Fullscreen Map & Collapsible Tools State (Web App Parity)
+    var isFullscreen by remember { mutableStateOf(false) }
+    var isToolsCollapsed by remember { mutableStateOf(false) }
+
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
 
-    // Station list dynamically obtained from liveStatus
     val trainStations = remember(liveStatus) {
         liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: listOf(
             Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
@@ -66,7 +76,7 @@ fun LiveMapScreen() {
     var selectedAlternativeRoute by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 1. FULLSCREEN NATIVE MAP (Syncs with live status and active train)
+        // 1. FULLSCREEN NATIVE MAP (Syncs with live status, active train, and map style)
         NativeMapView(
             modifier = Modifier.fillMaxSize(),
             isNavigationMode = isNavigationMode,
@@ -102,15 +112,18 @@ fun LiveMapScreen() {
             }
         )
 
-        // 2. TOP INTERACTIVE SEARCH BAR & DROPDOWN (Phase 2 Feature)
-        if (!isNavigationMode) {
+        // 2. TOP INTERACTIVE SEARCH BAR (Hidden when in Fullscreen mode or Navigation mode)
+        AnimatedVisibility(
+            visible = !isNavigationMode && !isFullscreen,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .align(Alignment.TopCenter)
             ) {
-                // Interactive Search Card
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
@@ -175,7 +188,7 @@ fun LiveMapScreen() {
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        "🚆 $trainNo",
+                                        trainNo,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (activeTrain.number == trainNo) RailBluePrimary else Color(0xFF0F172A)
@@ -250,8 +263,10 @@ fun LiveMapScreen() {
                     }
                 }
             }
-        } else {
-            // NAVIGATION MODE: Google Maps-style Top Emerald Turn-by-Turn Direction Banner
+        }
+
+        // NAVIGATION MODE: Top Emerald Turn Banner
+        if (isNavigationMode) {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF044E42)),
@@ -292,229 +307,295 @@ fun LiveMapScreen() {
             }
         }
 
-        // 3. RIGHT FLOATING TOOLS (3D Perspective, Compass, Rotate, GPS Nearest Station, Follow Train)
-        Column(
+        // 3. BLACK LITTLE INITIALIZER TAB (Appears when tools are collapsed)
+        AnimatedVisibility(
+            visible = isToolsCollapsed,
+            enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
+            exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(end = 6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .shadow(4.dp, CircleShape)
-                    .background(Color.White, CircleShape)
-                    .clickable { compassBearing = 0f },
+                    .size(width = 32.dp, height = 48.dp)
+                    .shadow(8.dp, RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
+                    .background(Color(0xFF0F172A), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
+                    .clickable { isToolsCollapsed = false },
                 contentAlignment = Alignment.Center
             ) {
-                Text("🧭", fontSize = 20.sp, modifier = Modifier.rotate(-compassBearing))
-            }
-
-            FloatingRoundButton(
-                label = if (is3DMode) "2D" else "3D",
-                isPill = true,
-                isActive = is3DMode,
-                onClick = { is3DMode = !is3DMode }
-            )
-
-            FloatingRoundButton(
-                label = "🎥",
-                isActive = followTrain,
-                onClick = { followTrain = !followTrain }
-            )
-
-            FloatingRoundButton(
-                label = "🎯",
-                onClick = {
-                    selectedStation = trainStations.first()
-                    isNavigationMode = true
-                }
-            )
-
-            if (isNavigationMode) {
-                FloatingRoundButton(
-                    label = if (isMuted) "🔇" else "🔊",
-                    onClick = { isMuted = !isMuted }
-                )
-
-                FloatingRoundButton(
-                    label = "🔀",
-                    onClick = {
-                        selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                        if (selectedAlternativeRoute == 1) {
-                            navDistanceKm = "15.4 km"
-                            navDurationMin = 29
-                        } else {
-                            navDistanceKm = "13 km"
-                            navDurationMin = 25
-                        }
-                    }
+                Text(
+                    "‹",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // 4. BOTTOM HERO TELEMETRY CARD (Updates dynamically with activeTrain & liveStatus)
-        if (!isNavigationMode) {
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
+        // 4. FLOATING TOOLS STACK (Collapsible via top collapse button)
+        AnimatedVisibility(
+            visible = !isToolsCollapsed,
+            enter = fadeIn(animationSpec = tween(180)) + slideInHorizontally(initialOffsetX = { it / 2 }),
+            exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(targetOffsetX = { it / 2 }),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 12.dp)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(activeTrain.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                            Text(
-                                activeTrain.name,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                // Top Collapse Button (3 vertical dots icon, collapses tool stack into the black initializer)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .shadow(3.dp, CircleShape)
+                        .background(Color(0xFF0F172A), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                        .clickable { isToolsCollapsed = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("›", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
 
-                        val isDelayed = (liveStatus?.delayMinutes ?: 0) > 0
-                        Box(
-                            modifier = Modifier
-                                .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
-                                color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
+                // Fullscreen Toggle Button (⛶ / ⊡)
+                MinimalMapToolButton(
+                    isActive = isFullscreen,
+                    onClick = { isFullscreen = !isFullscreen }
+                ) {
+                    VectorFullscreenIcon(isFullscreen)
+                }
+
+                // Compass with live rotation
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .shadow(3.dp, CircleShape)
+                        .background(MaterialTheme.colorScheme.surface, CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
+                        .clickable { compassBearing = 0f },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
+                }
+
+                // 3D Perspective Toggle
+                MinimalMapToolButton(
+                    label = if (is3DMode) "2D" else "3D",
+                    isActive = is3DMode,
+                    onClick = { is3DMode = !is3DMode }
+                )
+
+                // Follow Train Camera Toggle
+                MinimalMapToolButton(
+                    isActive = followTrain,
+                    onClick = { followTrain = !followTrain }
+                ) {
+                    VectorCameraFollowIcon(followTrain)
+                }
+
+                // GPS Find Nearest Station
+                MinimalMapToolButton(
+                    onClick = {
+                        selectedStation = trainStations.first()
+                        isNavigationMode = true
                     }
+                ) {
+                    VectorGpsIcon()
+                }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Metrics
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        MetricBox(title = I18n.t("speed"), value = "${liveStatus?.speedKmh ?: 112} km/h", icon = "⚡")
-                        MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
-                        MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Progress Bar
-                    LinearProgressIndicator(
-                        progress = { liveStatus?.progressPercent ?: 0.68f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = RailBluePrimary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                if (isNavigationMode) {
+                    // Voice Mute Toggle
+                    MinimalMapToolButton(
+                        label = if (isMuted) "🔇" else "🔊",
+                        onClick = { isMuted = !isMuted }
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Action Button: Launch Turn-by-Turn Directions
-                    Button(
-                        onClick = { isNavigationMode = true },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
-                    ) {
-                        Text(
-                            "📍 Directions to ${selectedStation.name}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                    // Alternative Routes
+                    MinimalMapToolButton(
+                        label = "🔀",
+                        onClick = {
+                            selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                            if (selectedAlternativeRoute == 1) {
+                                navDistanceKm = "15.4 km"
+                                navDurationMin = 29
+                            } else {
+                                navDistanceKm = "13 km"
+                                navDurationMin = 25
+                            }
+                        }
+                    )
                 }
             }
-        } else {
-            // NAVIGATION MODE: Bottom Sheet
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = { compassBearing = 0f },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE2E8F0)),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text("▲ Re-centre", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+        }
 
-                        Text("Target: ${selectedStation.name}", fontSize = 11.sp, color = Color.Gray)
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "$navDurationMin min",
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFB45309)
-                            )
-                            Text(
-                                text = "$navDistanceKm • $navEtaTime",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.Gray
-                            )
-                        }
-
+        // 5. BOTTOM OVERLAYS (Hidden when in Fullscreen mode for immersive viewing)
+        AnimatedVisibility(
+            visible = !isFullscreen,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            if (!isNavigationMode) {
+                // NORMAL MODE: Hero Train Telemetry Card
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(Color(0xFFF1F5F9), CircleShape)
-                                    .clickable { isMuted = !isMuted },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(if (isMuted) "🔇" else "🔊", fontSize = 18.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(activeTrain.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                                Text(
+                                    activeTrain.name,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
 
-                            Button(
-                                onClick = { isNavigationMode = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                                shape = RoundedCornerShape(24.dp),
-                                modifier = Modifier.height(44.dp)
+                            val isDelayed = (liveStatus?.delayMinutes ?: 0) > 0
+                            Box(
+                                modifier = Modifier
+                                    .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
-                                Text("Exit", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Text(
+                                    if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
+                                    color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Metrics
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            MetricBox(title = I18n.t("speed"), value = "${liveStatus?.speedKmh ?: 112} km/h", icon = "⚡")
+                            MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
+                            MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Progress Bar
+                        LinearProgressIndicator(
+                            progress = { liveStatus?.progressPercent ?: 0.68f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = RailBluePrimary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Action Button: Launch Turn-by-Turn Directions
+                        Button(
+                            onClick = { isNavigationMode = true },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
+                        ) {
+                            Text(
+                                "Directions to ${selectedStation.name}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            } else {
+                // NAVIGATION MODE: Bottom Sheet
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { compassBearing = 0f },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("▲ Re-centre", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+
+                            Text("Target: ${selectedStation.name}", fontSize = 11.sp, color = Color.Gray)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "$navDurationMin min",
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFB45309)
+                                )
+                                Text(
+                                    text = "$navDistanceKm • $navEtaTime",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .background(Color(0xFFF1F5F9), CircleShape)
+                                        .clickable { isMuted = !isMuted },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(if (isMuted) "🔇" else "🔊", fontSize = 18.sp)
+                                }
+
+                                Button(
+                                    onClick = { isNavigationMode = false },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                    shape = RoundedCornerShape(24.dp),
+                                    modifier = Modifier.height(44.dp)
+                                ) {
+                                    Text("Exit", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                }
                             }
                         }
                     }
@@ -522,7 +603,7 @@ fun LiveMapScreen() {
             }
         }
 
-        // 5. STATION POPUP MODAL
+        // 6. STATION POPUP MODAL
         if (showStationSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showStationSheet = false },
@@ -582,7 +663,7 @@ fun LiveMapScreen() {
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("🧭 Navigate to this Station", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Navigate to this Station", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -593,25 +674,97 @@ fun LiveMapScreen() {
 }
 
 @Composable
-fun FloatingRoundButton(
-    label: String,
+fun MinimalMapToolButton(
+    label: String? = null,
     isActive: Boolean = false,
-    isPill: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    content: (@Composable () -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
-            .size(46.dp)
-            .shadow(4.dp, CircleShape)
-            .background(if (isActive) RailBluePrimary else Color.White, CircleShape)
+            .size(42.dp)
+            .shadow(3.dp, CircleShape)
+            .background(if (isActive) RailBluePrimary else MaterialTheme.colorScheme.surface, CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            label,
-            fontSize = if (isPill) 13.sp else 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isActive) Color.White else Color(0xFF0F172A)
-        )
+        if (content != null) {
+            content()
+        } else if (label != null) {
+            Text(
+                label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isActive) Color.White else MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Minimalist Vector Map Icons
+   ───────────────────────────────────────────────────────────── */
+
+@Composable
+fun VectorFullscreenIcon(isFullscreen: Boolean) {
+    Canvas(modifier = Modifier.size(16.dp)) {
+        val color = if (isFullscreen) Color.White else Color(0xFF0F172A)
+        val stroke = 1.6f
+        val arm = size.width * 0.32f
+
+        if (!isFullscreen) {
+            // Expand corners
+            drawLine(color, Offset(0f, 0f), Offset(arm, 0f), strokeWidth = stroke)
+            drawLine(color, Offset(0f, 0f), Offset(0f, arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(size.width, 0f), Offset(size.width - arm, 0f), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, 0f), Offset(size.width, arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(0f, size.height), Offset(arm, size.height), strokeWidth = stroke)
+            drawLine(color, Offset(0f, size.height), Offset(0f, size.height - arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(size.width, size.height), Offset(size.width - arm, size.height), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, size.height), Offset(size.width, size.height - arm), strokeWidth = stroke)
+        } else {
+            // Collapse corners
+            drawLine(color, Offset(arm, 0f), Offset(arm, arm), strokeWidth = stroke)
+            drawLine(color, Offset(0f, arm), Offset(arm, arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(size.width - arm, 0f), Offset(size.width - arm, arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, arm), Offset(size.width - arm, arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(0f, size.height - arm), Offset(arm, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(arm, size.height), Offset(arm, size.height - arm), strokeWidth = stroke)
+
+            drawLine(color, Offset(size.width, size.height - arm), Offset(size.width - arm, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width - arm, size.height), Offset(size.width - arm, size.height - arm), strokeWidth = stroke)
+        }
+    }
+}
+
+@Composable
+fun VectorCameraFollowIcon(isActive: Boolean) {
+    Canvas(modifier = Modifier.size(17.dp)) {
+        val color = if (isActive) Color.White else Color(0xFF0F172A)
+        drawCircle(color = color, radius = size.width * 0.4f, center = center, style = Stroke(width = 1.5f))
+        drawCircle(color = color, radius = 2.5f, center = center)
+        drawLine(color, Offset(center.x, 0f), Offset(center.x, size.height * 0.22f), strokeWidth = 1.4f)
+        drawLine(color, Offset(center.x, size.height * 0.78f), Offset(center.x, size.height), strokeWidth = 1.4f)
+        drawLine(color, Offset(0f, center.y), Offset(size.width * 0.22f, center.y), strokeWidth = 1.4f)
+        drawLine(color, Offset(size.width * 0.78f, center.y), Offset(size.width, center.y), strokeWidth = 1.4f)
+    }
+}
+
+@Composable
+fun VectorGpsIcon() {
+    Canvas(modifier = Modifier.size(17.dp)) {
+        val color = Color(0xFF0F172A)
+        drawCircle(color = color, radius = size.width * 0.28f, center = center, style = Stroke(width = 1.6f))
+        drawCircle(color = color, radius = 2f, center = center)
+        drawLine(color, Offset(center.x, 0f), Offset(center.x, size.height * 0.25f), strokeWidth = 1.5f)
+        drawLine(color, Offset(center.x, size.height * 0.75f), Offset(center.x, size.height), strokeWidth = 1.5f)
+        drawLine(color, Offset(0f, center.y), Offset(size.width * 0.25f, center.y), strokeWidth = 1.5f)
+        drawLine(color, Offset(size.width * 0.75f, center.y), Offset(size.width, center.y), strokeWidth = 1.5f)
     }
 }
