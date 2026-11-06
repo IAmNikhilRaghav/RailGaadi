@@ -50,7 +50,8 @@ fun LiveMapScreen() {
 
     // Fullscreen Map & Collapsible Tools State (Web App Parity)
     var isFullscreen by remember { mutableStateOf(false) }
-    var isToolsCollapsed by remember { mutableStateOf(false) }
+    var isNormalToolsExpanded by remember { mutableStateOf(false) }
+    var isFullscreenToolsCollapsed by remember { mutableStateOf(false) }
     var initializerDragX by remember { mutableStateOf(0f) }
     var initializerDragY by remember { mutableStateOf(0f) }
 
@@ -314,136 +315,236 @@ fun LiveMapScreen() {
             }
         }
 
-        val toolsTopPadding = if (isNavigationMode) 95.dp else if (!isFullscreen) 116.dp else 18.dp
-
-        // 3. BLACK LITTLE INITIALIZER TAB (Placed at Top-Right, Draggable anywhere on the map!)
+        // 3. NORMAL VIEW MAP CONTROLS (Top-Right: Three-dots toggle button with Fullscreen button directly beneath; collapsible tools expand under three-dots)
         AnimatedVisibility(
-            visible = isToolsCollapsed,
-            enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
-            exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
+            visible = !isFullscreen,
+            enter = fadeIn(animationSpec = tween(150)),
+            exit = fadeOut(animationSpec = tween(150)),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = toolsTopPadding, end = 12.dp)
-                .offset { IntOffset(initializerDragX.roundToInt(), initializerDragY.roundToInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        initializerDragX += dragAmount.x
-                        initializerDragY += dragAmount.y
-                    }
-                }
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .shadow(8.dp, RoundedCornerShape(10.dp))
-                    .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
-                    .clickable { isToolsCollapsed = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "‹",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // 4. FLOATING TOOLS STACK (Placed at Top-Right so the whole central map is 100% visible)
-        AnimatedVisibility(
-            visible = !isToolsCollapsed,
-            enter = fadeIn(animationSpec = tween(180)) + slideInHorizontally(initialOffsetX = { it / 2 }),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(targetOffsetX = { it / 2 }),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = toolsTopPadding, end = 12.dp)
+                .padding(top = if (isNavigationMode) 95.dp else 116.dp, end = 12.dp)
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Top Collapse Button (3 vertical dots icon, collapses tool stack into the black initializer)
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .shadow(3.dp, CircleShape)
-                        .background(Color(0xFF0F172A), CircleShape)
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                        .clickable { isToolsCollapsed = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("›", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // Fullscreen Toggle Button (⛶ / ⊡)
+                // Top Button: Three-dots toggle button
                 MinimalMapToolButton(
-                    isActive = isFullscreen,
-                    onClick = { isFullscreen = !isFullscreen }
+                    isActive = isNormalToolsExpanded,
+                    onClick = { isNormalToolsExpanded = !isNormalToolsExpanded }
                 ) {
-                    VectorFullscreenIcon(isFullscreen)
+                    VectorThreeDotsIcon(isExpanded = isNormalToolsExpanded)
                 }
 
-                // Compass with live rotation
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .shadow(3.dp, CircleShape)
-                        .background(MaterialTheme.colorScheme.surface, CircleShape)
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
-                        .clickable { compassBearing = 0f },
-                    contentAlignment = Alignment.Center
+                // Collapsible tool stack (expands vertically when three-dots button is tapped)
+                AnimatedVisibility(
+                    visible = isNormalToolsExpanded,
+                    enter = fadeIn(animationSpec = tween(160)) + expandVertically(),
+                    exit = fadeOut(animationSpec = tween(160)) + shrinkVertically()
                 ) {
-                    Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Dynamic Compass
+                        MinimalMapToolButton(onClick = { compassBearing = 0f }) {
+                            Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
+                        }
+
+                        // 3D Perspective Toggle
+                        MinimalMapToolButton(
+                            label = if (is3DMode) "2D" else "3D",
+                            isActive = is3DMode,
+                            onClick = { is3DMode = !is3DMode }
+                        )
+
+                        // Follow Train Camera Toggle
+                        MinimalMapToolButton(
+                            isActive = followTrain,
+                            onClick = { followTrain = !followTrain }
+                        ) {
+                            VectorCameraFollowIcon(followTrain)
+                        }
+
+                        // GPS Find Nearest Station
+                        MinimalMapToolButton(
+                            onClick = {
+                                selectedStation = trainStations.first()
+                                isNavigationMode = true
+                            }
+                        ) {
+                            VectorGpsIcon()
+                        }
+
+                        if (isNavigationMode) {
+                            // Voice Mute Toggle
+                            MinimalMapToolButton(
+                                label = if (isMuted) "🔇" else "🔊",
+                                onClick = { isMuted = !isMuted }
+                            )
+
+                            // Alternative Routes
+                            MinimalMapToolButton(
+                                label = "🔀",
+                                onClick = {
+                                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                                    if (selectedAlternativeRoute == 1) {
+                                        navDistanceKm = "15.4 km"
+                                        navDurationMin = 29
+                                    } else {
+                                        navDistanceKm = "13 km"
+                                        navDurationMin = 25
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
 
-                // 3D Perspective Toggle
-                MinimalMapToolButton(
-                    label = if (is3DMode) "2D" else "3D",
-                    isActive = is3DMode,
-                    onClick = { is3DMode = !is3DMode }
-                )
-
-                // Follow Train Camera Toggle
-                MinimalMapToolButton(
-                    isActive = followTrain,
-                    onClick = { followTrain = !followTrain }
-                ) {
-                    VectorCameraFollowIcon(followTrain)
-                }
-
-                // GPS Find Nearest Station
+                // Fullscreen button directly beneath three-dots / tools
                 MinimalMapToolButton(
                     onClick = {
-                        selectedStation = trainStations.first()
-                        isNavigationMode = true
+                        isFullscreen = true
+                        isFullscreenToolsCollapsed = false
                     }
                 ) {
-                    VectorGpsIcon()
+                    VectorFullscreenIcon(isFullscreen = false)
                 }
+            }
+        }
 
-                if (isNavigationMode) {
-                    // Voice Mute Toggle
-                    MinimalMapToolButton(
-                        label = if (isMuted) "🔇" else "🔊",
-                        onClick = { isMuted = !isMuted }
-                    )
-
-                    // Alternative Routes
-                    MinimalMapToolButton(
-                        label = "🔀",
-                        onClick = {
-                            selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                            if (selectedAlternativeRoute == 1) {
-                                navDistanceKm = "15.4 km"
-                                navDurationMin = 29
-                            } else {
-                                navDistanceKm = "13 km"
-                                navDurationMin = 25
+        // 4. FULLSCREEN MODE MAP CONTROLS & BLACK INITIALIZER
+        AnimatedVisibility(
+            visible = isFullscreen,
+            enter = fadeIn(animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(180))
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Black Little Initializer Tab (Top-right, draggable anywhere so user enjoys unblocked full map view)
+                AnimatedVisibility(
+                    visible = isFullscreenToolsCollapsed,
+                    enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
+                    exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 18.dp, end = 12.dp)
+                        .offset { IntOffset(initializerDragX.roundToInt(), initializerDragY.roundToInt()) }
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                initializerDragX += dragAmount.x
+                                initializerDragY += dragAmount.y
                             }
                         }
-                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .shadow(8.dp, RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
+                            .clickable { isFullscreenToolsCollapsed = false },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "‹",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Fullscreen Floating Tools Stack (revealed by clicking black initializer, collapsible via top › button)
+                AnimatedVisibility(
+                    visible = !isFullscreenToolsCollapsed,
+                    enter = fadeIn(animationSpec = tween(180)) + slideInHorizontally(initialOffsetX = { it / 2 }),
+                    exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(targetOffsetX = { it / 2 }),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 18.dp, end = 12.dp)
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Collapse into black initializer tab
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .shadow(4.dp, RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                .clickable { isFullscreenToolsCollapsed = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("›", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Exit Fullscreen Mode button
+                        MinimalMapToolButton(
+                            isActive = true,
+                            onClick = {
+                                isFullscreen = false
+                                isFullscreenToolsCollapsed = false
+                            }
+                        ) {
+                            VectorFullscreenIcon(isFullscreen = true)
+                        }
+
+                        // Compass
+                        MinimalMapToolButton(onClick = { compassBearing = 0f }) {
+                            Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
+                        }
+
+                        // 3D Perspective
+                        MinimalMapToolButton(
+                            label = if (is3DMode) "2D" else "3D",
+                            isActive = is3DMode,
+                            onClick = { is3DMode = !is3DMode }
+                        )
+
+                        // Follow Train Camera
+                        MinimalMapToolButton(
+                            isActive = followTrain,
+                            onClick = { followTrain = !followTrain }
+                        ) {
+                            VectorCameraFollowIcon(followTrain)
+                        }
+
+                        // GPS Station
+                        MinimalMapToolButton(
+                            onClick = {
+                                selectedStation = trainStations.first()
+                                isNavigationMode = true
+                            }
+                        ) {
+                            VectorGpsIcon()
+                        }
+
+                        if (isNavigationMode) {
+                            // Voice Mute Toggle
+                            MinimalMapToolButton(
+                                label = if (isMuted) "🔇" else "🔊",
+                                onClick = { isMuted = !isMuted }
+                            )
+
+                            // Alternative Routes
+                            MinimalMapToolButton(
+                                label = "🔀",
+                                onClick = {
+                                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                                    if (selectedAlternativeRoute == 1) {
+                                        navDistanceKm = "15.4 km"
+                                        navDurationMin = 29
+                                    } else {
+                                        navDistanceKm = "13 km"
+                                        navDurationMin = 25
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -692,17 +793,18 @@ fun LiveMapScreen() {
 
 @Composable
 fun MinimalMapToolButton(
+    modifier: Modifier = Modifier,
     label: String? = null,
     isActive: Boolean = false,
     onClick: () -> Unit,
     content: (@Composable () -> Unit)? = null
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(42.dp)
-            .shadow(3.dp, CircleShape)
-            .background(if (isActive) RailBluePrimary else MaterialTheme.colorScheme.surface, CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
+            .shadow(3.dp, RoundedCornerShape(11.dp))
+            .background(if (isActive) RailBluePrimary else MaterialTheme.colorScheme.surface, RoundedCornerShape(11.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(11.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -724,38 +826,59 @@ fun MinimalMapToolButton(
    ───────────────────────────────────────────────────────────── */
 
 @Composable
+fun VectorThreeDotsIcon(isExpanded: Boolean) {
+    if (isExpanded) {
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val stroke = 2.2f
+            val color = Color.White
+            val pad = size.width * 0.22f
+            drawLine(color, Offset(pad, pad), Offset(size.width - pad, size.height - pad), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(size.width - pad, pad), Offset(pad, size.height - pad), strokeWidth = stroke, cap = StrokeCap.Round)
+        }
+    } else {
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val dotRadius = 1.8.dp.toPx()
+            val color = Color(0xFF0F172A)
+            drawCircle(color = color, radius = dotRadius, center = Offset(size.width / 2, size.height * 0.22f))
+            drawCircle(color = color, radius = dotRadius, center = Offset(size.width / 2, size.height * 0.50f))
+            drawCircle(color = color, radius = dotRadius, center = Offset(size.width / 2, size.height * 0.78f))
+        }
+    }
+}
+
+@Composable
 fun VectorFullscreenIcon(isFullscreen: Boolean) {
     Canvas(modifier = Modifier.size(16.dp)) {
         val color = if (isFullscreen) Color.White else Color(0xFF0F172A)
-        val stroke = 1.6f
+        val stroke = 1.8f
         val arm = size.width * 0.32f
 
         if (!isFullscreen) {
             // Expand corners
-            drawLine(color, Offset(0f, 0f), Offset(arm, 0f), strokeWidth = stroke)
-            drawLine(color, Offset(0f, 0f), Offset(0f, arm), strokeWidth = stroke)
+            drawLine(color, Offset(0f, 0f), Offset(arm, 0f), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(0f, 0f), Offset(0f, arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(size.width, 0f), Offset(size.width - arm, 0f), strokeWidth = stroke)
-            drawLine(color, Offset(size.width, 0f), Offset(size.width, arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, 0f), Offset(size.width - arm, 0f), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(size.width, 0f), Offset(size.width, arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(0f, size.height), Offset(arm, size.height), strokeWidth = stroke)
-            drawLine(color, Offset(0f, size.height), Offset(0f, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(0f, size.height), Offset(arm, size.height), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(0f, size.height), Offset(0f, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(size.width, size.height), Offset(size.width - arm, size.height), strokeWidth = stroke)
-            drawLine(color, Offset(size.width, size.height), Offset(size.width, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, size.height), Offset(size.width - arm, size.height), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(size.width, size.height), Offset(size.width, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
         } else {
             // Collapse corners
-            drawLine(color, Offset(arm, 0f), Offset(arm, arm), strokeWidth = stroke)
-            drawLine(color, Offset(0f, arm), Offset(arm, arm), strokeWidth = stroke)
+            drawLine(color, Offset(arm, 0f), Offset(arm, arm), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(0f, arm), Offset(arm, arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(size.width - arm, 0f), Offset(size.width - arm, arm), strokeWidth = stroke)
-            drawLine(color, Offset(size.width, arm), Offset(size.width - arm, arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width - arm, 0f), Offset(size.width - arm, arm), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(size.width, arm), Offset(size.width - arm, arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(0f, size.height - arm), Offset(arm, size.height - arm), strokeWidth = stroke)
-            drawLine(color, Offset(arm, size.height), Offset(arm, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(0f, size.height - arm), Offset(arm, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(arm, size.height), Offset(arm, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
 
-            drawLine(color, Offset(size.width, size.height - arm), Offset(size.width - arm, size.height - arm), strokeWidth = stroke)
-            drawLine(color, Offset(size.width - arm, size.height), Offset(size.width - arm, size.height - arm), strokeWidth = stroke)
+            drawLine(color, Offset(size.width, size.height - arm), Offset(size.width - arm, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(size.width - arm, size.height), Offset(size.width - arm, size.height - arm), strokeWidth = stroke, cap = StrokeCap.Round)
         }
     }
 }
