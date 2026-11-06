@@ -9,6 +9,7 @@ import { trackerService } from "../services/trackerService.js";
 import { GeoService } from "../services/geoService.js";
 import { ENV } from "../config/env.js";
 import { t, translateStationName, translateTrainName } from "../i18n/index.js";
+import { stationDataService } from "../services/stationDataService.js";
 
 let mapInstance        = null;
 let trainMarkerEl      = null;
@@ -793,60 +794,85 @@ function lineFeature(coordinates) {
 
 /* ── Device Location / User GPS ───────────────────────────── */
 
-/* ── Road-Route Navigation (OSRM — free, no key) ─────────── */
+/* ── Road-Route Navigation — Dynamic Turn-by-Turn (OSRM, free) */
 
-/**
- * Fetch the actual road route geometry + steps from OSRM public API.
- * Returns { coordinates, steps, distanceKm, durationMin } or null on failure.
- */
-async function fetchRoadRoute(userLat, userLon, destLat, destLon) {
+/* Navigation runtime state */
+let navWatchId       = null;    // watchPosition ID for live GPS tracking
+let navIsActive      = false;   // true during active navigation session
+let navSteps         = [];      // OSRM step objects for current route
+let navStepWaypoints = [];      // [{lat,lon}] one entry per step start point
+let navCurrentStep   = 0;       // which step user is on right now
+let navDestLat       = null;
+let navDestLon       = null;
+let navDestName      = "";
+let navRouteCoords   = [];      // full route [[lon,lat],...] for live trimming
+let navTotalDistM    = 0;
+let navTotalDurS     = 0;
+let navVoiceEnabled  = true;
+let navSpokenStep    = -1;      // step index we last spoke aloud
+let navSpokenClose   = false;   // spoke "now turn" for current step
+
+/* ── OSRM: fetch up to 3 alternative road routes ──────────── */
+
+async function fetchMultipleRoutes(userLat, userLon, destLat, destLon) {
   const url =
     `https://router.project-osrm.org/route/v1/driving/` +
     `${userLon},${userLat};${destLon},${destLat}` +
-    `?overview=full&geometries=geojson&steps=true`;
+    `?overview=full&geometries=geojson&steps=true&alternatives=true`;
   try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const res   = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
     if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
     const data = await res.json();
-    if (!data?.routes?.length) throw new Error("No route returned");
-    const route = data.routes[0];
-    return {
-      coordinates: route.geometry.coordinates,          // [[lon,lat], ...]
-      steps:       route.legs?.[0]?.steps || [],
-      distanceKm:  (route.distance / 1000).toFixed(1),
-      durationMin: Math.ceil(route.duration / 60)
-    };
+    if (!data?.routes?.length) throw new Error("No routes returned");
+
+    return data.routes.map((r, i) => ({
+      index:       i,
+      coordinates: r.geometry.coordinates,
+      steps:       r.legs?.[0]?.steps || [],
+      distanceKm:  (r.distance / 1000).toFixed(1),
+      distanceM:   Math.round(r.distance),
+      durationMin: Math.ceil(r.duration / 60),
+      durationS:   Math.round(r.duration),
+      tag:         i === 0 ? "fastest" : i === 1 ? "alt1" : "alt2"
+    }));
   } catch (err) {
     console.warn("[NavRoute] OSRM fetch failed:", err);
     return null;
   }
 }
 
-/** Draw the purple navigation route polyline on the map */
+/* ── Draw / clear navigation layers on map ────────────────── */
+
 function drawNavRoute(coordinates) {
   if (!mapInstance || !coordinates?.length) return;
-  clearNavRoute();
+  _clearNavLayers();
 
-  const geojson = {
-    type: "Feature",
-    geometry: { type: "LineString", coordinates }
-  };
+  const feat = { type: "Feature", geometry: { type: "LineString", coordinates } };
 
   try {
-    mapInstance.addSource("nav-route", { type: "geojson", data: geojson });
-    // Glow/halo
+    // Completed (grey-out) source — initially empty
+    mapInstance.addSource("nav-done", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } } });
+    mapInstance.addLayer({
+      id: "nav-done-line", type: "line", source: "nav-done",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#94a3b8", "line-width": 4, "line-opacity": 0.6 }
+    });
+
+    // Remaining route source
+    mapInstance.addSource("nav-route", { type: "geojson", data: feat });
     mapInstance.addLayer({
       id: "nav-route-glow", type: "line", source: "nav-route",
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": "#7c3aed", "line-width": 14, "line-opacity": 0.22, "line-blur": 5 }
     });
-    // Core road line
     mapInstance.addLayer({
       id: "nav-route-line", type: "line", source: "nav-route",
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": "#6d28d9", "line-width": 5.5 }
     });
-    // White arrow dashes for directionality
     mapInstance.addLayer({
       id: "nav-route-arrows", type: "line", source: "nav-route",
       layout: { "line-join": "round", "line-cap": "round" },
@@ -858,106 +884,538 @@ function drawNavRoute(coordinates) {
   navRouteActive = true;
 }
 
-/** Remove navigation route layers and sources from the map */
-function clearNavRoute() {
-  ["nav-route-glow", "nav-route-line", "nav-route-arrows"].forEach(id => {
-    try { if (mapInstance?.getLayer(id))   mapInstance.removeLayer(id); } catch {}
+/** Live-update the remaining/completed split as user moves */
+function _trimNavRoute(lat, lon) {
+  if (!mapInstance) return;
+  const rem = mapInstance.getSource("nav-route");
+  const done = mapInstance.getSource("nav-done");
+  if (!rem || !done || !navRouteCoords.length) return;
+
+  // Find nearest coordinate index on the full route
+  let minD = Infinity, nearIdx = 0;
+  for (let i = 0; i < navRouteCoords.length; i++) {
+    const d = GeoService.distanceKm(lat, lon, navRouteCoords[i][1], navRouteCoords[i][0]);
+    if (d < minD) { minD = d; nearIdx = i; }
+  }
+
+  const remaining  = navRouteCoords.slice(nearIdx);
+  const completed  = navRouteCoords.slice(0, nearIdx + 1);
+  const toFeature  = coords => ({ type: "Feature", geometry: { type: "LineString", coordinates: coords } });
+
+  try {
+    rem.setData(toFeature(remaining.length > 1 ? remaining : navRouteCoords));
+    done.setData(toFeature(completed));
+  } catch {}
+}
+
+function _clearNavLayers() {
+  ["nav-route-glow","nav-route-line","nav-route-arrows","nav-done-line"].forEach(id => {
+    try { if (mapInstance?.getLayer(id)) mapInstance.removeLayer(id); } catch {}
   });
-  try { if (mapInstance?.getSource("nav-route")) mapInstance.removeSource("nav-route"); } catch {}
-  navRouteActive  = false;
-  navDestStation  = null;
+  ["nav-route","nav-done"].forEach(id => {
+    try { if (mapInstance?.getSource(id)) mapInstance.removeSource(id); } catch {}
+  });
+  navRouteActive = false;
 }
 
-/**
- * Compute cardinal bearing name from two lat/lon pairs.
- * Returns e.g. "northwest", "east", "south-southeast"
- */
-function getBearingName(lat1, lon1, lat2, lon2) {
-  const toRad = d => d * Math.PI / 180;
-  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
-  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
-            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
-  const bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+function clearNavRoute() {
+  _clearNavLayers();
+  navDestStation = null;
+}
+
+/* ── Step instruction helpers ─────────────────────────────── */
+
+function _bearingNameFromDeg(deg) {
   const dirs = ["north","northeast","east","southeast","south","southwest","west","northwest"];
-  return dirs[Math.round(bearing / 45) % 8];
+  return dirs[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
 }
 
-/** Render the Google Maps-style navigation bottom panel */
-function showNavPanel({ distanceKm, durationMin, stationName, bearing, userLat, userLon, destLat, destLon }) {
+function getBearingName(lat1, lon1, lat2, lon2) {
+  const toR = d => d * Math.PI / 180;
+  const y = Math.sin(toR(lon2 - lon1)) * Math.cos(toR(lat2));
+  const x = Math.cos(toR(lat1)) * Math.sin(toR(lat2))
+          - Math.sin(toR(lat1)) * Math.cos(toR(lat2)) * Math.cos(toR(lon2 - lon1));
+  return _bearingNameFromDeg((Math.atan2(y, x) * 180 / Math.PI + 360) % 360);
+}
+
+function getManeuverIcon(step) {
+  const type = step?.maneuver?.type  || "turn";
+  const mod  = step?.maneuver?.modifier || "straight";
+  if (type === "arrive")  return "🏁";
+  if (type === "depart")  return "▲";
+  if (mod === "uturn")    return "↩";
+  if (type === "roundabout" || type === "rotary") return "🔄";
+  if (mod === "sharp left"  || mod === "left")  return "↰";
+  if (mod === "sharp right" || mod === "right") return "↱";
+  if (mod === "slight left")  return "↖";
+  if (mod === "slight right") return "↗";
+  return "↑";
+}
+
+function getStepInstruction(step) {
+  if (!step) return "Continue";
+  const type = step.maneuver?.type     || "turn";
+  const mod  = step.maneuver?.modifier || "straight";
+  const road = step.name ? ` on ${step.name}` : "";
+  const bear = step.maneuver?.bearing_after != null
+    ? ` heading ${_bearingNameFromDeg(step.maneuver.bearing_after)}`
+    : "";
+
+  if (type === "depart")  return `Head${bear}${road}`;
+  if (type === "arrive")  return "You have arrived";
+
+  const map = {
+    "sharp left":  `Sharp left${road}`,
+    "left":        `Turn left${road}`,
+    "slight left": `Keep left${road}`,
+    "straight":    `Go straight${road}`,
+    "slight right":`Keep right${road}`,
+    "right":       `Turn right${road}`,
+    "sharp right": `Sharp right${road}`,
+    "uturn":       "Make a U-turn",
+  };
+  if (type === "roundabout" || type === "rotary") return `Enter roundabout${road}`;
+  if (type === "end of road") return mod.includes("left") ? `Turn left at junction${road}` : `Turn right at junction${road}`;
+  return map[mod] || `Continue${road}`;
+}
+
+function _fmtDist(meters) {
+  if (meters < 100)  return `${Math.round(meters / 10) * 10} m`;
+  if (meters < 1000) return `${Math.round(meters / 50) * 50} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function _etaStr(durS) {
+  const now = new Date();
+  now.setSeconds(now.getSeconds() + durS);
+  return now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* ── Voice instructions (Web Speech API) ─────────────────── */
+
+function speak(text) {
+  if (!navVoiceEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang  = "en-IN";
+  utter.rate  = 1.05;
+  utter.pitch = 1.0;
+  window.speechSynthesis.speak(utter);
+}
+
+/* ── Route comparison panel ───────────────────────────────── */
+
+function showRouteComparisonPanel(routes, stationName, userLat, userLon, destLat, destLon) {
   dismissNavPanel();
 
-  const eta = (() => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() + durationMin);
-    return now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  })();
-
-  const bearingLabel = bearing
-    ? `Head <strong>${bearing}</strong>`
-    : `Navigate to <strong>${stationName}</strong>`;
-
-  // Google Maps deep-link (opens in app on mobile, web on desktop)
   const googleMapsUrl =
     `https://www.google.com/maps/dir/?api=1` +
     `&origin=${userLat},${userLon}` +
     `&destination=${destLat},${destLon}` +
     `&travelmode=driving`;
 
+  const labels = ["⚡ Fastest", "🛣️ Alternative", "🌿 Via another road"];
+  const tagLine = ["Recommended", "Less traffic possible", "Scenic or less congested"];
+
   const panel = document.createElement("div");
-  panel.id    = "navPanel";
+  panel.id        = "navPanel";
   panel.className = "nav-panel";
   panel.innerHTML = `
     <div class="nav-panel-header">
-      <div class="nav-panel-direction">
-        <span class="nav-panel-arrow">↑</span>
-        <span class="nav-panel-heading">${bearingLabel}</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:20px;">🧭</span>
+        <div>
+          <div style="font-size:11px;color:var(--color-text-muted,#64748b);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Routes to</div>
+          <div style="font-size:15px;font-weight:800;color:var(--color-text-primary,#0f172a);">${translateStationName(stationName)}</div>
+        </div>
       </div>
-      <button class="nav-panel-close" id="navPanelDismiss" aria-label="Dismiss navigation">✕</button>
+      <button class="nav-panel-close" id="navPanelDismiss" aria-label="Dismiss">✕</button>
     </div>
-    <div class="nav-panel-info">
-      <div class="nav-panel-stat">
-        <span class="nav-panel-stat-value">${durationMin}</span>
-        <span class="nav-panel-stat-unit">min</span>
-      </div>
-      <div class="nav-panel-dot">·</div>
-      <div class="nav-panel-stat">
-        <span class="nav-panel-stat-value">${distanceKm}</span>
-        <span class="nav-panel-stat-unit">km</span>
-      </div>
-      <div class="nav-panel-dot">·</div>
-      <div class="nav-panel-eta">Arriving <strong>${eta}</strong></div>
+
+    <div class="nav-route-options">
+      ${routes.map((r, i) => `
+        <div class="nav-route-card ${i === 0 ? "nav-route-card--best" : ""}">
+          <div class="nav-route-card-top">
+            <span class="nav-route-label">${labels[i] || "🗺️ Route " + (i + 1)}</span>
+            <span class="nav-route-time">${r.durationMin} min</span>
+          </div>
+          <div class="nav-route-tagline">${tagLine[i] || ""} · ${r.distanceKm} km</div>
+          <button class="nav-route-start-btn ${i === 0 ? "nav-route-start-btn--primary" : ""}"
+                  data-route-idx="${i}">
+            ▶ ${i === 0 ? "Start (Fastest)" : "Start"}
+          </button>
+        </div>
+      `).join("")}
     </div>
-    <div class="nav-panel-dest">📍 ${translateStationName(stationName)}</div>
-    <div class="nav-panel-actions">
+
+    <div class="nav-panel-actions" style="margin-top:4px;">
       <a class="nav-panel-gmaps-btn" href="${googleMapsUrl}" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-        Open in Google Maps
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        Open Google Maps
       </a>
-      <button class="nav-panel-exit-btn" id="navPanelDismiss2">✕ Exit Nav</button>
+      <button class="nav-panel-exit-btn" id="navPanelDismiss2">✕ Cancel</button>
     </div>
   `;
 
-  // Attach inside the map wrapper so it overlays correctly
   const wrapper = document.querySelector(".map-wrapper");
   if (wrapper) wrapper.appendChild(panel);
 
-  // Dismiss handlers
-  panel.querySelector("#navPanelDismiss")?.addEventListener("click",  dismissNavPanelAndRoute);
-  panel.querySelector("#navPanelDismiss2")?.addEventListener("click", dismissNavPanelAndRoute);
+  panel.querySelector("#navPanelDismiss")?.addEventListener("click",  stopNavigation);
+  panel.querySelector("#navPanelDismiss2")?.addEventListener("click", stopNavigation);
 
-  // Animate in
+  panel.querySelectorAll("[data-route-idx]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx   = parseInt(btn.dataset.routeIdx, 10);
+      const route = routes[idx];
+      startNavigation(route, stationName, destLat, destLon, userLat, userLon);
+    });
+  });
+
+  // Tap card to preview route path on map
+  panel.querySelectorAll(".nav-route-card").forEach((card, idx) => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".nav-route-start-btn")) return;
+      panel.querySelectorAll(".nav-route-card").forEach(c => c.classList.remove("nav-route-card--selected"));
+      card.classList.add("nav-route-card--selected");
+      if (routes[idx]?.coordinates) {
+        drawNavRoute(routes[idx].coordinates);
+      }
+    });
+  });
+
   requestAnimationFrame(() => panel.classList.add("nav-panel--visible"));
 }
 
-function dismissNavPanel() {
-  const existing = document.getElementById("navPanel");
-  if (existing) existing.remove();
+/* ── Turn banner (top of map, updates live) ───────────────── */
+
+function showTurnBanner({ icon, instruction, distanceM, nextInstruction }) {
+  let banner = document.getElementById("navTurnBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id        = "navTurnBanner";
+    banner.className = "nav-turn-banner";
+    const wrapper    = document.querySelector(".map-wrapper");
+    if (wrapper) wrapper.prepend(banner);
+  }
+
+  const dist = _fmtDist(distanceM);
+  banner.innerHTML = `
+    <div class="nav-turn-icon-wrap">
+      <span class="nav-turn-icon">${icon}</span>
+    </div>
+    <div class="nav-turn-content">
+      <div class="nav-turn-dist">In ${dist}</div>
+      <div class="nav-turn-instr">${instruction}</div>
+      ${nextInstruction ? `<div class="nav-turn-then">Then: ${nextInstruction}</div>` : ""}
+    </div>
+  `;
+  banner.classList.add("nav-turn-banner--visible");
 }
 
-function dismissNavPanelAndRoute() {
+function dismissTurnBanner() {
+  const b = document.getElementById("navTurnBanner");
+  if (b) b.remove();
+}
+
+/* ── Nav bottom bar (slim — ETA, distance, exit, voice) ───── */
+
+function showNavBar({ durationMin, distanceKm, eta, destName }) {
+  let bar = document.getElementById("navBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id        = "navBar";
+    bar.className = "nav-bar";
+    const wrapper = document.querySelector(".map-wrapper");
+    if (wrapper) wrapper.appendChild(bar);
+  }
+  _renderNavBar(bar, durationMin, distanceKm, eta, destName);
+  requestAnimationFrame(() => bar.classList.add("nav-bar--visible"));
+}
+
+function _renderNavBar(bar, durationMin, distanceKm, eta, destName) {
+  bar.innerHTML = `
+    <div class="nav-bar-row">
+      <div class="nav-bar-stats">
+        <span class="nav-bar-time">${durationMin}<span class="nav-bar-unit"> min</span></span>
+        <span class="nav-bar-sep">·</span>
+        <span class="nav-bar-dist">${distanceKm}<span class="nav-bar-unit"> km</span></span>
+        <span class="nav-bar-sep">·</span>
+        <span class="nav-bar-eta">${eta}</span>
+      </div>
+      <div class="nav-bar-controls">
+        <button class="nav-bar-voice-btn" id="navVoiceBtn" title="Toggle voice">
+          ${navVoiceEnabled ? "🔊" : "🔇"}
+        </button>
+        <button class="nav-bar-exit-btn" id="navExitBtn">✕ Exit</button>
+      </div>
+    </div>
+    <div class="nav-bar-dest">📍 ${translateStationName(destName)}</div>
+  `;
+  bar.querySelector("#navVoiceBtn")?.addEventListener("click", () => {
+    navVoiceEnabled = !navVoiceEnabled;
+    if (!navVoiceEnabled) window.speechSynthesis?.cancel();
+    const btn = document.getElementById("navVoiceBtn");
+    if (btn) btn.textContent = navVoiceEnabled ? "🔊" : "🔇";
+  });
+  bar.querySelector("#navExitBtn")?.addEventListener("click", stopNavigation);
+}
+
+function updateNavBar(remainDistM, remainDurS) {
+  const bar = document.getElementById("navBar");
+  if (!bar) return;
+  const mins = Math.max(1, Math.ceil(remainDurS / 60));
+  const km   = (remainDistM / 1000).toFixed(1);
+  const eta  = _etaStr(remainDurS);
+
+  const timeEl = bar.querySelector(".nav-bar-time");
+  const distEl = bar.querySelector(".nav-bar-dist");
+  const etaEl  = bar.querySelector(".nav-bar-eta");
+  if (timeEl) timeEl.innerHTML = `${mins}<span class="nav-bar-unit"> min</span>`;
+  if (distEl) distEl.innerHTML = `${km}<span class="nav-bar-unit"> km</span>`;
+  if (etaEl)  etaEl.textContent = eta;
+}
+
+function dismissNavBar() {
+  const b = document.getElementById("navBar");
+  if (b) b.remove();
+}
+
+/* ── Start navigation with a chosen route ─────────────────── */
+
+function startNavigation(route, stationName, destLat, destLon, userLat, userLon) {
   dismissNavPanel();
-  clearNavRoute();
-  store.showToast("Navigation cleared 🗺️");
+
+  navIsActive      = true;
+  navSteps         = route.steps || [];
+  navCurrentStep   = 0;
+  navSpokenStep    = -1;
+  navSpokenClose   = false;
+  navDestLat       = destLat;
+  navDestLon       = destLon;
+  navDestName      = stationName;
+  navRouteCoords   = route.coordinates || [];
+  navTotalDistM    = route.distanceM   || 0;
+  navTotalDurS     = route.durationS   || 0;
+  navDestStation   = { name: stationName, lat: destLat, lon: destLon };
+
+  // Build step waypoints from OSRM intersections
+  navStepWaypoints = navSteps.map(step => {
+    const loc = step.intersections?.[0]?.location; // [lon, lat]
+    return loc ? { lon: loc[0], lat: loc[1] } : null;
+  }).filter(Boolean);
+
+  // Draw the chosen route
+  drawNavRoute(route.coordinates);
+
+  // Show first instruction
+  const firstStep = navSteps[0];
+  if (firstStep) {
+    showTurnBanner({
+      icon:            getManeuverIcon(firstStep),
+      instruction:     getStepInstruction(firstStep),
+      distanceM:       firstStep.distance || 0,
+      nextInstruction: navSteps[1] ? getStepInstruction(navSteps[1]) : null
+    });
+    setTimeout(() => speak(getStepInstruction(firstStep)), 600);
+  }
+
+  // Show bottom nav bar
+  showNavBar({
+    durationMin: Math.ceil(navTotalDurS / 60),
+    distanceKm:  (navTotalDistM / 1000).toFixed(1),
+    eta:         _etaStr(navTotalDurS),
+    destName:    stationName
+  });
+
+  // Fit map to show route with generous padding
+  if (mapInstance && route.coordinates?.length > 1) {
+    const lons = route.coordinates.map(c => c[0]);
+    const lats = route.coordinates.map(c => c[1]);
+    mapInstance.fitBounds(
+      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: { top: 100, bottom: 160, left: 40, right: 40 }, duration: 1200 }
+    );
+  }
+
+  // Start continuous GPS watch
+  if (navWatchId !== null) navigator.geolocation.clearWatch(navWatchId);
+  navWatchId = navigator.geolocation.watchPosition(
+    pos => updateNavPosition(pos.coords.latitude, pos.coords.longitude),
+    err => console.warn("[Nav] GPS watch error:", err),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 1500 }
+  );
+
+  store.showToast("Navigation started — follow the purple route 🟣");
+}
+
+/* ── Live position update (called on every GPS tick) ─────── */
+
+function updateNavPosition(lat, lon) {
+  if (!navIsActive || !mapInstance) return;
+
+  // 1. Move / create user dot
+  if (userLocationMarker) {
+    userLocationMarker.setLngLat([lon, lat]);
+  } else {
+    userLocationEl = document.createElement("div");
+    userLocationEl.className = "user-location-marker";
+    userLocationEl.innerHTML = `<div class="user-location-pulse"></div><div class="user-location-dot nav-dot"></div>`;
+    userLocationMarker = new window.maplibregl.Marker({ element: userLocationEl })
+      .setLngLat([lon, lat]).addTo(mapInstance);
+  }
+
+  // 2. Pan map to follow user (smooth, only if far enough off-centre)
+  const centre = mapInstance.getCenter();
+  const offCentre = GeoService.distanceKm(lat, lon, centre.lat, centre.lng);
+  if (offCentre > 0.08) {
+    mapInstance.easeTo({ center: [lon, lat], zoom: Math.max(mapInstance.getZoom(), 14), duration: 600 });
+  }
+
+  // 3. Trim the route line (shows completed portion in grey)
+  _trimNavRoute(lat, lon);
+
+  // 4. Check arrival
+  const distToDest = GeoService.distanceKm(lat, lon, navDestLat, navDestLon) * 1000;
+  if (distToDest < 40) { _handleArrival(); return; }
+
+  // 5. Find next waypoint distance
+  const nextIdx = Math.min(navCurrentStep + 1, navStepWaypoints.length - 1);
+  const nextWp  = navStepWaypoints[nextIdx];
+  if (!nextWp) return;
+
+  const distToTurn = GeoService.distanceKm(lat, lon, nextWp.lat, nextWp.lon) * 1000; // metres
+
+  // 6. Advance step when close enough to next waypoint
+  if (distToTurn < 25 && navCurrentStep < navSteps.length - 1) {
+    navCurrentStep++;
+    navSpokenStep  = -1;
+    navSpokenClose = false;
+  }
+
+  const curStep  = navSteps[navCurrentStep];
+  const nxtStep  = navSteps[navCurrentStep + 1];
+  if (!curStep) return;
+
+  // Distance to end of current step (= next turn point)
+  const curNextWp = navStepWaypoints[navCurrentStep + 1];
+  const distToCurTurn = curNextWp
+    ? GeoService.distanceKm(lat, lon, curNextWp.lat, curNextWp.lon) * 1000
+    : 0;
+
+  // 7. Update turn banner dynamically
+  showTurnBanner({
+    icon:            getManeuverIcon(curStep),
+    instruction:     getStepInstruction(curStep),
+    distanceM:       distToCurTurn,
+    nextInstruction: nxtStep ? getStepInstruction(nxtStep) : null
+  });
+
+  // 8. Voice — speak at ~200 m approach and again at ~40 m (now turn)
+  if (navSpokenStep !== navCurrentStep && distToCurTurn < 220 && distToCurTurn > 80) {
+    speak(`In ${_fmtDist(distToCurTurn)}, ${getStepInstruction(curStep)}`);
+    navSpokenStep = navCurrentStep;
+  }
+  if (!navSpokenClose && distToCurTurn < 40) {
+    speak(getStepInstruction(curStep));
+    navSpokenClose = true;
+  }
+
+  // 9. Update nav bar: remaining dist & ETA
+  let remDistM = 0, remDurS = 0;
+  for (let i = navCurrentStep; i < navSteps.length; i++) {
+    remDistM += navSteps[i].distance || 0;
+    remDurS  += navSteps[i].duration || 0;
+  }
+  updateNavBar(remDistM, remDurS);
+}
+
+function _handleArrival() {
+  speak("You have arrived at the railway station.");
+  store.showToast("🎉 You have arrived at the station!");
+  // Show arrival in banner for 5s then dismiss
+  const banner = document.getElementById("navTurnBanner");
+  if (banner) {
+    banner.innerHTML = `
+      <div class="nav-turn-icon-wrap"><span class="nav-turn-icon">🏁</span></div>
+      <div class="nav-turn-content">
+        <div class="nav-turn-dist" style="color:#16a34a;font-weight:800;">Arrived!</div>
+        <div class="nav-turn-instr">${translateStationName(navDestName)}</div>
+      </div>
+    `;
+    setTimeout(() => stopNavigation(), 5000);
+  } else {
+    stopNavigation();
+  }
+}
+
+/* ── Stop / clean up navigation ───────────────────────────── */
+
+function stopNavigation() {
+  navIsActive = false;
+  if (navWatchId !== null) {
+    navigator.geolocation.clearWatch(navWatchId);
+    navWatchId = null;
+  }
+  window.speechSynthesis?.cancel();
+  dismissNavPanel();
+  dismissTurnBanner();
+  dismissNavBar();
+  _clearNavLayers();
+  navDestStation   = null;
+  navRouteCoords   = [];
+  navSteps         = [];
+  navStepWaypoints = [];
+  navCurrentStep   = 0;
+}
+
+/* Legacy alias kept for any internal references */
+function dismissNavPanel() { const e = document.getElementById("navPanel"); if (e) e.remove(); }
+function dismissNavPanelAndRoute() { stopNavigation(); store.showToast("Navigation cleared 🗺️"); }
+
+/**
+ * Find the nearest railway junction / station:
+ * Priority 1: Stations on the currently tracked active train route (if within 80km).
+ * Priority 2: Pan-India station database (8,690+ stations from stationDataService).
+ */
+function findNearestStation(userLat, userLon) {
+  const state = store.getState();
+  let best = null;
+  let minDist = Infinity;
+
+  // 1. Check stations on the active train route if one is loaded
+  if (state.liveRoute?.stations?.length) {
+    for (const stn of state.liveRoute.stations) {
+      const sLat = stn.latitude ?? stn.lat;
+      const sLon = stn.longitude ?? stn.lon;
+      if (sLat && sLon) {
+        const d = GeoService.distanceKm(userLat, userLon, sLat, sLon);
+        if (d < minDist) {
+          minDist = d;
+          best = { name: stn.name, code: stn.code, latitude: sLat, longitude: sLon, source: "activeRoute" };
+        }
+      }
+    }
+    // If nearest station on active route is within 80km, prefer it!
+    if (best && minDist < 80) {
+      return { station: best, distanceKm: minDist };
+    }
+  }
+
+  // 2. Pan-India search across all stations in stationDataService
+  if (stationDataService?.stationsMap?.size) {
+    for (const stn of stationDataService.stationsMap.values()) {
+      if (stn.lat && stn.lon) {
+        const d = GeoService.distanceKm(userLat, userLon, stn.lat, stn.lon);
+        if (d < minDist) {
+          minDist = d;
+          best = { name: stn.name, code: stn.code, latitude: stn.lat, longitude: stn.lon, source: "panIndia" };
+        }
+      }
+    }
+  }
+
+  return best ? { station: best, distanceKm: minDist } : null;
 }
 
 export function locateUserOnMap() {
@@ -986,19 +1444,10 @@ export function locateUserOnMap() {
         userLocationMarker.setLngLat([longitude, latitude]);
       }
 
-      // ── Find nearest station on active route ───────────────
-      const state  = store.getState();
-      let nearStn  = null;
-      let minDist  = Infinity;
-
-      if (state.liveRoute?.stations?.length) {
-        for (const stn of state.liveRoute.stations) {
-          if (stn.latitude && stn.longitude) {
-            const d = GeoService.distanceKm(latitude, longitude, stn.latitude, stn.longitude);
-            if (d < minDist) { minDist = d; nearStn = stn; }
-          }
-        }
-      }
+      // ── Find nearest railway station (active route or Pan-India) ──
+      const match = findNearestStation(latitude, longitude);
+      const nearStn = match?.station;
+      const minDist = match?.distanceKm ?? Infinity;
 
       // Show popup with distance info
       const nearestText = nearStn && minDist < 300
@@ -1015,40 +1464,38 @@ export function locateUserOnMap() {
       userLocationMarker.setPopup(popup);
       userLocationMarker.togglePopup();
 
-      // ── Fly to user, then fetch road route if station found ─
-      if (nearStn && nearStn.latitude && nearStn.longitude && minDist < 100) {
-        // Fit map to show both user and station
+      // ── If station found within 150 km, fetch road route options ──
+      if (nearStn && nearStn.latitude && nearStn.longitude && minDist < 150) {
         const bounds = [
           [Math.min(longitude, nearStn.longitude) - 0.05, Math.min(latitude, nearStn.latitude) - 0.05],
           [Math.max(longitude, nearStn.longitude) + 0.05, Math.max(latitude, nearStn.latitude) + 0.05]
         ];
-        mapInstance.fitBounds(bounds, { padding: 80, duration: 1400, maxZoom: 14 });
+        mapInstance.fitBounds(bounds, { padding: 90, duration: 1200, maxZoom: 14 });
 
-        store.showToast("Finding road route to station… 🛣️");
+        store.showToast(`Comparing road routes to ${nearStn.name}… 🛣️`);
         navDestStation = { name: nearStn.name, lat: nearStn.latitude, lon: nearStn.longitude };
 
-        const roadRoute = await fetchRoadRoute(latitude, longitude, nearStn.latitude, nearStn.longitude);
+        const routes = await fetchMultipleRoutes(latitude, longitude, nearStn.latitude, nearStn.longitude);
 
-        if (roadRoute) {
-          drawNavRoute(roadRoute.coordinates);
-          const bearing = getBearingName(latitude, longitude, nearStn.latitude, nearStn.longitude);
-          showNavPanel({
-            distanceKm:  roadRoute.distanceKm,
-            durationMin: roadRoute.durationMin,
-            stationName: nearStn.name,
-            bearing,
-            userLat: latitude,
-            userLon: longitude,
-            destLat: nearStn.latitude,
-            destLon: nearStn.longitude
-          });
-          store.showToast(`Road route to ${nearStn.name} loaded ✅`);
+        if (routes && routes.length > 0) {
+          // Draw the fastest route on the map
+          drawNavRoute(routes[0].coordinates);
+
+          // Show route comparison panel with alternatives & start button
+          showRouteComparisonPanel(
+            routes,
+            nearStn.name,
+            latitude,
+            longitude,
+            nearStn.latitude,
+            nearStn.longitude
+          );
+          store.showToast(`Found ${routes.length} road routes to ${nearStn.name} 🗺️`);
         } else {
-          // Fallback: straight-line only, still show distance
-          store.showToast(`${minDist.toFixed(1)} km from ${nearStn.name} — road data unavailable`);
+          store.showToast(`${minDist.toFixed(1)} km from ${nearStn.name} — road route data unavailable`);
         }
       } else {
-        // No active route / station too far — just centre on user
+        // No station nearby — just centre on user
         mapInstance.flyTo({ center: [longitude, latitude], zoom: 12, duration: 1400 });
         store.showToast("Location centered on map 🎯");
       }
