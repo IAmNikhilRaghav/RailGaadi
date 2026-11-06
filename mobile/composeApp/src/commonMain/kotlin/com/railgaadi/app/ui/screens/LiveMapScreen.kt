@@ -27,6 +27,7 @@ import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
     var isNavigationMode by remember { mutableStateOf(false) }
@@ -587,5 +588,29 @@ fun LiveMapScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FloatingRoundButton(
+    label: String,
+    isActive: Boolean = false,
+    isPill: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .shadow(4.dp, CircleShape)
+            .background(if (isActive) RailBluePrimary else Color.White, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = if (isPill) 13.sp else 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isActive) Color.White else Color(0xFF0F172A)
+        )
     }
 }

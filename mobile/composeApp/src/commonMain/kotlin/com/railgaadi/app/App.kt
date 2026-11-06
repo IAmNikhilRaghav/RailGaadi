@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.TabItem
+import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.screens.*
 
@@ -107,7 +108,10 @@ fun App() {
             ) {
                 when (selectedTab) {
                     TabItem.LIVE_MAP -> LiveMapScreen()
-                    TabItem.ROUTES -> RoutesScreen()
+                    TabItem.ROUTES -> RoutesScreen(onTrackTrain = { train ->
+                        TrainTrackerState.selectTrain(train)
+                        selectedTab = TabItem.LIVE_MAP
+                    })
                     TabItem.ANALYTICS -> AnalyticsScreen()
                     TabItem.WEATHER -> WeatherScreen()
                     TabItem.STATION -> StationBoardScreen()

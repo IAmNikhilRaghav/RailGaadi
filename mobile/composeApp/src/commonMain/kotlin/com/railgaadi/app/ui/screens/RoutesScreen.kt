@@ -1,8 +1,11 @@
 package com.railgaadi.app.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,44 +22,55 @@ import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.theme.*
 
+data class StationOption(val code: String, val name: String)
+
 @Composable
-fun RoutesScreen() {
-    val sampleTrains = remember {
+fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
+    var fromStationQuery by remember { mutableStateOf("New Delhi (NDLS)") }
+    var toStationQuery by remember { mutableStateOf("Varanasi Jn (BSB)") }
+    var isFromFocused by remember { mutableStateOf(false) }
+    var isToFocused by remember { mutableStateOf(false) }
+    var selectedCategoryFilter by remember { mutableStateOf("All") }
+    var selectedDayFilter by remember { mutableStateOf("All Days") }
+
+    val majorStations = remember {
         listOf(
-            Train(
-                number = "12404",
-                name = "Prayagraj SF Express",
-                type = "Superfast Express",
-                origin = "Lalgarh Jn",
-                destination = "Prayagraj Jn",
-                departureTime = "10:30",
-                arrivalTime = "04:45",
-                durationMinutes = 1095,
-                platform = "2"
-            ),
-            Train(
-                number = "22436",
-                name = "Vande Bharat Express",
-                type = "Vande Bharat",
-                origin = "New Delhi",
-                destination = "Varanasi Jn",
-                departureTime = "06:00",
-                arrivalTime = "14:00",
-                durationMinutes = 480,
-                platform = "1"
-            ),
-            Train(
-                number = "12301",
-                name = "Howrah Rajdhani Express",
-                type = "Rajdhani Express",
-                origin = "Howrah Jn",
-                destination = "New Delhi",
-                departureTime = "16:50",
-                arrivalTime = "10:05",
-                durationMinutes = 1035,
-                platform = "9"
-            )
+            StationOption("NDLS", "New Delhi"),
+            StationOption("BSB", "Varanasi Jn"),
+            StationOption("MMCT", "Mumbai Central"),
+            StationOption("HWH", "Howrah Jn (Kolkata)"),
+            StationOption("PRYJ", "Prayagraj Jn"),
+            StationOption("CNB", "Kanpur Central"),
+            StationOption("BPL", "Bhopal Jn"),
+            StationOption("JP", "Jaipur Jn"),
+            StationOption("LKO", "Lucknow Charbagh"),
+            StationOption("ASR", "Amritsar Jn"),
+            StationOption("ADI", "Ahmedabad Jn"),
+            StationOption("MAS", "Chennai Central"),
+            StationOption("SBC", "KSR Bengaluru")
         )
+    }
+
+    val allCatalogTrains = remember {
+        listOf(
+            Train("22436", "Vande Bharat Express", "Vande Bharat", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "06:00", "14:00", 480, "16", listOf(false, true, true, false, true, true, true)),
+            Train("12404", "Prayagraj SF Express", "Superfast", "Lalgarh Jn (LGNH)", "Prayagraj Jn (PRYJ)", "10:30", "04:45", 1095, "2", List(7) { true }),
+            Train("12952", "Mumbai Tejas Rajdhani", "Rajdhani", "New Delhi (NDLS)", "Mumbai Central (MMCT)", "16:55", "08:35", 940, "3", List(7) { true }),
+            Train("12002", "New Delhi Bhopal Shatabdi", "Shatabdi", "New Delhi (NDLS)", "Rani Kamlapati (RKMP)", "06:00", "14:40", 520, "1", List(7) { true }),
+            Train("12302", "Howrah Rajdhani Express", "Rajdhani", "New Delhi (NDLS)", "Howrah Jn (HWH)", "16:50", "09:55", 1025, "9", List(7) { true }),
+            Train("12004", "Lucknow Shatabdi Express", "Shatabdi", "New Delhi (NDLS)", "Lucknow Charbagh (LKO)", "06:10", "12:40", 390, "1", List(7) { true }),
+            Train("20901", "Vande Bharat Express", "Vande Bharat", "Mumbai Central (MMCT)", "Ahmedabad Jn (ADI)", "06:10", "11:25", 315, "5", listOf(true, true, true, true, true, true, false)),
+            Train("12259", "Sealdah Bikaner AC Duronto", "Duronto", "Sealdah (SDAH)", "Bikaner Jn (BKN)", "17:00", "13:30", 1230, "12", listOf(false, true, false, true, false, true, false)),
+            Train("12013", "Amritsar Shatabdi Express", "Shatabdi", "New Delhi (NDLS)", "Amritsar Jn (ASR)", "16:30", "22:30", 360, "2", List(7) { true })
+        )
+    }
+
+    // Filter trains dynamically
+    val filteredTrains = remember(fromStationQuery, toStationQuery, selectedCategoryFilter) {
+        allCatalogTrains.filter { train ->
+            val matchCategory = selectedCategoryFilter == "All" || train.type.contains(selectedCategoryFilter, ignoreCase = true)
+            matchCategory
+        }
     }
 
     LazyColumn(
@@ -66,31 +80,162 @@ fun RoutesScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 1. Station-to-Station Search Card
         item {
-            // Header
-            Text(
-                text = "🚆 " + I18n.t("rs_pan_india"),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${I18n.t("rs_filter_by")} ${I18n.t("rs_all_dates")}",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🚆 Station to Station Route Search",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // From Station
+                    OutlinedTextField(
+                        value = fromStationQuery,
+                        onValueChange = {
+                            fromStationQuery = it
+                            isFromFocused = true
+                        },
+                        label = { Text("🟢 From Station (Origin)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+
+                    // Swap Button
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = {
+                                val temp = fromStationQuery
+                                fromStationQuery = toStationQuery
+                                toStationQuery = temp
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(RailBluePrimary.copy(alpha = 0.12f), CircleShape)
+                        ) {
+                            Text("⇅", fontSize = 18.sp, color = RailBluePrimary, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    // To Station
+                    OutlinedTextField(
+                        value = toStationQuery,
+                        onValueChange = {
+                            toStationQuery = it
+                            isToFocused = true
+                        },
+                        label = { Text("🔴 To Station (Destination)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Quick Route Suggestions
+                    Text("Popular Corridors:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val popularCorridors = listOf(
+                            "NDLS → BSB",
+                            "NDLS → MMCT",
+                            "HWH → NDLS",
+                            "NDLS → BPL",
+                            "MMCT → ADI"
+                        )
+                        items(popularCorridors) { corridor ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFF1F5F9), RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val parts = corridor.split(" → ")
+                                        fromStationQuery = parts[0]
+                                        toStationQuery = parts[1]
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(corridor, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        items(sampleTrains) { train ->
-            TrainCardItem(train)
+        // 2. Train Type Filters (All, Vande Bharat, Rajdhani, Shatabdi, Superfast)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "${I18n.t("rs_filter_by")} Category",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val categories = listOf("All", "Vande Bharat", "Rajdhani", "Shatabdi", "Superfast", "Duronto")
+                    items(categories) { cat ->
+                        val isSelected = selectedCategoryFilter == cat
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (isSelected) RailBluePrimary else MaterialTheme.colorScheme.surface,
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .clickable { selectedCategoryFilter = cat }
+                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                cat,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Train Results Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${filteredTrains.size} Direct Trains Found",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Weekly Schedule",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        // 4. Train Cards List
+        items(filteredTrains) { train ->
+            TrainCardItem(train = train, onTrackClick = { onTrackTrain(train) })
         }
     }
 }
 
 @Composable
-fun TrainCardItem(train: Train) {
+fun TrainCardItem(train: Train, onTrackClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -98,6 +243,7 @@ fun TrainCardItem(train: Train) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Top Row: Number & Category
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -107,13 +253,13 @@ fun TrainCardItem(train: Train) {
                     Box(
                         modifier = Modifier
                             .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(train.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Text(
                         train.name,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 15.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -121,112 +267,105 @@ fun TrainCardItem(train: Train) {
 
                 Box(
                     modifier = Modifier
-                        .background(Color(0xFFDCFCE7), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .background(
+                            when (train.type) {
+                                "Vande Bharat" -> Color(0xFFEFF6FF)
+                                "Rajdhani" -> Color(0xFFFEF2F2)
+                                "Shatabdi" -> Color(0xFFF0FDF4)
+                                else -> Color(0xFFF8FAFC)
+                            },
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        I18n.t("running_today"),
-                        color = RailGreenOnTime,
+                        train.type,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        color = when (train.type) {
+                            "Vande Bharat" -> Color(0xFF1D4ED8)
+                            "Rajdhani" -> Color(0xFFB91C1C)
+                            "Shatabdi" -> Color(0xFF15803D)
+                            else -> Color(0xFF475569)
+                        }
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                "${train.origin} → ${train.destination}",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Time & duration row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(train.departureTime, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                    Text("DEP", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                }
-
-                Text(
-                    "${train.durationMinutes / 60} hrs ${train.durationMinutes % 60} mins",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(train.arrivalTime, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                    Text("ARR", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Weekly schedule row
-            Text(
-                I18n.t("weekly_schedule"),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val dayLabels = I18n.dayLabels()
-                dayLabels.forEachIndexed { i, label ->
-                    val runs = train.runsOnDays.getOrNull(i) ?: true
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .background(if (runs) RailBluePrimary.copy(alpha = 0.15f) else Color(0xFFE2E8F0)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            label,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (runs) RailBluePrimary else Color.Gray
-                        )
-                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Platform tag & Track live button
+            // Timings Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF0284C7), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        "🚆 PF ${train.platform}",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                // Dep
+                Column {
+                    Text(train.departureTime, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(train.origin.substringBefore(" ("), fontSize = 12.sp, color = Color.Gray)
                 }
 
+                // Duration & Line
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val hrs = train.durationMinutes / 60
+                    val mins = train.durationMinutes % 60
+                    Text("${hrs}h ${mins}m", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).background(RailBluePrimary, CircleShape))
+                        HorizontalDivider(modifier = Modifier.width(60.dp), thickness = 2.dp, color = RailBluePrimary)
+                        Box(modifier = Modifier.size(6.dp).background(RailBluePrimary, CircleShape))
+                    }
+                    Text("Daily", fontSize = 10.sp, color = Color.Gray)
+                }
+
+                // Arr
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(train.arrivalTime, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(train.destination.substringBefore(" ("), fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Running Days Row (S M T W T F S)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
+                    train.runsOnDays.forEachIndexed { idx, runs ->
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(
+                                    if (runs) RailBluePrimary else Color(0xFFE2E8F0),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                dayLetters[idx],
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (runs) Color.White else Color.Gray
+                            )
+                        }
+                    }
+                }
+
+                // Track Live Button
                 Button(
-                    onClick = {},
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E40AF)),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    onClick = onTrackClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RailBluePrimary),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
-                    Text("▶ ${I18n.t("search_track_live")}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("🚆 Track Live", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
     }
 }
-
