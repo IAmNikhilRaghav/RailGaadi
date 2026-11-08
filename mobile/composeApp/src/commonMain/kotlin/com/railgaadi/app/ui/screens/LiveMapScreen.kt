@@ -96,8 +96,8 @@ fun LiveMapScreen() {
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
 
-    val trainStations = remember(liveStatus) {
-        liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: listOf(
+    val trainStations = remember(liveStatus, TrainTrackerState.userBoardingStation) {
+        val baseList = liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: listOf(
             Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
             Station("BKN", "Bikaner Jn", 28.0180, 73.3168, scheduledDep = "10:55", scheduledArr = "10:45", platform = "2", haltMinutes = 10),
             Station("JP", "Jaipur Jn", 26.9196, 75.7878, scheduledDep = "15:20", scheduledArr = "15:10", platform = "4", haltMinutes = 10),
@@ -106,23 +106,48 @@ fun LiveMapScreen() {
             Station("CNB", "Kanpur Central", 26.4547, 80.3507, scheduledDep = "00:45", scheduledArr = "00:35", platform = "7", haltMinutes = 10),
             Station("PRYJ", "Prayagraj Jn", 25.4358, 81.8463, scheduledDep = "—", scheduledArr = "04:45", platform = "2", haltMinutes = 0)
         )
+
+        val boarding = TrainTrackerState.userBoardingStation
+        if (boarding != null && baseList.none { it.code.equals(boarding.code, ignoreCase = true) }) {
+            listOf(boarding) + baseList
+        } else {
+            baseList
+        }
     }
 
-    // Navigation Target: Default to Source Station (where user boards to start their train journey)
-    var selectedStation by remember(trainStations) {
-        mutableStateOf(trainStations.firstOrNull() ?: Station("NDLS", "New Delhi", 28.6139, 77.2090))
+    // Navigation Target: The station exactly where the user wants to onboard and start their journey
+    var selectedStation by remember(TrainTrackerState.userBoardingStation, trainStations) {
+        val target = TrainTrackerState.userBoardingStation
+        val matched = trainStations.find { it.code.equals(target?.code, ignoreCase = true) }
+        mutableStateOf(matched ?: target ?: trainStations.firstOrNull() ?: Station("NDLS", "New Delhi", 28.6139, 77.2090))
     }
 
-    // When tracking a new train, switch to train route view and sync target station to the Source Station
+    // Sync when tracking a new train or when user changes boarding station
+    LaunchedEffect(TrainTrackerState.userBoardingStation) {
+        val target = TrainTrackerState.userBoardingStation
+        if (target != null) {
+            val matched = trainStations.find { it.code.equals(target.code, ignoreCase = true) }
+            selectedStation = matched ?: target
+        }
+    }
+
     LaunchedEffect(activeTrain.number) {
         isNavigationMode = false
-        if (trainStations.isNotEmpty()) {
+        val target = TrainTrackerState.userBoardingStation
+        if (target != null) {
+            val matched = trainStations.find { it.code.equals(target.code, ignoreCase = true) }
+            selectedStation = matched ?: target
+        } else if (trainStations.isNotEmpty()) {
             selectedStation = trainStations.first()
         }
     }
 
     LaunchedEffect(trainStations) {
-        if (trainStations.isNotEmpty()) {
+        val target = TrainTrackerState.userBoardingStation
+        if (target != null) {
+            val matched = trainStations.find { it.code.equals(target.code, ignoreCase = true) }
+            selectedStation = matched ?: target
+        } else if (trainStations.isNotEmpty()) {
             selectedStation = trainStations.first()
         }
     }
@@ -158,6 +183,7 @@ fun LiveMapScreen() {
             },
             onNavigateToStation = { station ->
                 selectedStation = station
+                TrainTrackerState.userBoardingStation = station
                 showRoutePreviewSheet = true
                 showStationSheet = false
             },
@@ -1031,7 +1057,7 @@ fun LiveMapScreen() {
                             }
                             Column {
                                 Text(
-                                    "DIRECTIONS TO SOURCE / BOARDING STATION",
+                                    "DIRECTIONS TO YOUR ONBOARDING STATION",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp,
@@ -1058,7 +1084,7 @@ fun LiveMapScreen() {
                         }
                     }
 
-                    // Quick Boarding Station Selector (Default: Source / Origin Station)
+                    // Quick Boarding Station Selector (Default: User's Search Origin Station)
                     if (trainStations.size > 1) {
                         Text(
                             "Boarding Station (Where you start your journey):",
@@ -1080,11 +1106,14 @@ fun LiveMapScreen() {
                                             if (isSelected) Color(0xFF6D28D9) else Color(0xFFF1F5F9),
                                             RoundedCornerShape(10.dp)
                                         )
-                                        .clickable { selectedStation = stn }
+                                        .clickable {
+                                            selectedStation = stn
+                                            TrainTrackerState.userBoardingStation = stn
+                                        }
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "${stn.name}${if (isOrigin) " (Source)" else ""}",
+                                        text = "${stn.name}${if (isOrigin) " (Origin)" else ""}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else Color(0xFF334155)

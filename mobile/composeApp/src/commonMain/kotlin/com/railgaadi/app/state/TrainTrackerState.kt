@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.railgaadi.app.model.LiveStatus
+import com.railgaadi.app.model.Station
+import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +30,9 @@ object TrainTrackerState {
     )
     var liveStatus by mutableStateOf<LiveStatus?>(null)
     var isLoadingStatus by mutableStateOf(false)
+
+    // User's Onboarding / Boarding Station (Source of user's train journey)
+    var userBoardingStation by mutableStateOf<Station?>(null)
 
     // Web App Preferences & Features
     var currentMapStyle by mutableStateOf("terrain") // "light", "dark", "satellite", "terrain"
@@ -62,10 +67,17 @@ object TrainTrackerState {
         isSearchDropdownOpen = false
     }
 
-    fun selectTrain(train: Train) {
+    fun selectTrain(train: Train, boardingStationInput: String? = null) {
         activeTrain = train
         searchQuery = "${train.number} - ${train.name}"
         isSearchDropdownOpen = false
+
+        if (!boardingStationInput.isNullOrBlank()) {
+            val resolved = StationDataService.resolveStation(boardingStationInput)
+            if (resolved != null) {
+                userBoardingStation = resolved
+            }
+        }
 
         // Update recent searches
         if (!recentSearches.contains(train.number)) {

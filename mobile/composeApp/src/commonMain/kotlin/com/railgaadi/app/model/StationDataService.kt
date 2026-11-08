@@ -239,4 +239,21 @@ object StationDataService {
 
         return cleanUpper
     }
+
+    fun resolveStation(input: String): Station? {
+        val clean = input.trim()
+        if (clean.isEmpty()) return null
+        val code = resolveStationCode(clean)
+        val info = (dynamicCache.values + allStations).find { it.code.equals(code, ignoreCase = true) }
+            ?: (dynamicCache.values + allStations).find { it.name.contains(clean, ignoreCase = true) }
+        return if (info != null) {
+            Station(
+                code = info.code,
+                name = info.name,
+                latitude = info.lat,
+                longitude = info.lon,
+                platform = "1"
+            )
+        } else null
+    }
 }

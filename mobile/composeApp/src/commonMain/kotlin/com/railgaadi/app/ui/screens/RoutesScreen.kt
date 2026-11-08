@@ -99,7 +99,7 @@ fun generateTravelDates(startDate: Int = 8, startMonth: Int = 11, startYear: Int
 }
 
 @Composable
-fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
+fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     val service = remember { RailRadarService() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -775,7 +775,7 @@ fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
                 TrainCardItem(
                     train = train,
                     selectedDate = selectedTravelDate,
-                    onTrackClick = { onTrackTrain(train) }
+                    onTrackClick = { onTrackTrain(train, fromStationQuery) }
                 )
             }
         }

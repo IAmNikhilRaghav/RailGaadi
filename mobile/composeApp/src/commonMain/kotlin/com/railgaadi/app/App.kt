@@ -154,8 +154,8 @@ fun App() {
             ) {
                 when (selectedTab) {
                     TabItem.LIVE_MAP -> LiveMapScreen()
-                    TabItem.ROUTES -> RoutesScreen(onTrackTrain = { train ->
-                        TrainTrackerState.selectTrain(train)
+                    TabItem.ROUTES -> RoutesScreen(onTrackTrain = { train, boardingStationText ->
+                        TrainTrackerState.selectTrain(train, boardingStationText)
                         selectedTab = TabItem.LIVE_MAP
                     })
                     TabItem.ANALYTICS -> AnalyticsScreen()
