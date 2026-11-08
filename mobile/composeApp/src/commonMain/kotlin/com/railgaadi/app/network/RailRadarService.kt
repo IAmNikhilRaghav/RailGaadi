@@ -9,6 +9,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
@@ -27,6 +28,58 @@ data class RailRadarTrainItem(
     val dest_stn_name: String? = null,
     val from_time: String? = null,
     val to_time: String? = null
+)
+
+// Station Timetable Models for Between Stations Search
+@Serializable
+data class RailRadarStationTrainsResponse(
+    val success: Boolean? = true,
+    val data: RailRadarStationData? = null
+)
+
+@Serializable
+data class RailRadarStationData(
+    val station: RailRadarStationInfo? = null,
+    val trains: List<RailRadarStationTrainEntry>? = null
+)
+
+@Serializable
+data class RailRadarStationInfo(
+    val code: String? = null,
+    val name: String? = null,
+    val city: String? = null
+)
+
+@Serializable
+data class RailRadarStationTrainEntry(
+    val train: RailRadarTrainDetails? = null,
+    val stop: RailRadarStopDetails? = null
+)
+
+@Serializable
+data class RailRadarTrainDetails(
+    val number: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val source: RailRadarCodeName? = null,
+    val destination: RailRadarCodeName? = null,
+    val runDays: List<String>? = null
+)
+
+@Serializable
+data class RailRadarCodeName(
+    val code: String? = null,
+    val name: String? = null
+)
+
+@Serializable
+data class RailRadarStopDetails(
+    val sequence: Int? = null,
+    val arrival: String? = null,
+    val departure: String? = null,
+    val arrivalDay: Int? = null,
+    val departureDay: Int? = null,
+    val platform: String? = null
 )
 
 class RailRadarService(private val client: HttpClient = createHttpClient()) {
@@ -66,6 +119,183 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
             it.name.contains(cleanQuery, ignoreCase = true) ||
             it.origin.contains(cleanQuery, ignoreCase = true) ||
             it.destination.contains(cleanQuery, ignoreCase = true)
+        }
+    }
+
+    /**
+     * Finds all trains running between Station A and Station B using live timetable intersection
+     */
+    suspend fun searchTrainsBetweenStations(fromCode: String, toCode: String): List<Train> = withContext(Dispatchers.IO) {
+        val fCode = fromCode.trim().uppercase()
+        val tCode = toCode.trim().uppercase()
+        if (fCode.isEmpty() || tCode.isEmpty() || fCode == tCode) return@withContext emptyList()
+
+        try {
+            val fromDeferred = async {
+                try {
+                    client.get("$baseUrl/stations/$fCode/trains").body<RailRadarStationTrainsResponse>()
+                } catch (_: Exception) { null }
+            }
+            val toDeferred = async {
+                try {
+                    client.get("$baseUrl/stations/$tCode/trains").body<RailRadarStationTrainsResponse>()
+                } catch (_: Exception) { null }
+            }
+
+            val fromRes = fromDeferred.await()
+            val toRes = toDeferred.await()
+
+            val fromTrains = fromRes?.data?.trains ?: emptyList()
+            val toTrains = toRes?.data?.trains ?: emptyList()
+
+            if (fromTrains.isNotEmpty() && toTrains.isNotEmpty()) {
+                val toMap = mutableMapOf<String, RailRadarStationTrainEntry>()
+                toTrains.forEach { entry ->
+                    val num = entry.train?.number?.trim() ?: ""
+                    if (num.isNotEmpty()) toMap[num] = entry
+                }
+
+                val matched = mutableListOf<Train>()
+                fromTrains.forEach { fromEntry ->
+                    val num = fromEntry.train?.number?.trim() ?: ""
+                    val toEntry = toMap[num] ?: return@forEach
+
+                    val fromSeq = fromEntry.stop?.sequence ?: 0
+                    val toSeq = toEntry.stop?.sequence ?: 0
+
+                    if (fromSeq < toSeq) {
+                        val tInfo = fromEntry.train
+                        val fromStop = fromEntry.stop
+                        val toStop = toEntry.stop
+
+                        val dep = fromStop?.departure ?: fromStop?.arrival ?: "—"
+                        val arr = toStop?.arrival ?: toStop?.departure ?: "—"
+
+                        val duration = calculateDuration(
+                            depTime = dep,
+                            arrTime = arr,
+                            arrDay = toStop?.arrivalDay ?: 1,
+                            depDay = fromStop?.departureDay ?: 1
+                        )
+
+                        val trainType = tInfo?.type ?: when {
+                            tInfo?.name?.contains("Vande Bharat", ignoreCase = true) == true -> "Vande Bharat"
+                            tInfo?.name?.contains("Rajdhani", ignoreCase = true) == true -> "Rajdhani"
+                            tInfo?.name?.contains("Shatabdi", ignoreCase = true) == true -> "Shatabdi"
+                            tInfo?.name?.contains("Duronto", ignoreCase = true) == true -> "Duronto"
+                            tInfo?.name?.contains("SF", ignoreCase = true) == true || tInfo?.name?.contains("Superfast", ignoreCase = true) == true -> "Superfast Express"
+                            tInfo?.name?.contains("Passenger", ignoreCase = true) == true -> "Passenger"
+                            else -> "Express"
+                        }
+
+                        matched.add(
+                            Train(
+                                number = num,
+                                name = tInfo?.name ?: "Train #$num",
+                                type = trainType,
+                                origin = "${tInfo?.source?.name ?: tInfo?.source?.code ?: fCode} (${tInfo?.source?.code ?: fCode})",
+                                destination = "${tInfo?.destination?.name ?: tInfo?.destination?.code ?: tCode} (${tInfo?.destination?.code ?: tCode})",
+                                departureTime = dep,
+                                arrivalTime = arr,
+                                durationMinutes = duration,
+                                platform = fromStop?.platform?.takeIf { it.isNotBlank() } ?: "1",
+                                runsOnDays = parseRunDays(tInfo?.runDays)
+                            )
+                        )
+                    }
+                }
+
+                if (matched.isNotEmpty()) {
+                    return@withContext matched.sortedBy { it.departureTime }
+                }
+            }
+        } catch (_: Exception) {
+            // Network fallback
+        }
+
+        fallbackBetweenTrains(fCode, tCode)
+    }
+
+    private fun parseRunDays(runDays: List<String>?): List<Boolean> {
+        if (runDays.isNullOrEmpty()) return List(7) { true }
+        val lower = runDays.map { it.lowercase().trim() }
+        val keys = listOf("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+        return keys.map { key -> lower.any { d -> d.startsWith(key) } }
+    }
+
+    private fun calculateDuration(depTime: String, arrTime: String, arrDay: Int, depDay: Int): Int {
+        return try {
+            val depParts = depTime.split(":").map { it.toInt() }
+            val arrParts = arrTime.split(":").map { it.toInt() }
+            val depMins = depParts[0] * 60 + depParts[1]
+            val arrMins = arrParts[0] * 60 + arrParts[1]
+            val dayDiff = (arrDay - depDay).coerceAtLeast(0)
+            var total = (arrMins - depMins) + (dayDiff * 1440)
+            if (total < 0) total += 1440
+            total
+        } catch (_: Exception) {
+            0
+        }
+    }
+
+    private fun fallbackBetweenTrains(fromCode: String, toCode: String): List<Train> {
+        val f = fromCode.uppercase().trim()
+        val t = toCode.uppercase().trim()
+
+        // 1. Mathura (MTJ) -> Jaipur (JP)
+        if ((f == "MTJ" || f == "MATHURA") && (t == "JP" || t == "JAIPUR")) {
+            return listOf(
+                Train("12403", "Lalgarh SF Express", "Superfast Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "07:00", "12:20", 320, "2", List(7) { true }),
+                Train("20403", "Prayagraj Bikaner SF Express", "Superfast Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "07:00", "12:20", 320, "2", listOf(false, true, false, true, false, true, false)),
+                Train("20490", "Barmer SF Express", "Superfast Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "15:45", "20:45", 300, "1", List(7) { true }),
+                Train("19716", "Jaipur Express", "Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "02:00", "07:30", 330, "3", listOf(true, false, true, false, true, false, true)),
+                Train("51973", "Mathura - Jaipur Passenger", "Passenger", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "07:25", "14:35", 430, "4", List(7) { true }),
+                Train("19410", "Sabarmati Express", "Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "19:20", "00:35", 315, "1", List(7) { true }),
+                Train("19616", "Kavi Guru Express", "Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "11:05", "15:55", 290, "2", listOf(false, false, false, false, false, true, false))
+            )
+        }
+
+        // 2. Jaipur (JP) -> Mathura (MTJ)
+        if ((f == "JP" || f == "JAIPUR") && (t == "MTJ" || t == "MATHURA")) {
+            return listOf(
+                Train("12404", "Prayagraj SF Express", "Superfast Express", "Jaipur Jn (JP)", "Mathura Jn (MTJ)", "15:20", "20:15", 295, "4", List(7) { true }),
+                Train("20489", "Barmer Mathura SF Express", "Superfast Express", "Jaipur Jn (JP)", "Mathura Jn (MTJ)", "06:15", "11:35", 320, "1", List(7) { true }),
+                Train("51974", "Jaipur - Mathura Passenger", "Passenger", "Jaipur Jn (JP)", "Mathura Jn (MTJ)", "14:30", "20:45", 375, "4", List(7) { true }),
+                Train("19409", "Gorakhpur Express", "Express", "Jaipur Jn (JP)", "Mathura Jn (MTJ)", "09:40", "15:00", 320, "2", List(7) { true })
+            )
+        }
+
+        // 3. New Delhi (NDLS) -> Varanasi (BSB)
+        if (f == "NDLS" && t == "BSB") {
+            return listOf(
+                Train("22436", "Vande Bharat Express", "Vande Bharat", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "06:00", "14:00", 480, "16", listOf(false, true, true, false, true, true, true)),
+                Train("12560", "Shiv Ganga Express", "Superfast Express", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "20:05", "06:10", 605, "12", List(7) { true }),
+                Train("15128", "Kashi Vishwanath Express", "Mail/Express", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "11:35", "04:50", 1035, "3", List(7) { true }),
+                Train("22416", "Vande Bharat Express", "Vande Bharat", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "15:00", "23:05", 485, "1", listOf(true, true, true, false, true, true, true))
+            )
+        }
+
+        // 4. New Delhi (NDLS) -> Mumbai (MMCT)
+        if (f == "NDLS" && (t == "MMCT" || t == "BCT")) {
+            return listOf(
+                Train("12952", "Mumbai Tejas Rajdhani", "Rajdhani", "New Delhi (NDLS)", "Mumbai Central (MMCT)", "16:55", "08:35", 940, "3", List(7) { true }),
+                Train("12954", "August Kranti Rajdhani", "Rajdhani", "Hazrat Nizamuddin (NZM)", "Mumbai Central (MMCT)", "17:15", "10:05", 1010, "6", List(7) { true }),
+                Train("12926", "Paschim Express", "Superfast Express", "New Delhi (NDLS)", "Bandra Terminus (BDTS)", "16:35", "14:55", 1340, "4", List(7) { true })
+            )
+        }
+
+        // 5. Howrah (HWH) -> New Delhi (NDLS)
+        if (f == "HWH" && t == "NDLS") {
+            return listOf(
+                Train("12301", "Howrah Rajdhani Express", "Rajdhani", "Howrah Jn (HWH)", "New Delhi (NDLS)", "16:50", "10:05", 1035, "9", listOf(true, true, true, true, true, false, true)),
+                Train("12305", "Kolkata Rajdhani Express", "Rajdhani", "Howrah Jn (HWH)", "New Delhi (NDLS)", "14:05", "10:20", 1215, "8", listOf(false, false, false, false, false, false, true))
+            )
+        }
+
+        // 6. Generic filter across all default catalog trains
+        return defaultFallbackTrains().filter {
+            it.origin.contains(fromCode, ignoreCase = true) ||
+            it.destination.contains(toCode, ignoreCase = true)
         }
     }
 
@@ -169,12 +399,12 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
     }
 
     fun defaultFallbackTrains(): List<Train> = listOf(
-        Train("12404", "Prayagraj SF Express", "Superfast Express", "LGNH - Lalgarh Jn", "PRYJ - Prayagraj Jn", "10:30", "04:45", 1095, "2"),
-        Train("22436", "Vande Bharat Express", "Vande Bharat", "NDLS - New Delhi", "BSB - Varanasi Jn", "06:00", "14:00", 480, "16"),
-        Train("12952", "Mumbai Tejas Rajdhani", "Rajdhani Express", "NDLS - New Delhi", "MMCT - Mumbai Central", "16:55", "08:35", 940, "3"),
-        Train("12002", "New Delhi Bhopal Shatabdi", "Shatabdi Express", "NDLS - New Delhi", "RKMP - Rani Kamlapati", "06:00", "14:40", 520, "1"),
-        Train("12302", "Howrah Rajdhani Express", "Rajdhani Express", "NDLS - New Delhi", "HWH - Howrah Jn", "16:50", "09:55", 1025, "9"),
-        Train("12259", "Sealdah Bikaner AC Duronto", "Duronto Express", "SDAH - Sealdah", "BKN - Bikaner Jn", "17:00", "13:30", 1230, "12"),
-        Train("20901", "Vande Bharat Express", "Vande Bharat", "MMCT - Mumbai Central", "GNC - Gandhinagar", "06:10", "12:30", 380, "5")
+        Train("12404", "Prayagraj SF Express", "Superfast Express", "Lalgarh Jn (LGNH)", "Prayagraj Jn (PRYJ)", "10:30", "04:45", 1095, "2"),
+        Train("22436", "Vande Bharat Express", "Vande Bharat", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "06:00", "14:00", 480, "16"),
+        Train("12952", "Mumbai Tejas Rajdhani", "Rajdhani Express", "New Delhi (NDLS)", "Mumbai Central (MMCT)", "16:55", "08:35", 940, "3"),
+        Train("12002", "New Delhi Bhopal Shatabdi", "Shatabdi Express", "New Delhi (NDLS)", "Rani Kamlapati (RKMP)", "06:00", "14:40", 520, "1"),
+        Train("12302", "Howrah Rajdhani Express", "Rajdhani Express", "New Delhi (NDLS)", "Howrah Jn (HWH)", "16:50", "09:55", 1025, "9"),
+        Train("12259", "Sealdah Bikaner AC Duronto", "Duronto Express", "Sealdah (SDAH)", "Bikaner Jn (BKN)", "17:00", "13:30", 1230, "12"),
+        Train("20901", "Vande Bharat Express", "Vande Bharat", "Mumbai Central (MMCT)", "Gandhinagar (GNC)", "06:10", "12:30", 380, "5")
     )
 }
