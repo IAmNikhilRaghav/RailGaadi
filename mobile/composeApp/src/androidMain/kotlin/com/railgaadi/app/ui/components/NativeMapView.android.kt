@@ -89,6 +89,9 @@ actual fun NativeMapView(
     var lastNavMode by remember { mutableStateOf(isNavigationMode) }
     var lastDestStation by remember { mutableStateOf(Pair(destLat, destLon)) }
     var last3DMode by remember { mutableStateOf(is3DMode) }
+    var lastTrainNumber by remember { mutableStateOf(trainNumber) }
+    var lastStationsJson by remember { mutableStateOf(stationsJson) }
+    var lastMapStyle by remember { mutableStateOf(mapStyle) }
 
     AndroidView(
         modifier = modifier,
@@ -170,10 +173,20 @@ actual fun NativeMapView(
             }
         },
         update = { webView ->
-            if (lastNavMode != isNavigationMode || lastDestStation.first != destLat || lastDestStation.second != destLon) {
+            val needsFullReload = lastNavMode != isNavigationMode ||
+                lastDestStation.first != destLat ||
+                lastDestStation.second != destLon ||
+                lastTrainNumber != trainNumber ||
+                lastStationsJson != stationsJson ||
+                lastMapStyle != mapStyle
+
+            if (needsFullReload) {
                 lastNavMode = isNavigationMode
                 lastDestStation = Pair(destLat, destLon)
                 last3DMode = is3DMode
+                lastTrainNumber = trainNumber
+                lastStationsJson = stationsJson
+                lastMapStyle = mapStyle
                 webView.loadDataWithBaseURL("https://railgaadi.app", htmlContent, "text/html", "UTF-8", null)
             } else if (last3DMode != is3DMode) {
                 last3DMode = is3DMode
@@ -573,6 +586,10 @@ private fun generateMapHtml(
                 // Auto-center or Follow Mode
                 if (followTrain) {
                     map.easeTo({ center: [trainLon, trainLat], zoom: 8.5, duration: 1500 });
+                } else if (trackCoords && trackCoords.length > 1) {
+                    const bounds = new maplibregl.LngLatBounds();
+                    trackCoords.forEach(c => bounds.extend(c));
+                    map.fitBounds(bounds, { padding: 80, duration: 1200 });
                 } else {
                     map.flyTo({ center: [trainLon, trainLat], zoom: 7, duration: 1200 });
                 }

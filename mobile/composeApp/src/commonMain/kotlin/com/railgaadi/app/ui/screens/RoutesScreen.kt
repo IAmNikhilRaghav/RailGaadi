@@ -21,9 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.StationDataService
+import com.railgaadi.app.model.StationInfo
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -61,12 +63,45 @@ fun RoutesScreen(onTrackTrain: (Train) -> Unit = {}) {
         triggerSearch(fromStationQuery, toStationQuery)
     }
 
-    val fromSuggestions = remember(fromStationQuery) {
-        StationDataService.searchStations(fromStationQuery)
+    var liveFromSuggestions by remember { mutableStateOf<List<StationInfo>>(emptyList()) }
+    var liveToSuggestions by remember { mutableStateOf<List<StationInfo>>(emptyList()) }
+
+    // Live Pan-India Station Search for 'From' Input (matches all 8,690+ local stations)
+    LaunchedEffect(fromStationQuery) {
+        val q = fromStationQuery.trim()
+        if (q.length >= 2 && !q.contains("(")) {
+            delay(150)
+            val apiStations = service.searchStations(q)
+            if (apiStations.isNotEmpty()) {
+                liveFromSuggestions = apiStations
+            }
+        } else {
+            liveFromSuggestions = emptyList()
+        }
     }
 
-    val toSuggestions = remember(toStationQuery) {
-        StationDataService.searchStations(toStationQuery)
+    // Live Pan-India Station Search for 'To' Input (matches all 8,690+ local stations)
+    LaunchedEffect(toStationQuery) {
+        val q = toStationQuery.trim()
+        if (q.length >= 2 && !q.contains("(")) {
+            delay(150)
+            val apiStations = service.searchStations(q)
+            if (apiStations.isNotEmpty()) {
+                liveToSuggestions = apiStations
+            }
+        } else {
+            liveToSuggestions = emptyList()
+        }
+    }
+
+    val fromSuggestions = remember(fromStationQuery, liveFromSuggestions) {
+        val local = StationDataService.searchStations(fromStationQuery)
+        (liveFromSuggestions + local).distinctBy { it.code.uppercase() }.take(15)
+    }
+
+    val toSuggestions = remember(toStationQuery, liveToSuggestions) {
+        val local = StationDataService.searchStations(toStationQuery)
+        (liveToSuggestions + local).distinctBy { it.code.uppercase() }.take(15)
     }
 
     // Filter trains dynamically by category

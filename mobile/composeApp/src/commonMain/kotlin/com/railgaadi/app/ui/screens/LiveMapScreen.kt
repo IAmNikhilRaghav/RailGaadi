@@ -46,7 +46,7 @@ import com.railgaadi.app.ui.components.NativeMapView
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
-    var isNavigationMode by remember { mutableStateOf(true) }
+    var isNavigationMode by remember { mutableStateOf(false) }
     var isNavigationPaused by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
     var is3DMode by remember { mutableStateOf(false) }
@@ -104,7 +104,18 @@ fun LiveMapScreen() {
     }
 
     var selectedStation by remember(trainStations) {
-        mutableStateOf(trainStations.getOrNull(1) ?: trainStations.first())
+        mutableStateOf(trainStations.lastOrNull() ?: trainStations.first())
+    }
+
+    // When tracking a new train, switch to train route view and sync target station
+    LaunchedEffect(activeTrain.number) {
+        isNavigationMode = false
+    }
+
+    LaunchedEffect(trainStations) {
+        if (trainStations.isNotEmpty()) {
+            selectedStation = trainStations.lastOrNull() ?: trainStations.first()
+        }
     }
     var showStationSheet by remember { mutableStateOf(false) }
 
