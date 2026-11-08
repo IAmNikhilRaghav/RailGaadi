@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -28,7 +29,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -213,11 +216,19 @@ fun LiveMapScreen() {
             ) {
                 if (!isSearchActive) {
                     // Sleek Floating Capsule (Takes only 48dp, 80% map visible!)
-                    // Animated cycling placeholder when no train is selected
                     val hasActiveTrain = TrainTrackerState.activeTrain.number.isNotBlank()
 
-                    // Infinite cycling animation for placeholder text hints
-                    val infiniteTransition = rememberInfiniteTransition(label = "placeholder_cycle")
+                    // Continuous right-to-left marquee animation
+                    val infiniteTransition = rememberInfiniteTransition(label = "search_marquee")
+                    val progress by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 7000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "marquee_progress"
+                    )
 
                     Card(
                         shape = RoundedCornerShape(24.dp),
@@ -232,69 +243,63 @@ fun LiveMapScreen() {
                             .clickable { isSearchActive = true }
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = 16.dp, end = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.weight(1f)
+                            // 1. DYNAMIC TICKER / MARQUEE: starts at right corner, leaves at left end
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clipToBounds(),
+                                contentAlignment = Alignment.CenterStart
                             ) {
-                                Text("🔍", fontSize = 15.sp)
+                                val boxWidthPx = constraints.maxWidth.toFloat()
+                                var textWidthPx by remember { mutableStateOf(0f) }
+                                val density = LocalDensity.current
+                                val defaultTextWidthPx = remember(density) { with(density) { 240.dp.toPx() } }
+                                val effectiveTextWidth = if (textWidthPx > 0f) textWidthPx else defaultTextWidthPx
+                                // Starts exactly at the right corner (boxWidthPx) and travels to completely leave left edge (-effectiveTextWidth)
+                                val currentX = boxWidthPx - progress * (boxWidthPx + effectiveTextWidth)
+
                                 if (hasActiveTrain) {
-                                    // Show active train name
                                     Text(
                                         text = TrainTrackerState.searchQuery,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         fontWeight = FontWeight.SemiBold,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 } else {
-                                    // Animated scrolling placeholder
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp)),
-                                        contentAlignment = Alignment.CenterStart
-                                    ) {
-                                        val placeholderItems = listOf(
-                                            "Search by Train name or No.",
-                                            "Try: 12404 Prayagraj Express",
-                                            "Try: 22436 Vande Bharat",
-                                            "Track any train across India"
-                                        )
-                                        val itemIndex by infiniteTransition.animateFloat(
-                                            initialValue = 0f,
-                                            targetValue = placeholderItems.size.toFloat(),
-                                            animationSpec = infiniteRepeatable(
-                                                animation = tween(durationMillis = placeholderItems.size * 3000, easing = LinearEasing),
-                                                repeatMode = RepeatMode.Restart
-                                            ),
-                                            label = "item_index"
-                                        )
-                                        val currentIndex = itemIndex.toInt().coerceIn(0, placeholderItems.size - 1)
-                                        Text(
-                                            text = placeholderItems[currentIndex],
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
-                                            maxLines = 1,
-                                            fontWeight = FontWeight.Normal,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
+                                    Text(
+                                        text = "Search by Train name and No.",
+                                        fontSize = 13.sp,
+                                        color = Color.Gray,
+                                        maxLines = 1,
+                                        fontWeight = FontWeight.Normal,
+                                        softWrap = false,
+                                        onTextLayout = { textLayoutResult ->
+                                            textWidthPx = textLayoutResult.size.width.toFloat()
+                                        },
+                                        modifier = Modifier.graphicsLayer {
+                                            translationX = currentX
+                                        }
+                                    )
                                 }
                             }
 
-                            // Right chip: only show when a train is selected
-                            if (hasActiveTrain) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // 2. RIGHT CORNER: Train number badge (if active) + Search lens logo
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (hasActiveTrain) {
                                     Box(
                                         modifier = Modifier
                                             .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
@@ -307,6 +312,16 @@ fun LiveMapScreen() {
                                             color = RailBluePrimary
                                         )
                                     }
+                                }
+
+                                // Search lens logo placed at the right corner
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(RailBluePrimary.copy(alpha = 0.08f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("🔍", fontSize = 14.sp)
                                 }
                             }
                         }
