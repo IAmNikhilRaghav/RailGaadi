@@ -2,6 +2,7 @@ package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -42,7 +44,8 @@ import com.railgaadi.app.ui.components.NativeMapView
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
-    var isNavigationMode by remember { mutableStateOf(false) }
+    var isNavigationMode by remember { mutableStateOf(true) }
+    var isNavigationPaused by remember { mutableStateOf(false) }
     var isMuted by remember { mutableStateOf(false) }
     var is3DMode by remember { mutableStateOf(false) }
     var followTrain by remember { mutableStateOf(false) }
@@ -54,6 +57,13 @@ fun LiveMapScreen() {
     var isFullscreenToolsCollapsed by remember { mutableStateOf(false) }
     var initializerDragX by remember { mutableStateOf(0f) }
     var initializerDragY by remember { mutableStateOf(0f) }
+
+    // Route Preview & Google Maps Redirection State
+    var showRoutePreviewSheet by remember { mutableStateOf(false) }
+
+    val uriHandler = LocalUriHandler.current
+    val userLat = 27.8974
+    val userLon = 78.0880
 
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
@@ -105,7 +115,7 @@ fun LiveMapScreen() {
             },
             onNavigateToStation = { station ->
                 selectedStation = station
-                isNavigationMode = true
+                showRoutePreviewSheet = true
                 showStationSheet = false
             },
             onCompassRotationChanged = { bearing ->
@@ -273,11 +283,13 @@ fun LiveMapScreen() {
             }
         }
 
-        // NAVIGATION MODE: Top Emerald Turn Banner
+        // NAVIGATION MODE: Top Turn Banner (Emerald Green when active, Warm Amber when paused)
         if (isNavigationMode) {
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF044E42)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isNavigationPaused) Color(0xFFB45309) else Color(0xFF044E42)
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,20 +307,25 @@ fun LiveMapScreen() {
                             .background(Color.White.copy(alpha = 0.18f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(navIcon, fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            if (isNavigationPaused) "⏸" else navIcon,
+                            fontSize = 24.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
 
                     Column {
                         Text(
-                            text = navInstruction,
+                            text = if (isNavigationPaused) "Navigation Paused" else navInstruction,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            text = "Toward ${selectedStation.name} • Pan-India Route",
+                            text = if (isNavigationPaused) "Tap Resume in bottom bar to continue guidance" else "Toward ${selectedStation.name} • Pan-India Route",
                             fontSize = 12.sp,
-                            color = Color(0xFF99F6E4)
+                            color = if (isNavigationPaused) Color(0xFFFED7AA) else Color(0xFF99F6E4)
                         )
                     }
                 }
@@ -366,11 +383,11 @@ fun LiveMapScreen() {
                             VectorCameraFollowIcon(followTrain)
                         }
 
-                        // GPS Find Nearest Station
+                        // GPS Find Nearest Station / Route Preview
                         MinimalMapToolButton(
                             onClick = {
                                 selectedStation = trainStations.first()
-                                isNavigationMode = true
+                                showRoutePreviewSheet = true
                             }
                         ) {
                             VectorGpsIcon()
@@ -512,11 +529,11 @@ fun LiveMapScreen() {
                             VectorCameraFollowIcon(followTrain)
                         }
 
-                        // GPS Station
+                        // GPS Station / Route Preview
                         MinimalMapToolButton(
                             onClick = {
                                 selectedStation = trainStations.first()
-                                isNavigationMode = true
+                                showRoutePreviewSheet = true
                             }
                         ) {
                             VectorGpsIcon()
@@ -628,24 +645,30 @@ fun LiveMapScreen() {
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Action Button: Launch Turn-by-Turn Directions
+                        // Action Button: Preview & Start Turn-by-Turn Navigation
                         Button(
-                            onClick = { isNavigationMode = true },
+                            onClick = { showRoutePreviewSheet = true },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
                         ) {
-                            Text(
-                                "Directions to ${selectedStation.name}",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("🧭", fontSize = 16.sp)
+                                Text(
+                                    "Directions to ${selectedStation.name}",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }
             } else {
-                // NAVIGATION MODE: Bottom Sheet
+                // NAVIGATION MODE: Bottom Sheet with Pause & Stop controls
                 Card(
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
@@ -679,10 +702,10 @@ fun LiveMapScreen() {
                         ) {
                             Column {
                                 Text(
-                                    text = "$navDurationMin min",
+                                    text = if (isNavigationPaused) "Paused" else "$navDurationMin min",
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFB45309)
+                                    color = if (isNavigationPaused) Color(0xFFB45309) else Color(0xFF044E42)
                                 )
                                 Text(
                                     text = "$navDistanceKm • $navEtaTime",
@@ -693,26 +716,49 @@ fun LiveMapScreen() {
                             }
 
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // Voice mute toggle
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(40.dp)
                                         .background(Color(0xFFF1F5F9), CircleShape)
                                         .clickable { isMuted = !isMuted },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(if (isMuted) "🔇" else "🔊", fontSize = 18.sp)
+                                    Text(if (isMuted) "🔇" else "🔊", fontSize = 16.sp)
                                 }
 
+                                // Navigation Pause / Resume Button
                                 Button(
-                                    onClick = { isNavigationMode = false },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                                    shape = RoundedCornerShape(24.dp),
-                                    modifier = Modifier.height(44.dp)
+                                    onClick = { isNavigationPaused = !isNavigationPaused },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isNavigationPaused) Color(0xFF044E42) else Color(0xFFF1F5F9),
+                                        contentColor = if (isNavigationPaused) Color.White else Color(0xFF0F172A)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 ) {
-                                    Text("Exit", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                    Text(
+                                        if (isNavigationPaused) "▶ Resume" else "⏸ Pause",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+
+                                // Navigation Stop / Exit Button (Web App Parity: #fee2e2 / #dc2626)
+                                Button(
+                                    onClick = {
+                                        isNavigationMode = false
+                                        isNavigationPaused = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE2E2)),
+                                    border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Text("✕ Stop", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFDC2626))
                                 }
                             }
                         }
@@ -774,17 +820,193 @@ fun LiveMapScreen() {
 
                     Button(
                         onClick = {
-                            isNavigationMode = true
                             showStationSheet = false
+                            showRoutePreviewSheet = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("Navigate to this Station", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("🧭 View Routes & Navigate", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
+                }
+            }
+        }
+
+        // 7. ROUTE PREVIEW & GOOGLE MAPS REDIRECTION MODAL (Web App Parity)
+        if (showRoutePreviewSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showRoutePreviewSheet = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    // Header Row: 🧭 ROUTES TO <Station Name> + Dismiss ✕
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Color(0xFFEDE9FE), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🧭", fontSize = 20.sp)
+                            }
+                            Column {
+                                Text(
+                                    "ROUTES TO",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Text(
+                                    selectedStation.name,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = { showRoutePreviewSheet = false }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(Color(0xFFF1F5F9), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("✕", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Route Card: ⚡ Fastest (Purple theme matching Web App)
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAF5FF)),
+                        border = BorderStroke(1.5.dp, Color(0xFF7C3AED)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("⚡", fontSize = 16.sp)
+                                    Text(
+                                        "Fastest",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                }
+                                Text(
+                                    "$navDurationMin min",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF6D28D9)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Recommended • $navDistanceKm",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B),
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Start in-app navigation button
+                            Button(
+                                onClick = {
+                                    isNavigationMode = true
+                                    isNavigationPaused = false
+                                    showRoutePreviewSheet = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.align(Alignment.End),
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    "▶ Start (Fastest)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Actions Row: Open Google Maps & Cancel
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                val gmapsUrl = "https://www.google.com/maps/dir/?api=1&origin=$userLat,$userLon&destination=${selectedStation.latitude},${selectedStation.longitude}&travelmode=driving"
+                                uriHandler.openUri(gmapsUrl)
+                                showRoutePreviewSheet = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("↗", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(
+                                    "Open Google Maps",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { showRoutePreviewSheet = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(46.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
+                        ) {
+                            Text("✕ Cancel", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF475569))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
