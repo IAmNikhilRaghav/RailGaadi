@@ -65,32 +65,28 @@ fun WeatherScreen() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
-        // ── Header ──────────────────────────────────────────────
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("⛅ Weather & Air Quality", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                    Text(
-                        text = if (activeTrain.number.isNotBlank())
-                            "Live corridor data for ${activeTrain.number} · ${activeTrain.name}"
-                        else "Track a train to see live corridor weather",
-                        fontSize = 11.sp,
-                        color = textSecondary
-                    )
-                }
-                if (activeTrain.number.isNotBlank()) {
+        // ── Top Actions (clean, modern, no redundant titles) ──
+        if (activeTrain.number.isNotBlank()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(RailBluePrimary.copy(alpha = 0.1f))
                             .clickable { TrainTrackerState.refreshWeather() }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Text("⟳ Refresh", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🔄", fontSize = 11.sp)
+                            Text("Refresh", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                        }
                     }
                 }
             }

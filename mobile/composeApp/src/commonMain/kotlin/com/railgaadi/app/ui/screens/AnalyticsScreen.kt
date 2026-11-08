@@ -305,26 +305,12 @@ fun AnalyticsScreen(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Top row: Title + Refresh & Change train buttons
+                            // Top row: action buttons only (no redundant title)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.End,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        text = "📈 " + I18n.t("tab_analytics"),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isDark) DarkTextPrimary else LightTextPrimary
-                                    )
-                                    Text(
-                                        text = "Live Telemetry & Station Events",
-                                        fontSize = 11.sp,
-                                        color = if (isDark) DarkTextSecondary else LightTextSecondary
-                                    )
-                                }
-
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     // Refresh button
                                     IconButton(
