@@ -580,39 +580,12 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Popular Corridors
-                    Text("Popular Corridors:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(5.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        val popularCorridors = listOf("MTJ → JP", "NDLS → BSB", "NDLS → MMCT", "HWH → NDLS", "NDLS → BPL", "MMCT → ADI")
-                        items(popularCorridors) { corridor ->
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        val parts = corridor.split(" → ")
-                                        val fromStn = StationDataService.allStations.find { it.code == parts[0] }
-                                        val toStn = StationDataService.allStations.find { it.code == parts[1] }
-                                        fromStationQuery = if (fromStn != null) "${fromStn.name} (${fromStn.code})" else parts[0]
-                                        toStationQuery = if (toStn != null) "${toStn.name} (${toStn.code})" else parts[1]
-                                        isFromDropdownOpen = false; isToDropdownOpen = false; validationError = null
-                                        triggerSearch(fromStationQuery, toStationQuery)
-                                    }
-                                    .padding(horizontal = 9.dp, vertical = 5.dp)
-                            ) {
-                                Text(corridor, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
-                            }
-                        }
-                    }
                 }
             }
         }
 
         // ─────────────────────────────────────────────────────
-        // 2. RECENTLY SEARCHED TRAINS – max 3, with 🗑 red bin at right
+        // 2. RECENTLY SEARCHED TRAINS – max 3, with Red Bin in header & ✕ per row
         // ─────────────────────────────────────────────────────
         val recentTrains = TrainTrackerState.recentTrains
         if (recentTrains.isNotEmpty()) {
@@ -640,12 +613,24 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                         }
-                        Text(
-                            "${recentTrains.take(3).size}/3",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Gray
-                        )
+
+                        // Red bin logo at the right corner (clears recent history)
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFEE2E2))
+                                .border(1.dp, Color(0xFFFCA5A5), CircleShape)
+                                .clickable {
+                                    TrainTrackerState.clearRecentTrains()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "🗑️",
+                                fontSize = 13.sp
+                            )
+                        }
                     }
 
                     Card(
@@ -714,21 +699,22 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
-                                    // Right: Red & Small Bin Logo Delete Button
+                                    // Right: Cross mark '✕' for individual train history clearing
                                     Box(
                                         modifier = Modifier
-                                            .size(28.dp)
+                                            .size(24.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFFFEE2E2))
-                                            .border(1.dp, Color(0xFFFCA5A5), CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                                             .clickable {
                                                 TrainTrackerState.removeRecentTrain(train.number)
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            "🗑️",
-                                            fontSize = 13.sp
+                                            "✕",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }

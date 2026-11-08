@@ -45,6 +45,10 @@ object TrainTrackerState {
         recentTrains = recentTrains.filter { it.number != trainNumber }
     }
 
+    fun clearRecentTrains() {
+        recentTrains = emptyList()
+    }
+
     // No default train pre-loaded; map starts clean
     var activeTrain by mutableStateOf(
         Train("", "", "", "", "", "", "", 0, "")
