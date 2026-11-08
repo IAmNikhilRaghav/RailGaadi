@@ -39,13 +39,81 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
+import kotlin.math.*
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.Station
+import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
+
+// Pan-India Real-time Navigation Telemetry Calculator
+fun calculateNavigationTelemetry(
+    uLat: Double,
+    uLon: Double,
+    dLat: Double,
+    dLon: Double,
+    destStationName: String,
+    altRouteIndex: Int = 0
+): Triple<String, Int, String> {
+    val destLat = if (dLat != 0.0) dLat else 28.6139
+    val destLon = if (dLon != 0.0) dLon else 77.2090
+
+    val dLatRad = (destLat - uLat) * (PI / 180.0)
+    val dLonRad = (destLon - uLon) * (PI / 180.0)
+    val a = sin(dLatRad / 2.0).pow(2) +
+            cos(uLat * (PI / 180.0)) * cos(destLat * (PI / 180.0)) *
+            sin(dLonRad / 2.0).pow(2)
+    val c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+    val aerialKm = 6371.0 * c
+
+    // Road curvature factor for Indian road networks (Fastest vs Alternative)
+    val roadMultiplier = if (altRouteIndex == 1) 1.38 else 1.25
+    val roadKm = (aerialKm * roadMultiplier).coerceAtLeast(0.4)
+
+    // Realistic speeds across Indian roads & highways
+    val speedKmh = when {
+        roadKm < 8.0 -> 28.0
+        roadKm < 45.0 -> 42.0
+        roadKm < 150.0 -> 55.0
+        else -> 70.0
+    }
+
+    val durMin = ((roadKm / speedKmh) * 60.0).roundToInt().coerceAtLeast(2)
+
+    val distStr = when {
+        roadKm < 1.0 -> "${(roadKm * 1000).roundToInt()} m"
+        roadKm < 10.0 -> "${(roadKm * 10).roundToInt() / 10.0} km"
+        else -> "${roadKm.roundToInt()} km"
+    }
+
+    // Direction instruction based on bearing
+    val y = sin(dLonRad) * cos(destLat * (PI / 180.0))
+    val x = cos(uLat * (PI / 180.0)) * sin(destLat * (PI / 180.0)) -
+            sin(uLat * (PI / 180.0)) * cos(destLat * (PI / 180.0)) * cos(dLonRad)
+    val bearing = (atan2(y, x) * 180.0 / PI + 360.0) % 360.0
+
+    val compassDir = when (bearing) {
+        in 22.5..67.5 -> "Northeast"
+        in 67.5..112.5 -> "East"
+        in 112.5..157.5 -> "Southeast"
+        in 157.5..202.5 -> "South"
+        in 202.5..247.5 -> "Southwest"
+        in 247.5..292.5 -> "West"
+        in 292.5..337.5 -> "Northwest"
+        else -> "North"
+    }
+
+    val instruction = "Head $compassDir toward $destStationName"
+    return Triple(distStr, durMin, instruction)
+}
+
+fun formatEtaDuration(minutes: Int): String {
+    val hrs = minutes / 60
+    val mins = minutes % 60
+    return if (hrs > 0) "${hrs}h ${mins}m" else "$mins min"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,23 +224,34 @@ fun LiveMapScreen() {
     }
     var showStationSheet by remember { mutableStateOf(false) }
 
-    // Navigation telemetry
-    var navDistanceKm by remember { mutableStateOf("13 km") }
-    var navDurationMin by remember { mutableStateOf(25) }
-    var navEtaTime by remember { mutableStateOf("6:04 PM") }
-    var navInstruction by remember { mutableStateOf("Head northwest") }
+    // Navigation telemetry (dynamically updated in real time for any station pan India)
+    var navDistanceKm by remember { mutableStateOf("0.5 km") }
+    var navDurationMin by remember { mutableStateOf(3) }
+    var navEtaTime by remember { mutableStateOf("3 min") }
+    var navInstruction by remember { mutableStateOf("Head toward station") }
     var navIcon by remember { mutableStateOf("⬆") }
     var selectedAlternativeRoute by remember { mutableStateOf(0) }
+
+    // Real-time calculation whenever selectedStation or alternative route changes
+    LaunchedEffect(selectedStation, selectedAlternativeRoute) {
+        val dLat = if (selectedStation.latitude != 0.0) selectedStation.latitude else StationDataService.getCoordinates(selectedStation.code).first
+        val dLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second
+        val (dist, dur, instr) = calculateNavigationTelemetry(userLat, userLon, dLat, dLon, selectedStation.name, selectedAlternativeRoute)
+        navDistanceKm = dist
+        navDurationMin = dur
+        navInstruction = instr
+        navEtaTime = formatEtaDuration(dur)
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // 1. FULLSCREEN NATIVE MAP (Syncs with live status, active train, and map style)
         NativeMapView(
             modifier = Modifier.fillMaxSize(),
             isNavigationMode = isNavigationMode,
-            userLat = 27.8974,
-            userLon = 78.0880,
-            destLat = selectedStation.latitude,
-            destLon = selectedStation.longitude,
+            userLat = userLat,
+            userLon = userLon,
+            destLat = if (selectedStation.latitude != 0.0) selectedStation.latitude else StationDataService.getCoordinates(selectedStation.code).first,
+            destLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second,
             stationName = selectedStation.name,
             trainNumber = activeTrain.number,
             trainProgress = liveStatus?.progressPercent ?: 0.65f,
@@ -181,12 +260,25 @@ fun LiveMapScreen() {
             followTrain = followTrain,
             mapStyle = TrainTrackerState.currentMapStyle,
             onStationClick = { station ->
-                selectedStation = station
+                val resolved = if (station.latitude != 0.0 && station.longitude != 0.0) station else {
+                    val (lat, lon) = StationDataService.getCoordinates(station.code)
+                    station.copy(latitude = lat, longitude = lon)
+                }
+                selectedStation = resolved
                 showStationSheet = true
             },
             onNavigateToStation = { station ->
-                selectedStation = station
-                TrainTrackerState.userBoardingStation = station
+                val resolved = if (station.latitude != 0.0 && station.longitude != 0.0) station else {
+                    val (lat, lon) = StationDataService.getCoordinates(station.code)
+                    station.copy(latitude = lat, longitude = lon)
+                }
+                selectedStation = resolved
+                TrainTrackerState.userBoardingStation = resolved
+                val (dist, dur, instr) = calculateNavigationTelemetry(userLat, userLon, resolved.latitude, resolved.longitude, resolved.name, selectedAlternativeRoute)
+                navDistanceKm = dist
+                navDurationMin = dur
+                navInstruction = instr
+                navEtaTime = formatEtaDuration(dur)
                 showRoutePreviewSheet = true
                 showStationSheet = false
             },
@@ -195,10 +287,11 @@ fun LiveMapScreen() {
             },
             onNavStatsUpdated = { distM, durS, instruction, icon ->
                 val km = distM / 1000.0
-                navDistanceKm = "${(km * 10).toInt() / 10.0} km"
-                navDurationMin = (durS / 60.0).toInt().coerceAtLeast(1)
+                navDistanceKm = if (km < 1.0) "${distM.roundToInt()} m" else "${(km * 10).roundToInt() / 10.0} km"
+                navDurationMin = (durS / 60.0).roundToInt().coerceAtLeast(1)
                 navInstruction = instruction
                 navIcon = icon
+                navEtaTime = formatEtaDuration(navDurationMin)
             }
         )
 
@@ -616,17 +709,18 @@ fun LiveMapScreen() {
                                 VectorSoundIcon(isMuted = isMuted)
                             }
 
-                            // Alternative Routes
+                            // Alternative Routes Toggle
                             MinimalMapToolButton(
+                                isActive = selectedAlternativeRoute == 1,
                                 onClick = {
                                     selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                                    if (selectedAlternativeRoute == 1) {
-                                        navDistanceKm = "15.4 km"
-                                        navDurationMin = 29
-                                    } else {
-                                        navDistanceKm = "13 km"
-                                        navDurationMin = 25
-                                    }
+                                    val dLat = if (selectedStation.latitude != 0.0) selectedStation.latitude else StationDataService.getCoordinates(selectedStation.code).first
+                                    val dLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second
+                                    val (dist, dur, instr) = calculateNavigationTelemetry(userLat, userLon, dLat, dLon, selectedStation.name, selectedAlternativeRoute)
+                                    navDistanceKm = dist
+                                    navDurationMin = dur
+                                    navInstruction = instr
+                                    navEtaTime = formatEtaDuration(dur)
                                 }
                             ) {
                                 VectorRouteSplitIcon()
@@ -750,15 +844,20 @@ fun LiveMapScreen() {
                                 VectorSoundIcon(isMuted = isMuted)
                             }
 
-                            MinimalMapToolButton(onClick = {
-                                selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                                if (selectedAlternativeRoute == 1) {
-                                    navDistanceKm = "15.4 km"; navDurationMin = 29
-                                } else {
-                                    navDistanceKm = "13 km"; navDurationMin = 25
+                            MinimalMapToolButton(
+                                isActive = selectedAlternativeRoute == 1,
+                                onClick = {
+                                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                                    val dLat = if (selectedStation.latitude != 0.0) selectedStation.latitude else StationDataService.getCoordinates(selectedStation.code).first
+                                    val dLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second
+                                    val (dist, dur, instr) = calculateNavigationTelemetry(userLat, userLon, dLat, dLon, selectedStation.name, selectedAlternativeRoute)
+                                    navDistanceKm = dist
+                                    navDurationMin = dur
+                                    navInstruction = instr
+                                    navEtaTime = formatEtaDuration(dur)
+                                    pingInteraction()
                                 }
-                                pingInteraction()
-                            }) {
+                            ) {
                                 VectorRouteSplitIcon()
                             }
                         }
@@ -975,7 +1074,7 @@ fun LiveMapScreen() {
                         ) {
                             Column {
                                 Text(
-                                    text = if (isNavigationPaused) "Paused" else "$navDurationMin min",
+                                    text = if (isNavigationPaused) "Paused" else formatEtaDuration(navDurationMin),
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (isNavigationPaused) Color(0xFFB45309) else Color(0xFF044E42)
@@ -1183,6 +1282,7 @@ fun LiveMapScreen() {
                             items(trainStations) { stn ->
                                 val isSelected = selectedStation.code == stn.code
                                 val isOrigin = trainStations.firstOrNull()?.code == stn.code
+                                val isBoarding = stn.code.equals(TrainTrackerState.userBoardingStation?.code, ignoreCase = true)
                                 Box(
                                     modifier = Modifier
                                         .background(
@@ -1190,13 +1290,22 @@ fun LiveMapScreen() {
                                             RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
-                                            selectedStation = stn
-                                            TrainTrackerState.userBoardingStation = stn
+                                            val resolved = if (stn.latitude != 0.0 && stn.longitude != 0.0) stn else {
+                                                val (lat, lon) = StationDataService.getCoordinates(stn.code)
+                                                stn.copy(latitude = lat, longitude = lon)
+                                            }
+                                            selectedStation = resolved
+                                            TrainTrackerState.userBoardingStation = resolved
+                                            val (dist, dur, instr) = calculateNavigationTelemetry(userLat, userLon, resolved.latitude, resolved.longitude, resolved.name, selectedAlternativeRoute)
+                                            navDistanceKm = dist
+                                            navDurationMin = dur
+                                            navInstruction = instr
+                                            navEtaTime = formatEtaDuration(dur)
                                         }
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "${stn.name}${if (isOrigin) " (Origin)" else ""}",
+                                        text = "${stn.name}${if (isBoarding) " (Boarding)" else if (isOrigin) " (Origin)" else ""}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else Color(0xFF334155)
@@ -1227,14 +1336,14 @@ fun LiveMapScreen() {
                                 ) {
                                     Text("⚡", fontSize = 16.sp)
                                     Text(
-                                        "Fastest",
+                                        if (selectedAlternativeRoute == 1) "Alternative" else "Fastest",
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 16.sp,
                                         color = Color(0xFF0F172A)
                                     )
                                 }
                                 Text(
-                                    "$navDurationMin min",
+                                    formatEtaDuration(navDurationMin),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFF6D28D9)
@@ -1243,7 +1352,7 @@ fun LiveMapScreen() {
 
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Recommended • $navDistanceKm",
+                                "${if (selectedAlternativeRoute == 1) "Alternative Route" else "Recommended"} • $navDistanceKm",
                                 fontSize = 13.sp,
                                 color = Color(0xFF64748B),
                                 fontWeight = FontWeight.Medium
@@ -1264,7 +1373,7 @@ fun LiveMapScreen() {
                                 contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                             ) {
                                 Text(
-                                    "▶ Start (Fastest)",
+                                    "▶ Start (${if (selectedAlternativeRoute == 1) "Alternative" else "Fastest"})",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -1283,7 +1392,9 @@ fun LiveMapScreen() {
                     ) {
                         Button(
                             onClick = {
-                                val gmapsUrl = "https://www.google.com/maps/dir/?api=1&origin=$userLat,$userLon&destination=${selectedStation.latitude},${selectedStation.longitude}&travelmode=driving"
+                                val destLat = if (selectedStation.latitude != 0.0) selectedStation.latitude else StationDataService.getCoordinates(selectedStation.code).first
+                                val destLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second
+                                val gmapsUrl = "https://www.google.com/maps/dir/?api=1&origin=$userLat,$userLon&destination=$destLat,$destLon&travelmode=driving"
                                 uriHandler.openUri(gmapsUrl)
                                 showRoutePreviewSheet = false
                             },
