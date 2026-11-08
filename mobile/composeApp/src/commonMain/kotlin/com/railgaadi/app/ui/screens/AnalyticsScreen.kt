@@ -1,6 +1,13 @@
 package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -1348,16 +1356,95 @@ private fun WimtStationTrackRow(
 
                 // Station Node Icon
                 if (isCurrent) {
-                    // Current Train Marker: pulsing emblem
+                    // ─── Animated Live Train Marker ───────────────────────
+                    // Two concentric pulsing rings (slow outer, fast inner)
+                    // + a scale-bounce on the core badge = "live & moving" feel
+                    val infiniteTransition = rememberInfiniteTransition(label = "trainPulse")
+
+                    // Outer ring: slow expand + fade out (ping / sonar effect)
+                    val outerRingScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 2.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1800, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "outerScale"
+                    )
+                    val outerRingAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.55f,
+                        targetValue = 0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1800, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "outerAlpha"
+                    )
+
+                    // Inner ring: slightly faster, offset phase → dual-ripple look
+                    val innerRingScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 1.55f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1200, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "innerScale"
+                    )
+                    val innerRingAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.45f,
+                        targetValue = 0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1200, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "innerAlpha"
+                    )
+
+                    // Core badge scale: gentle breathing bounce
+                    val badgeScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 1.12f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(700, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "badgeScale"
+                    )
+
+                    // Stack rings + badge in a Box so they all share the same center
                     Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(RailBluePrimary)
-                            .border(2.dp, Color.White, CircleShape),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(48.dp)   // give room for the outer ring
                     ) {
-                        Text("🚆", fontSize = 11.sp)
+                        // Outer sonar ring
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .scale(outerRingScale)
+                                .clip(CircleShape)
+                                .background(RailBluePrimary.copy(alpha = outerRingAlpha))
+                        )
+                        // Inner sonar ring
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .scale(innerRingScale)
+                                .clip(CircleShape)
+                                .background(RailBluePrimary.copy(alpha = innerRingAlpha))
+                        )
+                        // Core badge: solid blue circle with white border + train emoji
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .scale(badgeScale)
+                                .clip(CircleShape)
+                                .background(RailBluePrimary)
+                                .border(2.dp, Color.White, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🚆", fontSize = 12.sp)
+                        }
                     }
                 } else if (isHaltStop) {
                     // ● Halt station: dark blue filled circle (passed = solid, future = slightly lighter)
