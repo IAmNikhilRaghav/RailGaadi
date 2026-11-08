@@ -108,18 +108,22 @@ fun LiveMapScreen() {
         )
     }
 
+    // Navigation Target: Default to Source Station (where user boards to start their train journey)
     var selectedStation by remember(trainStations) {
-        mutableStateOf(trainStations.lastOrNull() ?: trainStations.first())
+        mutableStateOf(trainStations.firstOrNull() ?: Station("NDLS", "New Delhi", 28.6139, 77.2090))
     }
 
-    // When tracking a new train, switch to train route view and sync target station
+    // When tracking a new train, switch to train route view and sync target station to the Source Station
     LaunchedEffect(activeTrain.number) {
         isNavigationMode = false
+        if (trainStations.isNotEmpty()) {
+            selectedStation = trainStations.first()
+        }
     }
 
     LaunchedEffect(trainStations) {
         if (trainStations.isNotEmpty()) {
-            selectedStation = trainStations.lastOrNull() ?: trainStations.first()
+            selectedStation = trainStations.first()
         }
     }
     var showStationSheet by remember { mutableStateOf(false) }
@@ -425,7 +429,7 @@ fun LiveMapScreen() {
                             color = Color.White
                         )
                         Text(
-                            text = if (isNavigationPaused) "Tap Resume in bottom bar to continue guidance" else "Toward ${selectedStation.name} • Pan-India Route",
+                            text = if (isNavigationPaused) "Tap Resume in bottom bar to continue guidance" else "Toward ${selectedStation.name} • Boarding Station Route",
                             fontSize = 12.sp,
                             color = if (isNavigationPaused) Color(0xFFFED7AA) else Color(0xFF99F6E4)
                         )
@@ -850,7 +854,7 @@ fun LiveMapScreen() {
                                 Text("▲ Re-centre", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
 
-                            Text("Target: ${selectedStation.name}", fontSize = 11.sp, color = Color.Gray)
+                            Text("Source Station: ${selectedStation.name}", fontSize = 11.sp, color = Color.Gray)
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -987,7 +991,7 @@ fun LiveMapScreen() {
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text("🧭 View Routes & Navigate", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("🧭 Directions to ${selectedStation.name} (Start Journey)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -1007,7 +1011,7 @@ fun LiveMapScreen() {
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    // Header Row: 🧭 ROUTES TO <Station Name> + Dismiss ✕
+                    // Header Row: 🧭 DIRECTIONS TO SOURCE / BOARDING STATION + Dismiss ✕
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1027,7 +1031,7 @@ fun LiveMapScreen() {
                             }
                             Column {
                                 Text(
-                                    "ROUTES TO",
+                                    "DIRECTIONS TO SOURCE / BOARDING STATION",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp,
@@ -1050,6 +1054,42 @@ fun LiveMapScreen() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text("✕", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+
+                    // Quick Boarding Station Selector (Default: Source / Origin Station)
+                    if (trainStations.size > 1) {
+                        Text(
+                            "Boarding Station (Where you start your journey):",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                        ) {
+                            items(trainStations) { stn ->
+                                val isSelected = selectedStation.code == stn.code
+                                val isOrigin = trainStations.firstOrNull()?.code == stn.code
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) Color(0xFF6D28D9) else Color(0xFFF1F5F9),
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { selectedStation = stn }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "${stn.name}${if (isOrigin) " (Source)" else ""}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else Color(0xFF334155)
+                                    )
+                                }
                             }
                         }
                     }
