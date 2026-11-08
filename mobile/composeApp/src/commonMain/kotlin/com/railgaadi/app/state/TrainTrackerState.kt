@@ -23,10 +23,12 @@ object TrainTrackerState {
     var isSearchDropdownOpen by mutableStateOf(false)
     var isSearching by mutableStateOf(false)
     var searchResults by mutableStateOf<List<Train>>(emptyList())
-    var recentSearches by mutableStateOf(listOf("12404", "22436", "12952", "12002"))
+    // Start with empty history — populated as user searches
+    var recentSearches by mutableStateOf(listOf<String>())
 
+    // No default train pre-loaded; map starts clean
     var activeTrain by mutableStateOf(
-        Train("12404", "Prayagraj SF Express", "Superfast Express", "LGNH - Lalgarh Jn", "PRYJ - Prayagraj Jn", "10:30", "04:45", 1095, "2")
+        Train("", "", "", "", "", "", "", 0, "")
     )
     var liveStatus by mutableStateOf<LiveStatus?>(null)
     var isLoadingStatus by mutableStateOf(false)
@@ -37,11 +39,10 @@ object TrainTrackerState {
     // Web App Preferences & Features
     var currentMapStyle by mutableStateOf("terrain") // "light", "dark", "satellite", "terrain"
     var tripDelayAlerts by mutableStateOf(false)
-    var savedTrains by mutableStateOf(listOf("12404", "22436", "12952"))
+    var savedTrains by mutableStateOf(listOf<String>())
 
     init {
-        // Load default train
-        selectTrain(activeTrain)
+        // No default train loaded on start
     }
 
     fun onQueryChanged(newQuery: String) {
@@ -68,6 +69,7 @@ object TrainTrackerState {
     }
 
     fun selectTrain(train: Train, boardingStationInput: String? = null) {
+        if (train.number.isBlank()) return   // guard: no-op for empty placeholder train
         activeTrain = train
         searchQuery = "${train.number} - ${train.name}"
         isSearchDropdownOpen = false

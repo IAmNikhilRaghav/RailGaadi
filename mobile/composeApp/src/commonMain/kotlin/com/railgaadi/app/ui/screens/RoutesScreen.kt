@@ -551,31 +551,29 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // ── DATE OF JOURNEY (compact, opens "Where is my Train" style picker) ──
+                    // ── DATE PICKER – full-width blue/white pill, no "Date of Journey" label ──
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(RailBluePrimary, RoundedCornerShape(12.dp))
+                            .clickable { showDateQuickPicker = true }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Date of Journey", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .background(RailBluePrimary.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-                                .clickable { showDateQuickPicker = true }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("📅", fontSize = 11.sp)
+                            Text("📅", fontSize = 14.sp)
                             Text(
-                                selectedTravelDate.shortLabel,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = RailBluePrimary
+                                selectedTravelDate.fullFormatted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
                             )
-                            Text("▾", fontSize = 10.sp, color = RailBluePrimary)
                         }
+                        Text("▾", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))

@@ -213,6 +213,12 @@ fun LiveMapScreen() {
             ) {
                 if (!isSearchActive) {
                     // Sleek Floating Capsule (Takes only 48dp, 80% map visible!)
+                    // Animated cycling placeholder when no train is selected
+                    val hasActiveTrain = TrainTrackerState.activeTrain.number.isNotBlank()
+
+                    // Infinite cycling animation for placeholder text hints
+                    val infiniteTransition = rememberInfiniteTransition(label = "placeholder_cycle")
+
                     Card(
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(
@@ -236,30 +242,71 @@ fun LiveMapScreen() {
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("🔍", fontSize = 15.sp)
-                                Text(
-                                    text = if (TrainTrackerState.searchQuery.isNotEmpty()) TrainTrackerState.searchQuery else "Search train no. or name…",
-                                    fontSize = 13.sp,
-                                    color = if (TrainTrackerState.searchQuery.isNotEmpty()) MaterialTheme.colorScheme.onSurface else Color.Gray,
-                                    maxLines = 1,
-                                    fontWeight = if (TrainTrackerState.searchQuery.isNotEmpty()) FontWeight.SemiBold else FontWeight.Normal
-                                )
+                                if (hasActiveTrain) {
+                                    // Show active train name
+                                    Text(
+                                        text = TrainTrackerState.searchQuery,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        fontWeight = FontWeight.SemiBold,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                } else {
+                                    // Animated scrolling placeholder
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        val placeholderItems = listOf(
+                                            "Search by Train name or No.",
+                                            "Try: 12404 Prayagraj Express",
+                                            "Try: 22436 Vande Bharat",
+                                            "Track any train across India"
+                                        )
+                                        val itemIndex by infiniteTransition.animateFloat(
+                                            initialValue = 0f,
+                                            targetValue = placeholderItems.size.toFloat(),
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(durationMillis = placeholderItems.size * 3000, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Restart
+                                            ),
+                                            label = "item_index"
+                                        )
+                                        val currentIndex = itemIndex.toInt().coerceIn(0, placeholderItems.size - 1)
+                                        Text(
+                                            text = placeholderItems[currentIndex],
+                                            fontSize = 12.sp,
+                                            color = Color.Gray,
+                                            maxLines = 1,
+                                            fontWeight = FontWeight.Normal,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
 
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                            // Right chip: only show when a train is selected
+                            if (hasActiveTrain) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = activeTrain.number,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = RailBluePrimary
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = activeTrain.number,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = RailBluePrimary
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -713,6 +760,7 @@ fun LiveMapScreen() {
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             if (!isNavigationMode) {
+                val hasActiveTrain = activeTrain.number.isNotBlank()
                 // NORMAL MODE: Modern Interactive Peek Bottom Sheet (Spacious & Minimalist)
                 Card(
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -721,7 +769,10 @@ fun LiveMapScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .animateContentSize()
-                        .clickable { isBottomSheetExpanded = !isBottomSheetExpanded }
+                        .clickable {
+                            if (hasActiveTrain) isBottomSheetExpanded = !isBottomSheetExpanded
+                            else isSearchActive = true
+                        }
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
@@ -737,6 +788,22 @@ fun LiveMapScreen() {
 
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        if (!hasActiveTrain) {
+                            // No train selected yet — prompt user to search
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🚆", fontSize = 20.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text("Search for a Train", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Tap above to track any train live", fontSize = 11.sp, color = Color.Gray)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        } else {
                         // Header Row (Compact Peek Header)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -804,9 +871,10 @@ fun LiveMapScreen() {
                                 }
                             }
                         }
+                        } // end hasActiveTrain
 
                         // Expanded Content: Telemetry Metrics, Progress Bar, and Action Button
-                        if (isBottomSheetExpanded) {
+                        if (isBottomSheetExpanded && hasActiveTrain) {
                             Spacer(modifier = Modifier.height(14.dp))
 
                             // Metrics
