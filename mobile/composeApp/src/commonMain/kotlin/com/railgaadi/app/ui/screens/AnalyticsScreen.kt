@@ -682,27 +682,191 @@ fun AnalyticsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
 
-                                    // Station Track Items
+                                    // ---------------------------------------------------------------
+                                    // Build collapsed segments:
+                                    //   Each "segment" = one halt stop + the pass-through stations
+                                    //   that immediately follow it (until the next halt/end).
+                                    //   Pass-through stations are collapsed by default; tap the pill
+                                    //   between two halt stops to expand/collapse that segment.
+                                    // ---------------------------------------------------------------
+                                    data class StationSegment(
+                                        val haltStation: Station,
+                                        val haltIndex: Int,          // index in `stations`
+                                        val passThroughs: List<Pair<Int, Station>> // (origIdx, station)
+                                    )
+
+                                    // Build segments by iterating through the flat station list
+                                    val segments = mutableListOf<StationSegment>()
+                                    var pendingPassThroughs = mutableListOf<Pair<Int, Station>>()
+                                    var lastHaltIdx = -1
+                                    var lastHaltStn: Station? = null
+
                                     stations.forEachIndexed { idx, stn ->
+                                        if (stn.haltMinutes > 0) {
+                                            if (lastHaltStn != null) {
+                                                segments.add(StationSegment(lastHaltStn!!, lastHaltIdx, pendingPassThroughs.toList()))
+                                            }
+                                            pendingPassThroughs = mutableListOf()
+                                            lastHaltIdx = idx
+                                            lastHaltStn = stn
+                                        } else {
+                                            pendingPassThroughs.add(Pair(idx, stn))
+                                        }
+                                    }
+                                    // Add final segment (may or may not have trailing pass-throughs)
+                                    if (lastHaltStn != null) {
+                                        segments.add(StationSegment(lastHaltStn!!, lastHaltIdx, pendingPassThroughs.toList()))
+                                    }
+
+                                    // Track which segment indices are expanded (empty = all collapsed)
+                                    val expandedSegments = remember { mutableStateOf(setOf<Int>()) }
+
+                                    // Handle pure pass-through stations before first halt stop
+                                    val leadingPassThroughs = stations.takeWhile { it.haltMinutes == 0 }
+                                    leadingPassThroughs.forEachIndexed { idx, stn ->
                                         val isPassed = idx < curIdx
                                         val isCurrent = idx == curIdx
-                                        val isUpcoming = idx > curIdx
-                                        val isFirst = idx == 0
-                                        val isLast = idx == stations.size - 1
-
                                         WimtStationTrackRow(
-                                            station = stn,
-                                            index = idx,
-                                            isPassed = isPassed,
-                                            isCurrent = isCurrent,
-                                            isUpcoming = isUpcoming,
-                                            isFirst = isFirst,
-                                            isLast = isLast,
+                                            station = stn, index = idx,
+                                            isPassed = isPassed, isCurrent = isCurrent,
+                                            isUpcoming = idx > curIdx,
+                                            isFirst = idx == 0, isLast = false,
                                             curTrainDistKm = curStation?.distanceKm ?: 0.0,
                                             delayMinutes = liveStatus?.delayMinutes ?: 0,
                                             speedKmh = liveStatus?.speedKmh ?: 0,
                                             isDark = isDark
                                         )
+                                    }
+
+                                    // Render each segment
+                                    segments.forEachIndexed { segIdx, seg ->
+                                        val haltIdx = seg.haltIndex
+                                        val isPassed = haltIdx < curIdx
+                                        val isCurrent = haltIdx == curIdx
+                                        val isFirst = haltIdx == 0 && leadingPassThroughs.isEmpty()
+                                        val isLast = haltIdx == stations.size - 1 && seg.passThroughs.isEmpty()
+                                        val isExpanded = expandedSegments.value.contains(segIdx)
+
+                                        // Render the halt station row
+                                        WimtStationTrackRow(
+                                            station = seg.haltStation,
+                                            index = haltIdx,
+                                            isPassed = isPassed,
+                                            isCurrent = isCurrent,
+                                            isUpcoming = haltIdx > curIdx,
+                                            isFirst = isFirst,
+                                            isLast = isLast && seg.passThroughs.isEmpty(),
+                                            curTrainDistKm = curStation?.distanceKm ?: 0.0,
+                                            delayMinutes = liveStatus?.delayMinutes ?: 0,
+                                            speedKmh = liveStatus?.speedKmh ?: 0,
+                                            isDark = isDark
+                                        )
+
+                                        // If there are pass-through stations after this halt stop, show collapse pill
+                                        if (seg.passThroughs.isNotEmpty()) {
+                                            val ptCount = seg.passThroughs.size
+                                            val trackDone = RailBluePrimary
+                                            val trackFuture = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+                                            val segPassed = seg.passThroughs.all { (ptIdx, _) -> ptIdx < curIdx }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(IntrinsicSize.Min),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // LEFT: empty time column
+                                                Spacer(modifier = Modifier.width(62.dp))
+
+                                                // CENTER: spine + pill
+                                                Row(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    // Track spine column
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .width(28.dp)
+                                                            .fillMaxHeight(),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(3.dp)
+                                                                .fillMaxHeight()
+                                                                .background(if (segPassed) trackDone else trackFuture)
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                                    // Collapse/Expand pill
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .padding(vertical = 6.dp)
+                                                            .clip(RoundedCornerShape(50.dp))
+                                                            .background(
+                                                                if (isDark)
+                                                                    RailBluePrimary.copy(alpha = 0.12f)
+                                                                else
+                                                                    RailBluePrimary.copy(alpha = 0.08f)
+                                                            )
+                                                            .clickable {
+                                                                expandedSegments.value = if (isExpanded)
+                                                                    expandedSegments.value - segIdx
+                                                                else
+                                                                    expandedSegments.value + segIdx
+                                                            }
+                                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                    ) {
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = if (isExpanded) "▲" else "▼",
+                                                                fontSize = 8.sp,
+                                                                color = RailBluePrimary.copy(alpha = 0.7f)
+                                                            )
+                                                            Text(
+                                                                text = if (isExpanded)
+                                                                    "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}"
+                                                                else
+                                                                    "$ptCount pass-through station${if (ptCount > 1) "s" else ""}",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = RailBluePrimary.copy(alpha = 0.85f)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                // RIGHT: empty departure column
+                                                Spacer(modifier = Modifier.width(62.dp))
+                                            }
+
+                                            // Expanded pass-through station rows
+                                            if (isExpanded) {
+                                                seg.passThroughs.forEachIndexed { ptRelIdx, (ptIdx, ptStn) ->
+                                                    val ptPassed = ptIdx < curIdx
+                                                    val ptCurrent = ptIdx == curIdx
+                                                    val ptLast = ptIdx == stations.size - 1
+                                                    WimtStationTrackRow(
+                                                        station = ptStn,
+                                                        index = ptIdx,
+                                                        isPassed = ptPassed,
+                                                        isCurrent = ptCurrent,
+                                                        isUpcoming = ptIdx > curIdx,
+                                                        isFirst = false,
+                                                        isLast = ptLast,
+                                                        curTrainDistKm = curStation?.distanceKm ?: 0.0,
+                                                        delayMinutes = liveStatus?.delayMinutes ?: 0,
+                                                        speedKmh = liveStatus?.speedKmh ?: 0,
+                                                        isDark = isDark
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
