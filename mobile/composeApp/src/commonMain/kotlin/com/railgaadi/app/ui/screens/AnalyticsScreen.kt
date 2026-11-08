@@ -739,22 +739,27 @@ fun AnalyticsScreen(
                                     stations.forEachIndexed { idx, stn ->
                                         val isCurrent = idx == curIdx
                                         val isPassed = idx < curIdx
+                                        val isHaltStop = stn.haltMinutes > 0
 
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .background(
-                                                    if (isCurrent) RailBluePrimary.copy(alpha = 0.1f) else Color.Transparent,
+                                                    when {
+                                                        isCurrent -> RailBluePrimary.copy(alpha = 0.1f)
+                                                        !isHaltStop -> if (isDark) Color(0xFF1E293B).copy(alpha = 0.4f) else Color(0xFFF1F5F9).copy(alpha = 0.5f)
+                                                        else -> Color.Transparent
+                                                    },
                                                     RoundedCornerShape(6.dp)
                                                 )
-                                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                                                .padding(horizontal = 8.dp, vertical = if (isHaltStop) 8.dp else 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
                                                 text = "${idx + 1}",
-                                                fontSize = 11.sp,
+                                                fontSize = if (isHaltStop) 11.sp else 9.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = Color.Gray,
+                                                color = if (isHaltStop) Color.Gray else Color.Gray.copy(alpha = 0.5f),
                                                 modifier = Modifier.width(22.dp)
                                             )
 
@@ -765,9 +770,11 @@ fun AnalyticsScreen(
                                                 ) {
                                                     Text(
                                                         text = stn.name,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                                        color = if (isCurrent) RailBluePrimary else if (isDark) DarkTextPrimary else LightTextPrimary,
+                                                        fontSize = if (isHaltStop) 12.sp else 10.sp,
+                                                        fontWeight = if (isCurrent) FontWeight.ExtraBold else if (isHaltStop) FontWeight.SemiBold else FontWeight.Normal,
+                                                        color = if (isCurrent) RailBluePrimary
+                                                                else if (!isHaltStop) Color.Gray.copy(alpha = 0.65f)
+                                                                else if (isDark) DarkTextPrimary else LightTextPrimary,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
@@ -776,35 +783,37 @@ fun AnalyticsScreen(
                                                     }
                                                 }
                                                 Text(
-                                                    text = "${stn.code}${if (stn.haltMinutes > 0) " · ${stn.haltMinutes}m halt" else ""}",
-                                                    fontSize = 10.sp,
-                                                    color = Color.Gray
+                                                    text = "${stn.code}${if (isHaltStop) " · ${stn.haltMinutes}m halt" else " · Pass"}",
+                                                    fontSize = if (isHaltStop) 10.sp else 9.sp,
+                                                    color = if (isHaltStop) Color.Gray else Color.Gray.copy(alpha = 0.5f)
                                                 )
                                             }
 
                                             Text(
-                                                text = stn.scheduledArr.takeIf { it != "—" } ?: "START",
+                                                text = if (isHaltStop) stn.scheduledArr.takeIf { it != "—" } ?: "START" else "—",
                                                 fontSize = 11.sp,
                                                 fontFamily = FontFamily.Monospace,
-                                                color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
+                                                color = if (!isHaltStop) Color.Gray.copy(alpha = 0.4f) else if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
                                                 modifier = Modifier.width(46.dp),
                                                 textAlign = TextAlign.Center
                                             )
 
                                             Text(
-                                                text = stn.scheduledDep.takeIf { it != "—" } ?: "END",
+                                                text = if (isHaltStop) stn.scheduledDep.takeIf { it != "—" } ?: "END" else "—",
                                                 fontSize = 11.sp,
                                                 fontFamily = FontFamily.Monospace,
-                                                color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
+                                                color = if (!isHaltStop) Color.Gray.copy(alpha = 0.4f) else if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
                                                 modifier = Modifier.width(46.dp),
                                                 textAlign = TextAlign.Center
                                             )
 
                                             Text(
-                                                text = if (stn.platform.startsWith("PF")) stn.platform.removePrefix("PF") else stn.platform,
+                                                text = if (isHaltStop && stn.platform.isNotBlank())
+                                                    if (stn.platform.startsWith("PF")) stn.platform.removePrefix("PF") else stn.platform
+                                                else "—",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = RailBluePrimary,
+                                                color = if (isHaltStop) RailBluePrimary else Color.Gray.copy(alpha = 0.4f),
                                                 modifier = Modifier.width(30.dp),
                                                 textAlign = TextAlign.Center
                                             )
@@ -812,7 +821,7 @@ fun AnalyticsScreen(
                                             Text(
                                                 text = "${stn.distanceKm.toInt()}km",
                                                 fontSize = 10.sp,
-                                                color = Color.Gray,
+                                                color = if (isHaltStop) Color.Gray else Color.Gray.copy(alpha = 0.5f),
                                                 modifier = Modifier.width(44.dp),
                                                 textAlign = TextAlign.End
                                             )
@@ -1101,8 +1110,11 @@ private fun WimtStationTrackRow(
     speedKmh: Int,
     isDark: Boolean
 ) {
+    val isHaltStop = station.haltMinutes > 0  // true = scheduled halt; false = pass-through
+
     val trackDoneColor = RailBluePrimary
     val trackFutureColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+    val passThroughColor = RailBluePrimary.copy(alpha = 0.28f) // light translucent for non-halt nodes
 
     val kmRemaining = if (isUpcoming && station.distanceKm > curTrainDistKm) {
         ((station.distanceKm - curTrainDistKm) * 10).toInt() / 10.0
@@ -1116,28 +1128,32 @@ private fun WimtStationTrackRow(
     ) {
         // -------------------------------------------------------------
         // LEFT COLUMN: Scheduled & Actual Arrival Time
+        // (hide times for pass-through stations – they have no dwell)
         // -------------------------------------------------------------
         Column(
             modifier = Modifier.width(62.dp),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.Center
         ) {
-            val arrTime = station.scheduledArr.takeIf { it != "—" } ?: "START"
-            Text(
-                text = arrTime,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
-            )
-            if (isCurrent && delayMinutes > 0) {
+            if (isHaltStop) {
+                val arrTime = station.scheduledArr.takeIf { it != "—" } ?: "START"
                 Text(
-                    text = "+${delayMinutes}m",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RailRedDelayed
+                    text = arrTime,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
                 )
+                if (isCurrent && delayMinutes > 0) {
+                    Text(
+                        text = "+${delayMinutes}m",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RailRedDelayed
+                    )
+                }
             }
+            // pass-through: left column stays empty
         }
 
         // -------------------------------------------------------------
@@ -1168,7 +1184,7 @@ private fun WimtStationTrackRow(
 
                 // Station Node Icon
                 if (isCurrent) {
-                    // Current Train Marker on Track (Pulsing glowing emblem)
+                    // Current Train Marker: pulsing emblem
                     Box(
                         modifier = Modifier
                             .size(24.dp)
@@ -1179,22 +1195,22 @@ private fun WimtStationTrackRow(
                     ) {
                         Text("🚆", fontSize = 11.sp)
                     }
-                } else if (isPassed) {
-                    // Passed station: solid completed node
+                } else if (isHaltStop) {
+                    // ● Halt station: dark blue filled circle (passed = solid, future = slightly lighter)
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(12.dp)
                             .clip(CircleShape)
-                            .background(trackDoneColor)
+                            .background(if (isPassed) trackDoneColor else RailBluePrimary)
                     )
                 } else {
-                    // Future upcoming station: hollow ring node
+                    // ○ Pass-through station: smaller translucent hollow ring
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(8.dp)
                             .clip(CircleShape)
                             .background(if (isDark) DarkSurface else LightSurface)
-                            .border(2.dp, trackFutureColor, CircleShape)
+                            .border(1.5.dp, passThroughColor, CircleShape)
                     )
                 }
 
@@ -1217,43 +1233,61 @@ private fun WimtStationTrackRow(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = if (isHaltStop) 8.dp else 3.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
                     text = station.name,
-                    fontSize = 13.sp,
-                    fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Bold,
-                    color = if (isCurrent) RailBluePrimary else if (isDark) DarkTextPrimary else LightTextPrimary,
+                    fontSize = if (isHaltStop) 13.sp else 11.sp,
+                    fontWeight = if (isCurrent) FontWeight.ExtraBold else if (isHaltStop) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isCurrent) RailBluePrimary
+                            else if (!isHaltStop) Color.Gray.copy(alpha = 0.75f)
+                            else if (isDark) DarkTextPrimary else LightTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Sub-info: Platform, Distance, Halt
+                // Sub-info row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (station.platform.isNotBlank()) {
+                    if (isHaltStop) {
+                        if (station.platform.isNotBlank()) {
+                            Text(
+                                text = if (station.platform.startsWith("PF")) station.platform else "PF ${station.platform}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RailBluePrimary
+                            )
+                        }
+                        if (station.distanceKm > 0) {
+                            Text(
+                                text = "• ${station.distanceKm.toInt()} km",
+                                fontSize = 10.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        if (station.haltMinutes > 0) {
+                            Text(
+                                text = "• Halt ${station.haltMinutes}m",
+                                fontSize = 10.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    } else {
+                        // Pass-through: show distance + "No halt" label
+                        if (station.distanceKm > 0) {
+                            Text(
+                                text = "${station.distanceKm.toInt()} km",
+                                fontSize = 9.sp,
+                                color = Color.Gray.copy(alpha = 0.6f)
+                            )
+                        }
                         Text(
-                            text = if (station.platform.startsWith("PF")) station.platform else "PF ${station.platform}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = RailBluePrimary
-                        )
-                    }
-                    if (station.distanceKm > 0) {
-                        Text(
-                            text = "• ${station.distanceKm.toInt()} km",
-                            fontSize = 10.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    if (station.haltMinutes > 0) {
-                        Text(
-                            text = "• Halt ${station.haltMinutes}m",
-                            fontSize = 10.sp,
-                            color = Color.Gray
+                            text = "· No halt",
+                            fontSize = 9.sp,
+                            color = Color.Gray.copy(alpha = 0.5f)
                         )
                     }
                 }
@@ -1316,29 +1350,32 @@ private fun WimtStationTrackRow(
         }
 
         // -------------------------------------------------------------
-        // RIGHT COLUMN: Scheduled & Actual Departure Time
+        // RIGHT COLUMN: Departure Time (halt stations only)
         // -------------------------------------------------------------
         Column(
             modifier = Modifier.width(62.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.Center
         ) {
-            val depTime = station.scheduledDep.takeIf { it != "—" } ?: "END"
-            Text(
-                text = depTime,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
-            )
-            if (isCurrent && delayMinutes > 0) {
+            if (isHaltStop) {
+                val depTime = station.scheduledDep.takeIf { it != "—" } ?: "END"
                 Text(
-                    text = "+${delayMinutes}m",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RailRedDelayed
+                    text = depTime,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
                 )
+                if (isCurrent && delayMinutes > 0) {
+                    Text(
+                        text = "+${delayMinutes}m",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RailRedDelayed
+                    )
+                }
             }
+            // pass-through: right column stays empty
         }
     }
 }

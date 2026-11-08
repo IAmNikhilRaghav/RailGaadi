@@ -550,11 +550,11 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     }
                 }
 
-                // Filter route stops: prioritize halts where train stops, or all stops if halts are few
+                // Include ALL route stops: halt stations (isHalt=true) AND pass-through (isHalt=false)
+                // haltMinutes=0 on Station signals a pass-through for visual differentiation in UI
                 val allStops = data.route ?: emptyList()
-                val haltStops = allStops.filter { it.isHalt == true }.ifEmpty { allStops }
 
-                val stations = haltStops.map { stop ->
+                val stations = allStops.map { stop ->
                     val code = stop.stationCode ?: ""
                     val coords = StationDataService.getCoordinates(code)
 
@@ -569,8 +569,9 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                         scheduledDep = dep,
                         scheduledArr = arr,
                         distanceKm = stop.distance ?: 0.0,
-                        platform = stop.platform?.takeIf { it.isNotBlank() } ?: "1",
-                        haltMinutes = 2
+                        platform = stop.platform?.takeIf { it.isNotBlank() } ?: "",
+                        // haltMinutes=0 → pass-through (train doesn't stop); >0 → scheduled halt
+                        haltMinutes = if (stop.isHalt == true) 2 else 0
                     )
                 }
 
