@@ -220,40 +220,12 @@ private fun generateMapHtml(
         }
 
         .user-marker {
-            width: 20px; height: 20px;
-            background: #2563eb;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 0 5px rgba(37,99,235,0.25);
-        }
-
-        .live-route-runner {
             width: 28px; height: 28px;
-            position: relative;
-            display: flex; align-items: center; justify-content: center;
-            pointer-events: none;
-            transition: transform 0.05s linear;
-        }
-        .runner-dot {
-            width: 22px; height: 22px;
             background: #2563eb;
             border: 2.5px solid #ffffff;
             border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 8px rgba(37,99,235,0.45);
-            z-index: 2;
-        }
-        .runner-halo {
-            position: absolute;
-            width: 34px; height: 34px;
-            border-radius: 50%;
-            background: rgba(37,99,235,0.22);
-            animation: runner-pulse 1.5s ease-out infinite;
-            z-index: 1;
-        }
-        @keyframes runner-pulse {
-            0% { transform: scale(0.6); opacity: 0.9; }
-            100% { transform: scale(1.6); opacity: 0; }
+            box-shadow: 0 0 0 5px rgba(37,99,235,0.22);
+            transform-origin: center center;
         }
 
         .station-pin {
@@ -333,7 +305,13 @@ private fun generateMapHtml(
             zoom: isNav ? 12.8 : 6.5,
             pitch: is3D ? 58 : 0,
             bearing: 0,
-            attributionControl: false
+            attributionControl: false,
+            dragRotate: true,
+            touchZoomRotate: true,
+            scrollZoom: true,
+            dragPan: true,
+            doubleClickZoom: true,
+            touchPitch: true
         });
 
         // Listen for compass rotation and send to Kotlin
@@ -419,42 +397,29 @@ private fun generateMapHtml(
                                 paint: { 'line-color': '#3b82f6', 'line-width': 6.5 }
                             });
 
-                            // Dynamic Live Marker running along route toward station
-                            const navMarkerEl = document.createElement('div');
-                            navMarkerEl.className = 'live-route-runner';
-                            navMarkerEl.innerHTML = '<div class="runner-halo"></div><div class="runner-dot"><svg width="11" height="11" viewBox="0 0 24 24" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 21 12 17 5 21 12 2"/></svg></div>';
+                            // Real GPS User Orientation Marker (moves only when user moves)
+                            const gpsMarkerEl = document.createElement('div');
+                            gpsMarkerEl.className = 'user-marker';
+                            const gpsMarker = new maplibregl.Marker({
+                                element: gpsMarkerEl,
+                                rotationAlignment: 'map',
+                                rotation: 0
+                            }).setLngLat([uLon, uLat]).addTo(map);
 
-                            const liveRunnerMarker = new maplibregl.Marker({
-                                element: navMarkerEl,
-                                rotationAlignment: 'map'
-                            }).setLngLat(coordinates[0]).addTo(map);
-
-                            let runnerProgress = 0;
-                            function stepLiveRunner() {
-                                if (!coordinates || coordinates.length < 2) return;
-                                runnerProgress += 0.0018;
-                                if (runnerProgress >= 1) runnerProgress = 0;
-
-                                const exactIndex = runnerProgress * (coordinates.length - 1);
-                                const i = Math.floor(exactIndex);
-                                const nextI = Math.min(i + 1, coordinates.length - 1);
-                                const t = exactIndex - i;
-
-                                const p1 = coordinates[i];
-                                const p2 = coordinates[nextI];
-                                const lng = p1[0] + (p2[0] - p1[0]) * t;
-                                const lat = p1[1] + (p2[1] - p1[1]) * t;
-
-                                const dx = p2[0] - p1[0];
-                                const dy = p2[1] - p1[1];
-                                const angleDeg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
-
-                                liveRunnerMarker.setLngLat([lng, lat]);
-                                liveRunnerMarker.setRotation(angleDeg);
-
-                                requestAnimationFrame(stepLiveRunner);
+                            if (navigator.geolocation) {
+                                navigator.geolocation.watchPosition(
+                                    function(pos) {
+                                        const lat = pos.coords.latitude;
+                                        const lon = pos.coords.longitude;
+                                        const heading = pos.coords.heading != null ? pos.coords.heading : 0;
+                                        gpsMarker.setLngLat([lon, lat]);
+                                        gpsMarker.setRotation(heading);
+                                        gpsMarkerEl.style.transform = 'rotate(' + heading + 'deg)';
+                                    },
+                                    null,
+                                    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+                                );
                             }
-                            requestAnimationFrame(stepLiveRunner);
 
                             // Fit bounds to route
                             const bounds = new maplibregl.LngLatBounds();
