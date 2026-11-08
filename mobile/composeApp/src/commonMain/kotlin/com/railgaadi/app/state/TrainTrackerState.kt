@@ -7,7 +7,9 @@ import com.railgaadi.app.model.LiveStatus
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.Train
+import com.railgaadi.app.network.LandmarkService
 import com.railgaadi.app.network.RailRadarService
+import com.railgaadi.app.network.WeatherService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,6 +18,7 @@ import kotlinx.coroutines.launch
 
 object TrainTrackerState {
     private val service = RailRadarService()
+    private val weatherService = WeatherService()
     private val scope = CoroutineScope(Dispatchers.Main)
     private var searchDebounceJob: Job? = null
 
@@ -55,6 +58,11 @@ object TrainTrackerState {
     )
     var liveStatus by mutableStateOf<LiveStatus?>(null)
     var isLoadingStatus by mutableStateOf(false)
+
+    // Weather & AQI state for WeatherScreen
+    var weatherData by mutableStateOf<com.railgaadi.app.model.StationWeatherData?>(null)
+    var isLoadingWeather by mutableStateOf(false)
+    var nearbyLandmarks by mutableStateOf<List<com.railgaadi.app.model.Landmark>>(emptyList())
 
     // User's Onboarding / Boarding Station (Source of user's train journey)
     var userBoardingStation by mutableStateOf<Station?>(null)
@@ -135,6 +143,25 @@ object TrainTrackerState {
                 selectTrain(train)
             }
             isLoadingStatus = false
+        }
+    }
+
+    fun refreshWeather() {
+        val stations = liveStatus?.stations ?: return
+        val currentStation = stations.getOrNull(
+            stations.indexOfFirst { it.name.contains(liveStatus?.currentStation ?: "", ignoreCase = true) }.takeIf { it >= 0 } ?: 0
+        ) ?: stations.firstOrNull() ?: return
+
+        val lat = currentStation.latitude.takeIf { it != 0.0 } ?: return
+        val lon = currentStation.longitude.takeIf { it != 0.0 } ?: return
+
+        scope.launch {
+            isLoadingWeather = true
+            try {
+                weatherData = weatherService.getStationWeatherData(currentStation.name, lat, lon)
+                nearbyLandmarks = LandmarkService.getNearbyLandmarks(lat, lon)
+            } catch (_: Exception) { }
+            isLoadingWeather = false
         }
     }
 }
