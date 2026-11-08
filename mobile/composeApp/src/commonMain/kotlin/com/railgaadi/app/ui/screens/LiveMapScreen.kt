@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +53,10 @@ fun LiveMapScreen() {
     var is3DMode by remember { mutableStateOf(false) }
     var followTrain by remember { mutableStateOf(false) }
     var compassBearing by remember { mutableStateOf(0f) }
+
+    // Modern Spacious UI States: Interactive Peek Sheet & Floating Search Capsule
+    var isBottomSheetExpanded by remember { mutableStateOf(false) }
+    var isSearchActive by remember { mutableStateOf(false) }
 
     // Dynamic Black Initializer & Auto-Collapsing Map Controls
     var isFullscreen by remember { mutableStateOf(false) }
@@ -174,77 +179,140 @@ fun LiveMapScreen() {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                if (!isSearchActive) {
+                    // Sleek Floating Capsule (Takes only 48dp, 80% map visible!)
+                    Card(
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clickable { isSearchActive = true }
+                    ) {
                         Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("🔍", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
-                            TextField(
-                                value = TrainTrackerState.searchQuery,
-                                onValueChange = { TrainTrackerState.onQueryChanged(it) },
-                                placeholder = {
-                                    Text(
-                                        I18n.t("search_placeholder"),
-                                        fontSize = 13.sp,
-                                        color = Color.Gray
-                                    )
-                                },
-                                singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
-                                ),
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.weight(1f)
-                            )
+                            ) {
+                                Text("🔍", fontSize = 15.sp)
+                                Text(
+                                    text = if (TrainTrackerState.searchQuery.isNotEmpty()) TrainTrackerState.searchQuery else "Search train no. or name…",
+                                    fontSize = 13.sp,
+                                    color = if (TrainTrackerState.searchQuery.isNotEmpty()) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                                    maxLines = 1,
+                                    fontWeight = if (TrainTrackerState.searchQuery.isNotEmpty()) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
 
-                            if (TrainTrackerState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { TrainTrackerState.onQueryChanged("") }) {
-                                    Text("✕", fontSize = 14.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = activeTrain.number,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RailBluePrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Expanded Interactive Search Card (Only visible when user taps into search!)
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("🔍", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                                TextField(
+                                    value = TrainTrackerState.searchQuery,
+                                    onValueChange = { TrainTrackerState.onQueryChanged(it) },
+                                    placeholder = {
+                                        Text(
+                                            I18n.t("search_placeholder"),
+                                            fontSize = 13.sp,
+                                            color = Color.Gray
+                                        )
+                                    },
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                if (TrainTrackerState.searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { TrainTrackerState.onQueryChanged("") }) {
+                                        Text("✕", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                TextButton(
+                                    onClick = {
+                                        isSearchActive = false
+                                        TrainTrackerState.closeSearchDropdown()
+                                    }
+                                ) {
+                                    Text("Done", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
                                 }
                             }
 
-                            Button(
-                                onClick = { isNavigationMode = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42)),
-                                shape = RoundedCornerShape(18.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            // Recent Searches Chips
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                Text("🧭 Go", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-
-                        // Recent Searches Chips
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(top = 4.dp)
-                        ) {
-                            items(TrainTrackerState.recentSearches) { trainNo ->
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            if (activeTrain.number == trainNo) RailBluePrimary.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
-                                            RoundedCornerShape(12.dp)
+                                items(TrainTrackerState.recentSearches) { trainNo ->
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                if (activeTrain.number == trainNo) RailBluePrimary.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                TrainTrackerState.selectByNumber(trainNo)
+                                                isSearchActive = false
+                                                TrainTrackerState.closeSearchDropdown()
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            trainNo,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (activeTrain.number == trainNo) RailBluePrimary else Color(0xFF0F172A)
                                         )
-                                        .clickable { TrainTrackerState.selectByNumber(trainNo) }
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        trainNo,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (activeTrain.number == trainNo) RailBluePrimary else Color(0xFF0F172A)
-                                    )
+                                    }
                                 }
                             }
                         }
@@ -366,7 +434,7 @@ fun LiveMapScreen() {
             }
         }
 
-        val toolsTopPadding = if (isNavigationMode) 95.dp else if (!isFullscreen) 116.dp else 18.dp
+        val toolsTopPadding = if (isNavigationMode) 95.dp else if (!isFullscreen) (if (isSearchActive) 175.dp else 70.dp) else 18.dp
 
         // 3. NORMAL MAP VIEW: 3-Dots Button + Tools (always visible until user collapses)
         if (!isFullscreen) {
@@ -615,95 +683,146 @@ fun LiveMapScreen() {
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             if (!isNavigationMode) {
-                // NORMAL MODE: Hero Train Telemetry Card
+                // NORMAL MODE: Modern Interactive Peek Bottom Sheet (Spacious & Minimalist)
                 Card(
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize()
+                        .clickable { isBottomSheetExpanded = !isBottomSheetExpanded }
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        // Drag Handle Pill
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(Color(0xFFCBD5E1), RoundedCornerShape(2.dp))
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Header Row (Compact Peek Header)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Text(activeTrain.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(
+                                        activeTrain.number,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
                                 }
                                 Text(
                                     activeTrain.name,
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
-                            val isDelayed = (liveStatus?.delayMinutes ?: 0) > 0
-                            Box(
-                                modifier = Modifier
-                                    .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
-                                    color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Metrics
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            MetricBox(title = I18n.t("speed"), value = "${liveStatus?.speedKmh ?: 112} km/h", icon = "⚡")
-                            MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
-                            MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Progress Bar
-                        LinearProgressIndicator(
-                            progress = { liveStatus?.progressPercent ?: 0.68f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = RailBluePrimary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Action Button: Preview & Start Turn-by-Turn Navigation
-                        Button(
-                            onClick = { showRoutePreviewSheet = true },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
-                        ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("🧭", fontSize = 16.sp)
-                                Text(
-                                    "Directions to ${selectedStation.name}",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                                val isDelayed = (liveStatus?.delayMinutes ?: 0) > 0
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
+                                        color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                // Interactive Expand / Collapse Indicator
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(Color(0xFFF1F5F9), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        if (isBottomSheetExpanded) "▼" else "▲",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF64748B),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Expanded Content: Telemetry Metrics, Progress Bar, and Action Button
+                        if (isBottomSheetExpanded) {
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Metrics
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                MetricBox(title = I18n.t("speed"), value = "${liveStatus?.speedKmh ?: 112} km/h", icon = "⚡")
+                                MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
+                                MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Progress Bar
+                            LinearProgressIndicator(
+                                progress = { liveStatus?.progressPercent ?: 0.68f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = RailBluePrimary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Action Button: Preview & Start Turn-by-Turn Navigation
+                            Button(
+                                onClick = { showRoutePreviewSheet = true },
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("🧭", fontSize = 16.sp)
+                                    Text(
+                                        "Directions to ${selectedStation.name}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }

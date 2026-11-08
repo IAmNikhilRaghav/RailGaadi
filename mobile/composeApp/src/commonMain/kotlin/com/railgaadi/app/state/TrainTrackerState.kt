@@ -41,15 +41,25 @@ object TrainTrackerState {
 
     fun onQueryChanged(newQuery: String) {
         searchQuery = newQuery
-        isSearchDropdownOpen = true
+        if (newQuery.trim().isEmpty()) {
+            isSearchDropdownOpen = false
+            searchResults = emptyList()
+            searchDebounceJob?.cancel()
+            return
+        }
 
+        isSearchDropdownOpen = true
         searchDebounceJob?.cancel()
         searchDebounceJob = scope.launch {
-            delay(280) // 280ms debounce
+            delay(250) // 250ms debounce
             isSearching = true
             searchResults = service.searchTrains(newQuery)
             isSearching = false
         }
+    }
+
+    fun closeSearchDropdown() {
+        isSearchDropdownOpen = false
     }
 
     fun selectTrain(train: Train) {
