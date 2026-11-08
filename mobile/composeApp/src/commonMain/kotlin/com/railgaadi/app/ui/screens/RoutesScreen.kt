@@ -15,7 +15,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +28,7 @@ import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.StationInfo
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
+import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -112,14 +115,6 @@ fun generateTravelDates(startDate: Int = 7, startMonth: Int = 11, startYear: Int
     return list
 }
 
-// Recent route search history entry
-data class RecentRouteSearch(
-    val fromLabel: String,
-    val toLabel: String,
-    val fromQuery: String,
-    val toQuery: String
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
@@ -139,16 +134,13 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     // Show bottom sheet style: "Yesterday / Today / Tomorrow / Choose from Calendar"
     var showDateQuickPicker by remember { mutableStateOf(false) }
 
-    // Recent search history (max 3)
-    var recentRoutes by remember { mutableStateOf<List<RecentRouteSearch>>(emptyList()) }
-
     var selectedCategoryFilter by remember { mutableStateOf("All") }
     var isSearching by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<List<Train>>(emptyList()) }
     var hasSearchedOnce by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    fun triggerSearch(fromText: String, toText: String, addToHistory: Boolean = true) {
+    fun triggerSearch(fromText: String, toText: String) {
         val cleanFrom = fromText.trim()
         val cleanTo = toText.trim()
 
@@ -160,20 +152,6 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         validationError = null
         val fCode = StationDataService.resolveStationCode(cleanFrom)
         val tCode = StationDataService.resolveStationCode(cleanTo)
-
-        // Add to recent history
-        if (addToHistory) {
-            val entry = RecentRouteSearch(
-                fromLabel = cleanFrom.substringBefore(" (").take(18),
-                toLabel = cleanTo.substringBefore(" (").take(18),
-                fromQuery = cleanFrom,
-                toQuery = cleanTo
-            )
-            val already = recentRoutes.any { it.fromQuery == cleanFrom && it.toQuery == cleanTo }
-            if (!already) {
-                recentRoutes = (listOf(entry) + recentRoutes).take(3)
-            }
-        }
 
         coroutineScope.launch {
             isSearching = true
@@ -634,80 +612,134 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         }
 
         // ─────────────────────────────────────────────────────
-        // 2. RECENT SEARCHES – max 3, with 🗑 delete per row
+        // 2. RECENTLY SEARCHED TRAINS – max 3, with 🗑 red bin at right
         // ─────────────────────────────────────────────────────
-        if (recentRoutes.isNotEmpty()) {
+        val recentTrains = TrainTrackerState.recentTrains
+        if (recentTrains.isNotEmpty()) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text(
-                        "Recent Searches",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-
-                    recentRoutes.forEachIndexed { index, entry ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    MaterialTheme.colorScheme.surface,
-                                    if (index == 0 && recentRoutes.size == 1) RoundedCornerShape(12.dp)
-                                    else if (index == 0) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-                                    else if (index == recentRoutes.size - 1) RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-                                    else RoundedCornerShape(0.dp)
-                                )
-                                .border(
-                                    0.5.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                    if (index == 0 && recentRoutes.size == 1) RoundedCornerShape(12.dp)
-                                    else if (index == 0) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-                                    else if (index == recentRoutes.size - 1) RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-                                    else RoundedCornerShape(0.dp)
-                                )
-                                .clickable {
-                                    fromStationQuery = entry.fromQuery
-                                    toStationQuery = entry.toQuery
-                                    isFromDropdownOpen = false; isToDropdownOpen = false
-                                    triggerSearch(entry.fromQuery, entry.toQuery, addToHistory = false)
-                                }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("🕒", fontSize = 14.sp)
-                                Column {
-                                    Text(
-                                        "${entry.fromLabel}  →  ${entry.toLabel}",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                            Text("🕒", fontSize = 13.sp)
+                            Text(
+                                "Recently Searched Trains",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Text(
+                            "${recentTrains.take(3).size}/3",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray
+                        )
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                            recentTrains.take(3).forEachIndexed { index, train ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onTrackTrain(train, train.origin)
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Left: Train Number Badge + Train Name & Route
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    RailBluePrimary.copy(alpha = 0.12f),
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = train.number,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = RailBluePrimary
+                                            )
+                                        }
+
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                text = train.name,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${train.origin.substringBefore(" (")} ➔ ${train.destination.substringBefore(" (")}",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    // Right: Red & Small Bin Logo Delete Button
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFEE2E2))
+                                            .border(1.dp, Color(0xFFFCA5A5), CircleShape)
+                                            .clickable {
+                                                TrainTrackerState.removeRecentTrain(train.number)
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "🗑️",
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
+
+                                if (index < recentTrains.take(3).size - 1) {
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        thickness = 0.5.dp
                                     )
                                 }
                             }
-                            // 🗑 Red bin delete button
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .background(Color(0xFFFEE2E2), CircleShape)
-                                    .clickable {
-                                        recentRoutes = recentRoutes.toMutableList().also { it.removeAt(index) }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("🗑", fontSize = 13.sp)
-                            }
-                        }
-                        if (index < recentRoutes.size - 1) {
-                            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 0.5.dp)
                         }
                     }
                 }

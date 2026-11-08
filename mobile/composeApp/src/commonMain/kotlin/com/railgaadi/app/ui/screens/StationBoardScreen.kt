@@ -32,6 +32,7 @@ import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
 
 enum class StationBoardMode {
@@ -111,7 +112,7 @@ fun StationBoardScreen(
     LaunchedEffect(searchQuery) {
         val q = searchQuery.trim()
         if (q.length >= 2) {
-            delay(150)
+            delay(150.milliseconds)
             searchSuggestions = StationDataService.searchStations(q)
             isSearchDropdownOpen = searchSuggestions.isNotEmpty()
         } else {
@@ -313,7 +314,7 @@ fun StationBoardScreen(
                                                 )
                                             }
                                         }
-                                        Divider(color = if (isDark) DarkBorder.copy(alpha = 0.5f) else LightBorder.copy(alpha = 0.5f))
+                                        HorizontalDivider(color = if (isDark) DarkBorder.copy(alpha = 0.5f) else LightBorder.copy(alpha = 0.5f))
                                     }
                                 }
                             }
@@ -651,7 +652,7 @@ fun StationBoardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
-                            horizontalAlignment = Alignment.CenterVertically,
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             CircularProgressIndicator(
@@ -680,7 +681,7 @@ fun StationBoardScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterVertically,
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("🔍", fontSize = 40.sp)
@@ -886,7 +887,7 @@ private fun StationBoardTrainCard(
                     }
                 }
 
-                Divider(color = if (isDark) DarkBorder.copy(alpha = 0.5f) else LightBorder.copy(alpha = 0.5f))
+                HorizontalDivider(color = if (isDark) DarkBorder.copy(alpha = 0.5f) else LightBorder.copy(alpha = 0.5f))
 
                 // Bottom Row: Status Badge + Track Live Button
                 Row(

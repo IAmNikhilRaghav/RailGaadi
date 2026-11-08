@@ -26,6 +26,25 @@ object TrainTrackerState {
     // Start with empty history — populated as user searches
     var recentSearches by mutableStateOf(listOf<String>())
 
+    // Recently searched trains (max 3 with delete feature)
+    var recentTrains by mutableStateOf<List<Train>>(
+        listOf(
+            Train("12404", "Prayagraj SF Express", "Superfast Express", "Lalgarh Jn (LGNH)", "Prayagraj Jn (PRYJ)", "10:30", "04:45", 1095, "2"),
+            Train("22436", "Vande Bharat Express", "Vande Bharat", "New Delhi (NDLS)", "Varanasi Jn (BSB)", "06:00", "14:00", 480, "16"),
+            Train("12952", "Mumbai Tejas Rajdhani", "Rajdhani Express", "New Delhi (NDLS)", "Mumbai Central (MMCT)", "16:55", "08:35", 940, "3")
+        )
+    )
+
+    fun addRecentTrain(train: Train) {
+        if (train.number.isBlank()) return
+        val filtered = recentTrains.filter { it.number != train.number }
+        recentTrains = (listOf(train) + filtered).take(3)
+    }
+
+    fun removeRecentTrain(trainNumber: String) {
+        recentTrains = recentTrains.filter { it.number != trainNumber }
+    }
+
     // No default train pre-loaded; map starts clean
     var activeTrain by mutableStateOf(
         Train("", "", "", "", "", "", "", 0, "")
@@ -85,6 +104,7 @@ object TrainTrackerState {
         if (!recentSearches.contains(train.number)) {
             recentSearches = (listOf(train.number) + recentSearches).take(6)
         }
+        addRecentTrain(train)
 
         scope.launch {
             isLoadingStatus = true
