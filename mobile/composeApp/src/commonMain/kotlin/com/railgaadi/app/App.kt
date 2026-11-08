@@ -160,7 +160,10 @@ fun App() {
                     })
                     TabItem.ANALYTICS -> AnalyticsScreen()
                     TabItem.WEATHER -> WeatherScreen()
-                    TabItem.STATION -> StationBoardScreen()
+                    TabItem.STATION -> StationBoardScreen(onTrackTrain = { train ->
+                        TrainTrackerState.selectTrain(train)
+                        selectedTab = TabItem.LIVE_MAP
+                    })
                 }
 
                 // Right-Side Preferences Drawer (Opens smoothly from right edge)

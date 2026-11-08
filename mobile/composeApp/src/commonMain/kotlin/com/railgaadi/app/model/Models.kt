@@ -39,6 +39,33 @@ data class Station(
 )
 
 @Serializable
+data class StationBoardTrain(
+    val number: String,
+    val name: String,
+    val type: String = "Superfast Express",
+    val origin: String,
+    val destination: String,
+    val scheduledArr: String? = null,
+    val scheduledDep: String? = null,
+    val actualArr: String? = null,
+    val actualDep: String? = null,
+    val platform: String = "1",
+    val delayMinutes: Int = 0,
+    val haltMinutes: Int = 2
+) {
+    fun toTrain(): Train = Train(
+        number = number,
+        name = name,
+        type = type,
+        origin = origin,
+        destination = destination,
+        departureTime = scheduledDep ?: scheduledArr ?: "12:00",
+        arrivalTime = scheduledArr ?: scheduledDep ?: "12:00",
+        platform = platform
+    )
+}
+
+@Serializable
 data class LiveStatus(
     val trainNumber: String,
     val trainName: String,
