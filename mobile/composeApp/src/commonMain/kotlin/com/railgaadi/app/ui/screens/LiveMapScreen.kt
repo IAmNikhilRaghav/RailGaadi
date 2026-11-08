@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.Station
@@ -51,12 +53,24 @@ fun LiveMapScreen() {
     var followTrain by remember { mutableStateOf(false) }
     var compassBearing by remember { mutableStateOf(0f) }
 
-    // Fullscreen Map & Collapsible Tools State (Web App Parity)
+    // Dynamic Black Initializer & Auto-Collapsing Map Controls
     var isFullscreen by remember { mutableStateOf(false) }
-    var isNormalToolsExpanded by remember { mutableStateOf(false) }
-    var isFullscreenToolsCollapsed by remember { mutableStateOf(false) }
+    var isToolsExpanded by remember { mutableStateOf(false) }
+    var interactionTick by remember { mutableStateOf(0) }
     var initializerDragX by remember { mutableStateOf(0f) }
     var initializerDragY by remember { mutableStateOf(0f) }
+
+    // Hold for ~1.8 seconds (1.5s - 2.0s) of inactivity, then automatically collapse under the black initializer
+    LaunchedEffect(isToolsExpanded, interactionTick) {
+        if (isToolsExpanded) {
+            delay(1800)
+            isToolsExpanded = false
+        }
+    }
+
+    fun pingInteraction() {
+        interactionTick++
+    }
 
     // Route Preview & Google Maps Redirection State
     var showRoutePreviewSheet by remember { mutableStateOf(false) }
@@ -332,239 +346,158 @@ fun LiveMapScreen() {
             }
         }
 
-        // 3. NORMAL VIEW MAP CONTROLS (Top-Right: Three-dots toggle button with Fullscreen button directly beneath; collapsible tools expand under three-dots)
-        AnimatedVisibility(
-            visible = !isFullscreen,
-            enter = fadeIn(animationSpec = tween(150)),
-            exit = fadeOut(animationSpec = tween(150)),
+        val toolsTopPadding = if (isNavigationMode) 95.dp else if (!isFullscreen) 116.dp else 18.dp
+
+        // 3. DYNAMIC BLACK INITIALIZER & AUTO-COLLAPSING MAP CONTROLS
+        Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = if (isNavigationMode) 95.dp else 116.dp, end = 12.dp)
+                .padding(top = toolsTopPadding, end = 12.dp)
+                .offset { IntOffset(initializerDragX.roundToInt(), initializerDragY.roundToInt()) }
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // A. Black Initializer Tab (Visible by default and when controls auto-collapse on inactivity)
+            AnimatedVisibility(
+                visible = !isToolsExpanded,
+                enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
+                exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
+                modifier = Modifier.pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        initializerDragX += dragAmount.x
+                        initializerDragY += dragAmount.y
+                    }
+                }
             ) {
-                // Top Button: Three-dots toggle button
-                MinimalMapToolButton(
-                    isActive = isNormalToolsExpanded,
-                    onClick = { isNormalToolsExpanded = !isNormalToolsExpanded }
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .shadow(8.dp, RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
+                        .clickable {
+                            isToolsExpanded = true
+                            pingInteraction()
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    VectorThreeDotsIcon(isExpanded = isNormalToolsExpanded)
-                }
-
-                // Collapsible tool stack (expands vertically when three-dots button is tapped)
-                AnimatedVisibility(
-                    visible = isNormalToolsExpanded,
-                    enter = fadeIn(animationSpec = tween(160)) + expandVertically(),
-                    exit = fadeOut(animationSpec = tween(160)) + shrinkVertically()
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Dynamic Compass
-                        MinimalMapToolButton(onClick = { compassBearing = 0f }) {
-                            Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
-                        }
-
-                        // 3D Perspective Toggle
-                        MinimalMapToolButton(
-                            label = if (is3DMode) "2D" else "3D",
-                            isActive = is3DMode,
-                            onClick = { is3DMode = !is3DMode }
-                        )
-
-                        // Follow Train Camera Toggle
-                        MinimalMapToolButton(
-                            isActive = followTrain,
-                            onClick = { followTrain = !followTrain }
-                        ) {
-                            VectorCameraFollowIcon(followTrain)
-                        }
-
-                        // GPS Find Nearest Station / Route Preview
-                        MinimalMapToolButton(
-                            onClick = {
-                                selectedStation = trainStations.first()
-                                showRoutePreviewSheet = true
-                            }
-                        ) {
-                            VectorGpsIcon()
-                        }
-
-                        if (isNavigationMode) {
-                            // Voice Mute Toggle
-                            MinimalMapToolButton(
-                                label = if (isMuted) "🔇" else "🔊",
-                                onClick = { isMuted = !isMuted }
-                            )
-
-                            // Alternative Routes
-                            MinimalMapToolButton(
-                                label = "🔀",
-                                onClick = {
-                                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                                    if (selectedAlternativeRoute == 1) {
-                                        navDistanceKm = "15.4 km"
-                                        navDurationMin = 29
-                                    } else {
-                                        navDistanceKm = "13 km"
-                                        navDurationMin = 25
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Fullscreen button directly beneath three-dots / tools
-                MinimalMapToolButton(
-                    onClick = {
-                        isFullscreen = true
-                        isFullscreenToolsCollapsed = false
-                    }
-                ) {
-                    VectorFullscreenIcon(isFullscreen = false)
+                    Text(
+                        "‹",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-        }
 
-        // 4. FULLSCREEN MODE MAP CONTROLS & BLACK INITIALIZER
-        AnimatedVisibility(
-            visible = isFullscreen,
-            enter = fadeIn(animationSpec = tween(180)),
-            exit = fadeOut(animationSpec = tween(180))
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Black Little Initializer Tab (Top-right, draggable anywhere so user enjoys unblocked full map view)
-                AnimatedVisibility(
-                    visible = isFullscreenToolsCollapsed,
-                    enter = fadeIn(animationSpec = tween(150)) + slideInHorizontally(initialOffsetX = { it }),
-                    exit = fadeOut(animationSpec = tween(150)) + slideOutHorizontally(targetOffsetX = { it }),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 18.dp, end = 12.dp)
-                        .offset { IntOffset(initializerDragX.roundToInt(), initializerDragY.roundToInt()) }
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                initializerDragX += dragAmount.x
-                                initializerDragY += dragAmount.y
-                            }
-                        }
+            // B. Floating Tools Stack (Auto-collapses after 1.8s inactivity, resets on touch)
+            AnimatedVisibility(
+                visible = isToolsExpanded,
+                enter = fadeIn(animationSpec = tween(160)) + slideInHorizontally(initialOffsetX = { it / 2 }),
+                exit = fadeOut(animationSpec = tween(160)) + slideOutHorizontally(targetOffsetX = { it / 2 })
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Top Collapse Button (Immediately collapses back under black initializer)
                     Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .shadow(8.dp, RoundedCornerShape(10.dp))
+                            .shadow(4.dp, RoundedCornerShape(10.dp))
                             .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
-                            .clickable { isFullscreenToolsCollapsed = false },
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                            .clickable { isToolsExpanded = false },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "‹",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("›", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
-                }
 
-                // Fullscreen Floating Tools Stack (revealed by clicking black initializer, collapsible via top › button)
-                AnimatedVisibility(
-                    visible = !isFullscreenToolsCollapsed,
-                    enter = fadeIn(animationSpec = tween(180)) + slideInHorizontally(initialOffsetX = { it / 2 }),
-                    exit = fadeOut(animationSpec = tween(180)) + slideOutHorizontally(targetOffsetX = { it / 2 }),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 18.dp, end = 12.dp)
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    // Fullscreen Toggle Button (Minimalist vector icon)
+                    MinimalMapToolButton(
+                        isActive = isFullscreen,
+                        onClick = {
+                            isFullscreen = !isFullscreen
+                            pingInteraction()
+                        }
                     ) {
-                        // Collapse into black initializer tab
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .shadow(4.dp, RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-                                .clickable { isFullscreenToolsCollapsed = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("›", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        }
+                        VectorFullscreenIcon(isFullscreen = isFullscreen)
+                    }
 
-                        // Exit Fullscreen Mode button
+                    // Precision Compass Needle (Rotates with bearing, resets North on tap)
+                    MinimalMapToolButton(
+                        onClick = {
+                            compassBearing = 0f
+                            pingInteraction()
+                        }
+                    ) {
+                        VectorCompassNeedleIcon(bearing = compassBearing)
+                    }
+
+                    // 3D Perspective Toggle (Clean typography)
+                    MinimalMapToolButton(
+                        label = if (is3DMode) "2D" else "3D",
+                        isActive = is3DMode,
+                        onClick = {
+                            is3DMode = !is3DMode
+                            pingInteraction()
+                        }
+                    )
+
+                    // Follow Train Camera Toggle (Clean minimalist target crosshair)
+                    MinimalMapToolButton(
+                        isActive = followTrain,
+                        onClick = {
+                            followTrain = !followTrain
+                            pingInteraction()
+                        }
+                    ) {
+                        VectorCameraFollowIcon(isActive = followTrain)
+                    }
+
+                    // GPS Find Nearest Station / Route Preview (Clean GPS crosshair)
+                    MinimalMapToolButton(
+                        onClick = {
+                            selectedStation = trainStations.first()
+                            showRoutePreviewSheet = true
+                            isToolsExpanded = false
+                        }
+                    ) {
+                        VectorGpsIcon()
+                    }
+
+                    if (isNavigationMode) {
+                        // Voice Mute Toggle (Clean minimalist speaker stroke vector)
                         MinimalMapToolButton(
-                            isActive = true,
+                            isActive = !isMuted,
                             onClick = {
-                                isFullscreen = false
-                                isFullscreenToolsCollapsed = false
+                                isMuted = !isMuted
+                                pingInteraction()
                             }
                         ) {
-                            VectorFullscreenIcon(isFullscreen = true)
+                            VectorSoundIcon(isMuted = isMuted)
                         }
 
-                        // Compass
-                        MinimalMapToolButton(onClick = { compassBearing = 0f }) {
-                            Text("🧭", fontSize = 18.sp, modifier = Modifier.rotate(-compassBearing))
-                        }
-
-                        // 3D Perspective
-                        MinimalMapToolButton(
-                            label = if (is3DMode) "2D" else "3D",
-                            isActive = is3DMode,
-                            onClick = { is3DMode = !is3DMode }
-                        )
-
-                        // Follow Train Camera
-                        MinimalMapToolButton(
-                            isActive = followTrain,
-                            onClick = { followTrain = !followTrain }
-                        ) {
-                            VectorCameraFollowIcon(followTrain)
-                        }
-
-                        // GPS Station / Route Preview
+                        // Alternative Routes (Clean minimalist branching path vector)
                         MinimalMapToolButton(
                             onClick = {
-                                selectedStation = trainStations.first()
-                                showRoutePreviewSheet = true
-                            }
-                        ) {
-                            VectorGpsIcon()
-                        }
-
-                        if (isNavigationMode) {
-                            // Voice Mute Toggle
-                            MinimalMapToolButton(
-                                label = if (isMuted) "🔇" else "🔊",
-                                onClick = { isMuted = !isMuted }
-                            )
-
-                            // Alternative Routes
-                            MinimalMapToolButton(
-                                label = "🔀",
-                                onClick = {
-                                    selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
-                                    if (selectedAlternativeRoute == 1) {
-                                        navDistanceKm = "15.4 km"
-                                        navDurationMin = 29
-                                    } else {
-                                        navDistanceKm = "13 km"
-                                        navDurationMin = 25
-                                    }
+                                selectedAlternativeRoute = if (selectedAlternativeRoute == 0) 1 else 0
+                                if (selectedAlternativeRoute == 1) {
+                                    navDistanceKm = "15.4 km"
+                                    navDurationMin = 29
+                                } else {
+                                    navDistanceKm = "13 km"
+                                    navDurationMin = 25
                                 }
-                            )
+                                pingInteraction()
+                            }
+                        ) {
+                            VectorRouteSplitIcon()
                         }
                     }
                 }
             }
         }
+
 
         // 5. BOTTOM OVERLAYS (Hidden when in Fullscreen mode for immersive viewing)
         AnimatedVisibility(
@@ -1128,5 +1061,98 @@ fun VectorGpsIcon() {
         drawLine(color, Offset(center.x, size.height * 0.75f), Offset(center.x, size.height), strokeWidth = 1.5f)
         drawLine(color, Offset(0f, center.y), Offset(size.width * 0.25f, center.y), strokeWidth = 1.5f)
         drawLine(color, Offset(size.width * 0.75f, center.y), Offset(size.width, center.y), strokeWidth = 1.5f)
+    }
+}
+
+@Composable
+fun VectorCompassNeedleIcon(bearing: Float) {
+    Canvas(modifier = Modifier.size(20.dp).rotate(-bearing)) {
+        val cx = size.width / 2
+        val cy = size.height / 2
+        val needleW = 3.5.dp.toPx()
+
+        // North needle (crisp crimson red)
+        val northPath = Path().apply {
+            moveTo(cx, 2.dp.toPx())
+            lineTo(cx + needleW, cy)
+            lineTo(cx - needleW, cy)
+            close()
+        }
+        drawPath(northPath, Color(0xFFEF4444))
+
+        // South needle (subtle slate)
+        val southPath = Path().apply {
+            moveTo(cx, size.height - 2.dp.toPx())
+            lineTo(cx + needleW, cy)
+            lineTo(cx - needleW, cy)
+            close()
+        }
+        drawPath(southPath, Color(0xFF64748B))
+
+        // Center pivot
+        drawCircle(Color.White, radius = 2.dp.toPx(), center = Offset(cx, cy))
+        drawCircle(Color(0xFF0F172A), radius = 1.2.dp.toPx(), center = Offset(cx, cy))
+    }
+}
+
+@Composable
+fun VectorSoundIcon(isMuted: Boolean) {
+    Canvas(modifier = Modifier.size(17.dp)) {
+        val color = if (isMuted) Color(0xFF94A3B8) else Color(0xFF0F172A)
+        val stroke = 1.6f
+
+        // Speaker cone
+        val bodyPath = Path().apply {
+            moveTo(size.width * 0.15f, size.height * 0.35f)
+            lineTo(size.width * 0.35f, size.height * 0.35f)
+            lineTo(size.width * 0.60f, size.height * 0.18f)
+            lineTo(size.width * 0.60f, size.height * 0.82f)
+            lineTo(size.width * 0.35f, size.height * 0.65f)
+            lineTo(size.width * 0.15f, size.height * 0.65f)
+            close()
+        }
+        drawPath(bodyPath, color, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+        if (isMuted) {
+            drawLine(Color(0xFFEF4444), Offset(size.width * 0.72f, size.height * 0.32f), Offset(size.width * 0.92f, size.height * 0.68f), strokeWidth = 1.8f, cap = StrokeCap.Round)
+        } else {
+            drawArc(
+                color = color,
+                startAngle = -45f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(size.width * 0.45f, size.height * 0.25f),
+                size = Size(size.width * 0.45f, size.height * 0.50f),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+        }
+    }
+}
+
+@Composable
+fun VectorRouteSplitIcon() {
+    Canvas(modifier = Modifier.size(17.dp)) {
+        val color = Color(0xFF0F172A)
+        val stroke = 1.8f
+        // Stem
+        drawLine(color, Offset(size.width * 0.5f, size.height * 0.85f), Offset(size.width * 0.5f, size.height * 0.50f), strokeWidth = stroke, cap = StrokeCap.Round)
+        // Left path
+        val leftBranch = Path().apply {
+            moveTo(size.width * 0.5f, size.height * 0.50f)
+            cubicTo(size.width * 0.5f, size.height * 0.35f, size.width * 0.25f, size.height * 0.35f, size.width * 0.25f, size.height * 0.20f)
+        }
+        drawPath(leftBranch, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+        // Right path
+        val rightBranch = Path().apply {
+            moveTo(size.width * 0.5f, size.height * 0.50f)
+            cubicTo(size.width * 0.5f, size.height * 0.35f, size.width * 0.75f, size.height * 0.35f, size.width * 0.75f, size.height * 0.20f)
+        }
+        drawPath(rightBranch, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+        // Arrow heads
+        drawLine(color, Offset(size.width * 0.15f, size.height * 0.28f), Offset(size.width * 0.25f, size.height * 0.16f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.35f, size.height * 0.28f), Offset(size.width * 0.25f, size.height * 0.16f), strokeWidth = stroke, cap = StrokeCap.Round)
+
+        drawLine(color, Offset(size.width * 0.65f, size.height * 0.28f), Offset(size.width * 0.75f, size.height * 0.16f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.85f, size.height * 0.28f), Offset(size.width * 0.75f, size.height * 0.16f), strokeWidth = stroke, cap = StrokeCap.Round)
     }
 }

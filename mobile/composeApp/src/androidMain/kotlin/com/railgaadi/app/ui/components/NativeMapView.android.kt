@@ -210,50 +210,71 @@ private fun generateMapHtml(
         #map { width: 100%; height: 100%; }
         
         .train-marker {
-            width: 40px; height: 40px;
-            background: #2563eb;
+            width: 32px; height: 32px;
+            background: #0f172a;
             color: #fff;
-            border: 3px solid #fff;
-            border-radius: 50%;
+            border: 2px solid #ffffff;
+            border-radius: 8px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px;
-            box-shadow: 0 4px 16px rgba(37,99,235,0.5);
-            animation: pulse-ring 2s infinite;
-        }
-        @keyframes pulse-ring {
-            0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
-            70% { box-shadow: 0 0 0 14px rgba(37,99,235,0); }
-            100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+            box-shadow: 0 4px 12px rgba(15,23,42,0.35);
         }
 
         .user-marker {
-            width: 22px; height: 22px;
-            background: #0284c7;
-            border: 3.5px solid #ffffff;
+            width: 20px; height: 20px;
+            background: #2563eb;
+            border: 3px solid #ffffff;
             border-radius: 50%;
-            box-shadow: 0 0 0 6px rgba(2,132,199,0.3);
+            box-shadow: 0 0 0 5px rgba(37,99,235,0.25);
+        }
+
+        .live-route-runner {
+            width: 28px; height: 28px;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+            transition: transform 0.05s linear;
+        }
+        .runner-dot {
+            width: 22px; height: 22px;
+            background: #2563eb;
+            border: 2.5px solid #ffffff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.45);
+            z-index: 2;
+        }
+        .runner-halo {
+            position: absolute;
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: rgba(37,99,235,0.22);
+            animation: runner-pulse 1.5s ease-out infinite;
+            z-index: 1;
+        }
+        @keyframes runner-pulse {
+            0% { transform: scale(0.6); opacity: 0.9; }
+            100% { transform: scale(1.6); opacity: 0; }
         }
 
         .station-pin {
-            width: 20px; height: 20px;
+            width: 18px; height: 18px;
             background: #ffffff;
-            border: 3px solid #0f172a;
+            border: 2.5px solid #0f172a;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            transition: transform 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            transition: transform 0.15s ease;
         }
-        .station-pin:hover { transform: scale(1.3); border-color: #2563eb; }
+        .station-pin:hover { transform: scale(1.25); border-color: #2563eb; }
 
         .dest-marker {
-            width: 36px; height: 36px;
-            background: #dc2626;
+            width: 32px; height: 32px;
+            background: #0f172a;
             color: #fff;
-            border: 2px solid #fff;
+            border: 2px solid #ffffff;
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-size: 18px;
-            box-shadow: 0 3px 12px rgba(220,38,38,0.5);
+            box-shadow: 0 4px 12px rgba(15,23,42,0.35);
         }
 
         /* Station Popup Styling */
@@ -360,7 +381,7 @@ private fun generateMapHtml(
 
                 const stationEl = document.createElement('div');
                 stationEl.className = 'dest-marker';
-                stationEl.innerHTML = '🚉';
+                stationEl.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="2"/><line x1="4" y1="11" x2="20" y2="11"/><circle cx="8" cy="15" r="1.5" fill="#ffffff"/><circle cx="16" cy="15" r="1.5" fill="#ffffff"/><line x1="8" y1="19" x2="6" y2="22"/><line x1="16" y1="19" x2="18" y2="22"/></svg>';
                 new maplibregl.Marker({ element: stationEl }).setLngLat([dLon, dLat]).addTo(map);
 
                 // Fetch OSRM Road Route with Step-by-Step Directions
@@ -397,6 +418,43 @@ private fun generateMapHtml(
                                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                                 paint: { 'line-color': '#3b82f6', 'line-width': 6.5 }
                             });
+
+                            // Dynamic Live Marker running along route toward station
+                            const navMarkerEl = document.createElement('div');
+                            navMarkerEl.className = 'live-route-runner';
+                            navMarkerEl.innerHTML = '<div class="runner-halo"></div><div class="runner-dot"><svg width="11" height="11" viewBox="0 0 24 24" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 21 12 17 5 21 12 2"/></svg></div>';
+
+                            const liveRunnerMarker = new maplibregl.Marker({
+                                element: navMarkerEl,
+                                rotationAlignment: 'map'
+                            }).setLngLat(coordinates[0]).addTo(map);
+
+                            let runnerProgress = 0;
+                            function stepLiveRunner() {
+                                if (!coordinates || coordinates.length < 2) return;
+                                runnerProgress += 0.0018;
+                                if (runnerProgress >= 1) runnerProgress = 0;
+
+                                const exactIndex = runnerProgress * (coordinates.length - 1);
+                                const i = Math.floor(exactIndex);
+                                const nextI = Math.min(i + 1, coordinates.length - 1);
+                                const t = exactIndex - i;
+
+                                const p1 = coordinates[i];
+                                const p2 = coordinates[nextI];
+                                const lng = p1[0] + (p2[0] - p1[0]) * t;
+                                const lat = p1[1] + (p2[1] - p1[1]) * t;
+
+                                const dx = p2[0] - p1[0];
+                                const dy = p2[1] - p1[1];
+                                const angleDeg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+
+                                liveRunnerMarker.setLngLat([lng, lat]);
+                                liveRunnerMarker.setRotation(angleDeg);
+
+                                requestAnimationFrame(stepLiveRunner);
+                            }
+                            requestAnimationFrame(stepLiveRunner);
 
                             // Fit bounds to route
                             const bounds = new maplibregl.LngLatBounds();
@@ -529,10 +587,10 @@ private fun generateMapHtml(
                     });
                 });
 
-                // Train Marker
+                // Train Marker (Clean Minimalist Vector)
                 const trainEl = document.createElement('div');
                 trainEl.className = 'train-marker';
-                trainEl.innerHTML = '🚆';
+                trainEl.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="2"/><line x1="4" y1="11" x2="20" y2="11"/><circle cx="8" cy="15" r="1.5" fill="#ffffff"/><circle cx="16" cy="15" r="1.5" fill="#ffffff"/><line x1="8" y1="19" x2="6" y2="22"/><line x1="16" y1="19" x2="18" y2="22"/></svg>';
 
                 const progressClamped = Math.max(0, Math.min(1, ${progress}));
                 const totalSegments = trackCoords.length - 1;
