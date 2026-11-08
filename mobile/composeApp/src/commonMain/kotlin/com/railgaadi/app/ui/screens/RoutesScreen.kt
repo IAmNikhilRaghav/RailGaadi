@@ -41,6 +41,7 @@ data class RouteTravelDate(
     val dayOfWeek: String,
     val dayOfWeekFull: String,
     val dayOfWeekIndex: Int,
+    val isYesterday: Boolean = false,
     val isToday: Boolean = false,
     val isTomorrow: Boolean = false
 ) {
@@ -48,6 +49,7 @@ data class RouteTravelDate(
         get() = when {
             isToday -> "Today"
             isTomorrow -> "Tomorrow"
+            isYesterday -> "Yesterday"
             else -> "$dayOfWeek, $dayNumber $monthName"
         }
 
@@ -55,6 +57,7 @@ data class RouteTravelDate(
         get() = when {
             isToday -> "Today, $dayNumber $monthName"
             isTomorrow -> "Tomorrow, $dayNumber $monthName"
+            isYesterday -> "Yesterday, $dayNumber $monthName"
             else -> "$dayOfWeek, $dayNumber $monthName"
         }
 
@@ -62,7 +65,7 @@ data class RouteTravelDate(
         get() = "$dayOfWeekFull, $dayNumber $monthName $year"
 }
 
-fun generateTravelDates(startDate: Int = 8, startMonth: Int = 11, startYear: Int = 2026): List<RouteTravelDate> {
+fun generateTravelDates(startDate: Int = 7, startMonth: Int = 11, startYear: Int = 2026): List<RouteTravelDate> {
     val monthNames = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     // leap-year aware days per month
     fun daysInMonth(m: Int, y: Int): Int {
@@ -94,8 +97,9 @@ fun generateTravelDates(startDate: Int = 8, startMonth: Int = 11, startYear: Int
                 dayOfWeek = dayNames[dow],
                 dayOfWeekFull = dayFullNames[dow],
                 dayOfWeekIndex = dow,
-                isToday = (i == 0),
-                isTomorrow = (i == 1)
+                isYesterday = (i == 0),
+                isToday = (i == 1),
+                isTomorrow = (i == 2)
             )
         )
         curDay++
@@ -129,8 +133,8 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var isToDropdownOpen by remember { mutableStateOf(false) }
 
     // Travel Dates & Calendar
-    val travelDates = remember { generateTravelDates(8, 11, 2026) }
-    var selectedTravelDate by remember { mutableStateOf(travelDates.first()) }
+    val travelDates = remember { generateTravelDates(7, 11, 2026) }
+    var selectedTravelDate by remember { mutableStateOf(travelDates.first { it.isToday }) }
     var showCalendarDialog by remember { mutableStateOf(false) }
     // Show bottom sheet style: "Yesterday / Today / Tomorrow / Choose from Calendar"
     var showDateQuickPicker by remember { mutableStateOf(false) }
@@ -227,38 +231,46 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
     // "Where is my train" style quick date picker bottom sheet
     if (showDateQuickPicker) {
+        val departureName = fromStationQuery.substringBefore(" (").ifBlank { "origin station" }
         ModalBottomSheet(
             onDismissRequest = { showDateQuickPicker = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            dragHandle = null
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                    .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "Choose date of journey",
+                    text = "Choose the date",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
                 Text(
-                    "Select the day you want to travel",
+                    text = "for departure from $departureName",
                     fontSize = 12.sp,
                     color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                val yesterdayDate = travelDates.firstOrNull { it.isYesterday }
+                val todayDate = travelDates.firstOrNull { it.isToday } ?: travelDates[0]
+                val tomorrowDate = travelDates.firstOrNull { it.isTomorrow } ?: travelDates[1]
+
+                val options = listOfNotNull(
+                    yesterdayDate?.let { "Yesterday" to it },
+                    "Today" to todayDate,
+                    "Tomorrow" to tomorrowDate
                 )
 
-                val quickOptions = travelDates.take(3) // Yesterday is not available (future only)
-                listOf(
-                    Triple("Today", travelDates[0], false),
-                    Triple("Tomorrow", travelDates[1], false),
-                    Triple(travelDates[2].shortLabel, travelDates[2], false)
-                ).forEach { (label, date, _) ->
-                    val isChosen = (selectedTravelDate.dayNumber == date.dayNumber && selectedTravelDate.monthNumber == date.monthNumber)
+                options.forEach { (label, date) ->
+                    val isChosen = (selectedTravelDate.dayNumber == date.dayNumber && selectedTravelDate.monthNumber == date.monthNumber && selectedTravelDate.year == date.year)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -266,15 +278,15 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 selectedTravelDate = date
                                 showDateQuickPicker = false
                             }
-                            .padding(vertical = 14.dp),
+                            .padding(vertical = 15.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            label,
+                            text = label,
                             fontSize = 16.sp,
                             fontWeight = if (isChosen) FontWeight.ExtraBold else FontWeight.Normal,
-                            color = if (isChosen) RailBluePrimary else MaterialTheme.colorScheme.onSurface
+                            color = if (isChosen) RailBluePrimary else Color(0xFF1E3A8A)
                         )
                     }
                     HorizontalDivider(color = Color(0xFFF1F5F9))
@@ -288,37 +300,45 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             showDateQuickPicker = false
                             showCalendarDialog = true
                         }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center
+                        .padding(vertical = 15.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Choose from Calendar",
+                        text = "Choose from Calendar",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Normal,
                         color = RailBluePrimary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = Color(0xFFF1F5F9))
 
-                // Cancel
-                TextButton(
-                    onClick = { showDateQuickPicker = false },
+                // Cancel button
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+                        .clickable { showDateQuickPicker = false }
+                        .padding(vertical = 15.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
+                    Text(
+                        text = "Cancel",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = RailBluePrimary
+                    )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 
-    // Full Calendar Dialog (Google "Where is my Train" style)
+    // Full Calendar Bottom Sheet (Where is my Train style)
     if (showCalendarDialog) {
-        CalendarPickerDialog(
+        CalendarPickerBottomSheet(
             currentSelected = selectedTravelDate,
+            departureStation = fromStationQuery,
             allDates = travelDates,
             onDismiss = { showCalendarDialog = false },
             onDateSelected = { date ->
@@ -551,29 +571,36 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // ── DATE PICKER – full-width blue/white pill, no "Date of Journey" label ──
+                    // ── DATE PICKER – Where Is My Train style compact pill ──
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(RailBluePrimary, RoundedCornerShape(12.dp))
-                            .clickable { showDateQuickPicker = true }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.Start
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFE2EDF9), RoundedCornerShape(8.dp))
+                                .clickable { showDateQuickPicker = true }
+                                .padding(horizontal = 14.dp, vertical = 7.dp)
                         ) {
-                            Text("📅", fontSize = 14.sp)
-                            Text(
-                                selectedTravelDate.fullFormatted,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = selectedTravelDate.displayLabel,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1E3A8A)
+                                )
+                                Text(
+                                    text = "▾",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E3A8A)
+                                )
+                            }
                         }
-                        Text("▾", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -840,11 +867,13 @@ fun FeaturePill(icon: String, label: String, modifier: Modifier = Modifier) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Google "Where is my Train" style full grid Calendar dialog
+// Where is my Train style full grid Calendar Bottom Sheet
 // ─────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarPickerDialog(
+fun CalendarPickerBottomSheet(
     currentSelected: RouteTravelDate,
+    departureStation: String,
     allDates: List<RouteTravelDate>,
     onDismiss: () -> Unit,
     onDateSelected: (RouteTravelDate) -> Unit
@@ -868,139 +897,204 @@ fun CalendarPickerDialog(
     val daysInViewingMonth = daysInMonth(viewingMonth, viewingYear)
     val firstOffset = firstDayOffset(viewingMonth, viewingYear)
     val monthLabel = "${monthFullNames[viewingMonth]} $viewingYear"
+    val stationClean = departureStation.substringBefore(" (").ifBlank { "origin station" }
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", fontWeight = FontWeight.SemiBold, color = RailBluePrimary, fontSize = 14.sp)
-            }
-        },
-        title = null,
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Header: "Choose the date"
-                Text(
-                    "Choose the date",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
-                )
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        dragHandle = null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp)
+        ) {
+            // Header: "Choose the date"
+            Text(
+                text = "Choose the date",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "for departure from $stationClean",
+                fontSize = 12.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp, bottom = 12.dp)
+            )
 
-                // Month navigation header with ‹ MonthYear › arrows
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+            // Month navigation header with ‹ MonthYear ▾ › arrows
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Month/year with dropdown arrow
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = monthLabel,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text("▾", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = {
-                            if (!(viewingMonth == 11 && viewingYear == 2026)) {
+                    val canGoBack = !(viewingMonth == 11 && viewingYear == 2026)
+                    Text(
+                        text = "‹",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (canGoBack) MaterialTheme.colorScheme.onSurface else Color(0xFFCBD5E1),
+                        modifier = Modifier
+                            .clickable(enabled = canGoBack) {
                                 if (viewingMonth == 1) { viewingMonth = 12; viewingYear-- }
                                 else viewingMonth--
                             }
-                        },
-                        enabled = !(viewingMonth == 11 && viewingYear == 2026)
-                    ) {
-                        Text("‹", fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                            color = if (viewingMonth == 11 && viewingYear == 2026) Color.LightGray else MaterialTheme.colorScheme.onSurface)
-                    }
+                            .padding(horizontal = 6.dp)
+                    )
 
-                    // Month/year with dropdown arrow (tappable shows month selector in future)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(monthLabel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text("▾", fontSize = 11.sp, color = Color.Gray)
-                    }
-
-                    IconButton(
-                        onClick = {
-                            if (viewingMonth == 12) { viewingMonth = 1; viewingYear++ }
-                            else viewingMonth++
-                        },
-                        enabled = !(viewingMonth == 2 && viewingYear == 2027)
-                    ) {
-                        Text("›", fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                            color = if (viewingMonth == 2 && viewingYear == 2027) Color.LightGray else MaterialTheme.colorScheme.onSurface)
-                    }
+                    val canGoForward = !(viewingMonth == 2 && viewingYear == 2027)
+                    Text(
+                        text = "›",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (canGoForward) MaterialTheme.colorScheme.onSurface else Color(0xFFCBD5E1),
+                        modifier = Modifier
+                            .clickable(enabled = canGoForward) {
+                                if (viewingMonth == 12) { viewingMonth = 1; viewingYear++ }
+                                else viewingMonth++
+                            }
+                            .padding(horizontal = 6.dp)
+                    )
                 }
+            }
 
-                // Day-of-week headers: S M T W T F S
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
-                        Text(
-                            d, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                            color = Color.Gray, modifier = Modifier.width(36.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
+            // Day-of-week headers: S M T W T F S
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
+                    Text(
+                        text = d,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF64748B),
+                        modifier = Modifier.width(38.dp),
+                        textAlign = TextAlign.Center
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-                // Calendar grid
-                val rows = (firstOffset + daysInViewingMonth + 6) / 7
-                val todayDay = 8; val todayMonth = 11; val todayYear = 2026
+            // Calendar grid
+            val rows = (firstOffset + daysInViewingMonth + 6) / 7
+            val todayDay = 8; val todayMonth = 11; val todayYear = 2026
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    for (row in 0 until rows) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                            for (col in 0 until 7) {
-                                val cellIndex = row * 7 + col
-                                val dayNum = cellIndex - firstOffset + 1
-                                if (cellIndex < firstOffset || dayNum > daysInViewingMonth) {
-                                    Box(modifier = Modifier.size(36.dp))
-                                } else {
-                                    val isPast = (viewingMonth == todayMonth && viewingYear == todayYear && dayNum < todayDay)
-                                    val isSelected = (currentSelected.dayNumber == dayNum && currentSelected.monthNumber == viewingMonth && currentSelected.year == viewingYear)
-                                    val isToday = (dayNum == todayDay && viewingMonth == todayMonth && viewingYear == todayYear)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                for (row in 0 until rows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        for (col in 0 until 7) {
+                            val cellIndex = row * 7 + col
+                            val dayNum = cellIndex - firstOffset + 1
+                            if (cellIndex < firstOffset || dayNum > daysInViewingMonth) {
+                                Box(modifier = Modifier.size(38.dp))
+                            } else {
+                                val isPast = (viewingMonth == todayMonth && viewingYear == todayYear && dayNum < (todayDay - 1))
+                                val isSelected = (currentSelected.dayNumber == dayNum && currentSelected.monthNumber == viewingMonth && currentSelected.year == viewingYear)
+                                val isToday = (dayNum == todayDay && viewingMonth == todayMonth && viewingYear == todayYear)
 
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(
-                                                when {
-                                                    isSelected -> RailBluePrimary
-                                                    else -> Color.Transparent
-                                                },
-                                                CircleShape
-                                            )
-                                            .border(
-                                                width = if (isToday && !isSelected) 1.5.dp else 0.dp,
-                                                color = if (isToday && !isSelected) RailBluePrimary else Color.Transparent,
-                                                shape = CircleShape
-                                            )
-                                            .clickable(enabled = !isPast) {
-                                                val matched = allDates.find {
-                                                    it.dayNumber == dayNum && it.monthNumber == viewingMonth && it.year == viewingYear
-                                                }
-                                                if (matched != null) onDateSelected(matched)
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(
+                                            when {
+                                                isSelected -> RailBluePrimary
+                                                else -> Color.Transparent
                                             },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            "$dayNum",
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
-                                            color = when {
-                                                isSelected -> Color.White
-                                                isPast -> Color(0xFFCBD5E1)
-                                                isToday -> RailBluePrimary
-                                                else -> MaterialTheme.colorScheme.onSurface
-                                            }
+                                            CircleShape
                                         )
-                                    }
+                                        .border(
+                                            width = if (isToday && !isSelected) 1.5.dp else 0.dp,
+                                            color = if (isToday && !isSelected) RailBluePrimary else Color.Transparent,
+                                            shape = CircleShape
+                                        )
+                                        .clickable(enabled = !isPast) {
+                                            val matched = allDates.find {
+                                                it.dayNumber == dayNum && it.monthNumber == viewingMonth && it.year == viewingYear
+                                            }
+                                            if (matched != null) onDateSelected(matched)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$dayNum",
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                                        color = when {
+                                            isSelected -> Color.White
+                                            isPast -> Color(0xFFCBD5E1)
+                                            isToday -> RailBluePrimary
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-        },
-        shape = RoundedCornerShape(20.dp),
-        containerColor = MaterialTheme.colorScheme.surface
-    )
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+            // Cancel button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDismiss() }
+                    .padding(vertical = 14.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Cancel",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = RailBluePrimary
+                )
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────
