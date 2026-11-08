@@ -117,6 +117,15 @@ object TrainTrackerState {
         }
     }
 
+    fun refreshLiveStatus() {
+        if (activeTrain.number.isBlank()) return
+        scope.launch {
+            isLoadingStatus = true
+            liveStatus = service.getLiveStatus(activeTrain.number)
+            isLoadingStatus = false
+        }
+    }
+
     fun selectByNumber(number: String) {
         scope.launch {
             isLoadingStatus = true

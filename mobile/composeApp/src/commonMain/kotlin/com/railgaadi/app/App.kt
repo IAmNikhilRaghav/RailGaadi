@@ -158,7 +158,9 @@ fun App() {
                         TrainTrackerState.selectTrain(train, boardingStationText)
                         selectedTab = TabItem.LIVE_MAP
                     })
-                    TabItem.ANALYTICS -> AnalyticsScreen()
+                    TabItem.ANALYTICS -> AnalyticsScreen(onViewLiveMap = {
+                        selectedTab = TabItem.LIVE_MAP
+                    })
                     TabItem.WEATHER -> WeatherScreen()
                     TabItem.STATION -> StationBoardScreen(onTrackTrain = { train ->
                         TrainTrackerState.selectTrain(train)
