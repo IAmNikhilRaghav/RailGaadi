@@ -35,16 +35,23 @@ import kotlinx.coroutines.launch
 // -------------------------------------------------------------
 data class RouteTravelDate(
     val dayNumber: Int,
-    val monthNumber: Int, // 1..12
+    val monthNumber: Int,
     val monthName: String,
     val year: Int,
-    val dayOfWeek: String,       // "Sun", "Mon", "Tue", ...
-    val dayOfWeekFull: String,   // "Sunday", "Monday", ...
-    val dayOfWeekIndex: Int,     // 0 = Sun, 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri, 6 = Sat
+    val dayOfWeek: String,
+    val dayOfWeekFull: String,
+    val dayOfWeekIndex: Int,
     val isToday: Boolean = false,
     val isTomorrow: Boolean = false
 ) {
     val displayLabel: String
+        get() = when {
+            isToday -> "Today"
+            isTomorrow -> "Tomorrow"
+            else -> "$dayOfWeek, $dayNumber $monthName"
+        }
+
+    val shortLabel: String
         get() = when {
             isToday -> "Today, $dayNumber $monthName"
             isTomorrow -> "Tomorrow, $dayNumber $monthName"
@@ -57,8 +64,17 @@ data class RouteTravelDate(
 
 fun generateTravelDates(startDate: Int = 8, startMonth: Int = 11, startYear: Int = 2026): List<RouteTravelDate> {
     val monthNames = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    val monthFullNames = listOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
-    val monthDays = intArrayOf(0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    // leap-year aware days per month
+    fun daysInMonth(m: Int, y: Int): Int {
+        if (m == 2) return if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 29 else 28
+        return intArrayOf(0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)[m]
+    }
+    // Tomohiko Sakamoto – returns 0=Sun … 6=Sat
+    fun dayOfWeek(d: Int, m: Int, y: Int): Int {
+        val t = intArrayOf(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
+        val yr = if (m < 3) y - 1 else y
+        return (yr + yr/4 - yr/100 + yr/400 + t[m - 1] + d) % 7
+    }
     val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
     val dayFullNames = listOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 
@@ -66,54 +82,61 @@ fun generateTravelDates(startDate: Int = 8, startMonth: Int = 11, startYear: Int
     var curDay = startDate
     var curMonth = startMonth
     var curYear = startYear
-    var curDayOfWeek = 0 // Nov 8, 2026 is Sunday
 
-    for (i in 0 until 60) {
+    for (i in 0 until 120) {
+        val dow = dayOfWeek(curDay, curMonth, curYear)
         list.add(
             RouteTravelDate(
                 dayNumber = curDay,
                 monthNumber = curMonth,
                 monthName = monthNames[curMonth],
                 year = curYear,
-                dayOfWeek = dayNames[curDayOfWeek],
-                dayOfWeekFull = dayFullNames[curDayOfWeek],
-                dayOfWeekIndex = curDayOfWeek,
+                dayOfWeek = dayNames[dow],
+                dayOfWeekFull = dayFullNames[dow],
+                dayOfWeekIndex = dow,
                 isToday = (i == 0),
                 isTomorrow = (i == 1)
             )
         )
-
-        curDayOfWeek = (curDayOfWeek + 1) % 7
         curDay++
-        val maxDays = monthDays[curMonth]
-        if (curDay > maxDays) {
+        if (curDay > daysInMonth(curMonth, curYear)) {
             curDay = 1
             curMonth++
-            if (curMonth > 12) {
-                curMonth = 1
-                curYear++
-            }
+            if (curMonth > 12) { curMonth = 1; curYear++ }
         }
     }
     return list
 }
 
+// Recent route search history entry
+data class RecentRouteSearch(
+    val fromLabel: String,
+    val toLabel: String,
+    val fromQuery: String,
+    val toQuery: String
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     val service = remember { RailRadarService() }
     val coroutineScope = rememberCoroutineScope()
 
-    // 1. Clean & Empty by default per user request
     var fromStationQuery by remember { mutableStateOf("") }
     var toStationQuery by remember { mutableStateOf("") }
 
     var isFromDropdownOpen by remember { mutableStateOf(false) }
     var isToDropdownOpen by remember { mutableStateOf(false) }
 
-    // 2. Travel Dates & Interactive Calendar State
+    // Travel Dates & Calendar
     val travelDates = remember { generateTravelDates(8, 11, 2026) }
     var selectedTravelDate by remember { mutableStateOf(travelDates.first()) }
     var showCalendarDialog by remember { mutableStateOf(false) }
+    // Show bottom sheet style: "Yesterday / Today / Tomorrow / Choose from Calendar"
+    var showDateQuickPicker by remember { mutableStateOf(false) }
+
+    // Recent search history (max 3)
+    var recentRoutes by remember { mutableStateOf<List<RecentRouteSearch>>(emptyList()) }
 
     var selectedCategoryFilter by remember { mutableStateOf("All") }
     var isSearching by remember { mutableStateOf(false) }
@@ -121,19 +144,32 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var hasSearchedOnce by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    // Dynamic Station-to-Station search
-    fun triggerSearch(fromText: String, toText: String) {
+    fun triggerSearch(fromText: String, toText: String, addToHistory: Boolean = true) {
         val cleanFrom = fromText.trim()
         val cleanTo = toText.trim()
 
         if (cleanFrom.isEmpty() || cleanTo.isEmpty()) {
-            validationError = "Please enter both From and To stations to search trains"
+            validationError = "Please enter both From and To stations"
             return
         }
 
         validationError = null
         val fCode = StationDataService.resolveStationCode(cleanFrom)
         val tCode = StationDataService.resolveStationCode(cleanTo)
+
+        // Add to recent history
+        if (addToHistory) {
+            val entry = RecentRouteSearch(
+                fromLabel = cleanFrom.substringBefore(" (").take(18),
+                toLabel = cleanTo.substringBefore(" (").take(18),
+                fromQuery = cleanFrom,
+                toQuery = cleanTo
+            )
+            val already = recentRoutes.any { it.fromQuery == cleanFrom && it.toQuery == cleanTo }
+            if (!already) {
+                recentRoutes = (listOf(entry) + recentRoutes).take(3)
+            }
+        }
 
         coroutineScope.launch {
             isSearching = true
@@ -147,29 +183,23 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var liveFromSuggestions by remember { mutableStateOf<List<StationInfo>>(emptyList()) }
     var liveToSuggestions by remember { mutableStateOf<List<StationInfo>>(emptyList()) }
 
-    // Live Pan-India Station Search for 'From'
     LaunchedEffect(fromStationQuery) {
         val q = fromStationQuery.trim()
         if (q.length >= 2 && !q.contains("(")) {
             delay(150)
-            val apiStations = service.searchStations(q)
-            if (apiStations.isNotEmpty()) {
-                liveFromSuggestions = apiStations
-            }
+            val r = service.searchStations(q)
+            if (r.isNotEmpty()) liveFromSuggestions = r
         } else {
             liveFromSuggestions = emptyList()
         }
     }
 
-    // Live Pan-India Station Search for 'To'
     LaunchedEffect(toStationQuery) {
         val q = toStationQuery.trim()
         if (q.length >= 2 && !q.contains("(")) {
             delay(150)
-            val apiStations = service.searchStations(q)
-            if (apiStations.isNotEmpty()) {
-                liveToSuggestions = apiStations
-            }
+            val r = service.searchStations(q)
+            if (r.isNotEmpty()) liveToSuggestions = r
         } else {
             liveToSuggestions = emptyList()
         }
@@ -177,33 +207,115 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
     val fromSuggestions = remember(fromStationQuery, liveFromSuggestions) {
         if (fromStationQuery.isBlank()) emptyList()
-        else {
-            val local = StationDataService.searchStations(fromStationQuery)
-            (liveFromSuggestions + local).distinctBy { it.code.uppercase() }.take(15)
-        }
+        else (liveFromSuggestions + StationDataService.searchStations(fromStationQuery))
+            .distinctBy { it.code.uppercase() }.take(15)
     }
 
     val toSuggestions = remember(toStationQuery, liveToSuggestions) {
         if (toStationQuery.isBlank()) emptyList()
-        else {
-            val local = StationDataService.searchStations(toStationQuery)
-            (liveToSuggestions + local).distinctBy { it.code.uppercase() }.take(15)
+        else (liveToSuggestions + StationDataService.searchStations(toStationQuery))
+            .distinctBy { it.code.uppercase() }.take(15)
+    }
+
+    val filteredTrains = remember(searchResults, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "All") searchResults
+        else searchResults.filter {
+            it.type.contains(selectedCategoryFilter, ignoreCase = true) ||
+            it.name.contains(selectedCategoryFilter, ignoreCase = true)
         }
     }
 
-    // Filter trains dynamically by category
-    val filteredTrains = remember(searchResults, selectedCategoryFilter) {
-        if (selectedCategoryFilter == "All") {
-            searchResults
-        } else {
-            searchResults.filter { train ->
-                train.type.contains(selectedCategoryFilter, ignoreCase = true) ||
-                train.name.contains(selectedCategoryFilter, ignoreCase = true)
+    // "Where is my train" style quick date picker bottom sheet
+    if (showDateQuickPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showDateQuickPicker = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Choose date of journey",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    "Select the day you want to travel",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                val quickOptions = travelDates.take(3) // Yesterday is not available (future only)
+                listOf(
+                    Triple("Today", travelDates[0], false),
+                    Triple("Tomorrow", travelDates[1], false),
+                    Triple(travelDates[2].shortLabel, travelDates[2], false)
+                ).forEach { (label, date, _) ->
+                    val isChosen = (selectedTravelDate.dayNumber == date.dayNumber && selectedTravelDate.monthNumber == date.monthNumber)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedTravelDate = date
+                                showDateQuickPicker = false
+                            }
+                            .padding(vertical = 14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 16.sp,
+                            fontWeight = if (isChosen) FontWeight.ExtraBold else FontWeight.Normal,
+                            color = if (isChosen) RailBluePrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    HorizontalDivider(color = Color(0xFFF1F5F9))
+                }
+
+                // "Choose from Calendar" row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showDateQuickPicker = false
+                            showCalendarDialog = true
+                        }
+                        .padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "Choose from Calendar",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = RailBluePrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Cancel
+                TextButton(
+                    onClick = { showDateQuickPicker = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+                ) {
+                    Text("Cancel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 
-    // Interactive Monthly Calendar Dialog
+    // Full Calendar Dialog (Google "Where is my Train" style)
     if (showCalendarDialog) {
         CalendarPickerDialog(
             currentSelected = selectedTravelDate,
@@ -220,28 +332,30 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 1. Station-to-Station Search Card (Modern Minimalist & Modular)
+        // ─────────────────────────────────────────────────────
+        // 1. COMPACT Station-to-Station Search Card
+        // ─────────────────────────────────────────────────────
         item {
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "Station to Station Route Search",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Search Trains",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 10.dp)
                     )
-                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // From Station Input
+                    // FROM input
                     Column {
                         OutlinedTextField(
                             value = fromStationQuery,
@@ -251,38 +365,35 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 isToDropdownOpen = false
                                 validationError = null
                             },
-                            label = { Text("From") },
-                            placeholder = { Text("Enter station or code", color = Color.Gray, fontSize = 13.sp) },
+                            label = { Text("From", fontSize = 12.sp) },
+                            placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
                                 if (fromStationQuery.isNotEmpty()) {
                                     IconButton(onClick = {
                                         fromStationQuery = ""
                                         isFromDropdownOpen = false
                                     }) {
-                                        Text("✕", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Text("✕", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            singleLine = true
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                         )
 
-                        // Autocomplete Dropdown for From Station
                         AnimatedVisibility(
                             visible = isFromDropdownOpen && fromSuggestions.isNotEmpty(),
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically()
                         ) {
                             Card(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp)
-                                    .heightIn(max = 200.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+                                modifier = Modifier.fillMaxWidth().padding(top = 3.dp).heightIn(max = 180.dp)
                             ) {
                                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                                     items(fromSuggestions) { stn ->
@@ -293,36 +404,18 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                                     fromStationQuery = "${stn.name} (${stn.code})"
                                                     isFromDropdownOpen = false
                                                 }
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Column {
-                                                Text(
-                                                    stn.name,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                if (stn.city.isNotEmpty()) {
-                                                    Text(
-                                                        "${stn.city}, ${stn.state}",
-                                                        fontSize = 11.sp,
-                                                        color = Color.Gray
-                                                    )
-                                                }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(stn.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                if (stn.city.isNotEmpty()) Text("${stn.city}, ${stn.state}", fontSize = 10.sp, color = Color.Gray)
                                             }
                                             Box(
-                                                modifier = Modifier
-                                                    .background(Color(0xFFE2E8F0), RoundedCornerShape(6.dp))
-                                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                modifier = Modifier.background(Color(0xFFE2E8F0), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp)
                                             ) {
-                                                Text(
-                                                    stn.code,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = RailBluePrimary
-                                                )
+                                                Text(stn.code, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = RailBluePrimary)
                                             }
                                         }
                                         HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFF1F5F9))
@@ -332,9 +425,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         }
                     }
 
-                    // Swap Button
+                    // Swap button between From / To
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         IconButton(
@@ -348,15 +441,13 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                     triggerSearch(fromStationQuery, toStationQuery)
                                 }
                             },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(RailBluePrimary.copy(alpha = 0.12f), CircleShape)
+                            modifier = Modifier.size(32.dp).background(RailBluePrimary.copy(alpha = 0.1f), CircleShape)
                         ) {
-                            Text("⇅", fontSize = 18.sp, color = RailBluePrimary, fontWeight = FontWeight.ExtraBold)
+                            Text("⇅", fontSize = 16.sp, color = RailBluePrimary, fontWeight = FontWeight.ExtraBold)
                         }
                     }
 
-                    // To Station Input
+                    // TO input
                     Column {
                         OutlinedTextField(
                             value = toStationQuery,
@@ -366,38 +457,35 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 isFromDropdownOpen = false
                                 validationError = null
                             },
-                            label = { Text("To") },
-                            placeholder = { Text("Enter station or code", color = Color.Gray, fontSize = 13.sp) },
+                            label = { Text("To", fontSize = 12.sp) },
+                            placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
                                 if (toStationQuery.isNotEmpty()) {
                                     IconButton(onClick = {
                                         toStationQuery = ""
                                         isToDropdownOpen = false
                                     }) {
-                                        Text("✕", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Text("✕", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            singleLine = true
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                         )
 
-                        // Autocomplete Dropdown for To Station
                         AnimatedVisibility(
                             visible = isToDropdownOpen && toSuggestions.isNotEmpty(),
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically()
                         ) {
                             Card(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp)
-                                    .heightIn(max = 200.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+                                modifier = Modifier.fillMaxWidth().padding(top = 3.dp).heightIn(max = 180.dp)
                             ) {
                                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                                     items(toSuggestions) { stn ->
@@ -408,36 +496,18 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                                     toStationQuery = "${stn.name} (${stn.code})"
                                                     isToDropdownOpen = false
                                                 }
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Column {
-                                                Text(
-                                                    stn.name,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                if (stn.city.isNotEmpty()) {
-                                                    Text(
-                                                        "${stn.city}, ${stn.state}",
-                                                        fontSize = 11.sp,
-                                                        color = Color.Gray
-                                                    )
-                                                }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(stn.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                if (stn.city.isNotEmpty()) Text("${stn.city}, ${stn.state}", fontSize = 10.sp, color = Color.Gray)
                                             }
                                             Box(
-                                                modifier = Modifier
-                                                    .background(Color(0xFFE2E8F0), RoundedCornerShape(6.dp))
-                                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                modifier = Modifier.background(Color(0xFFE2E8F0), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp)
                                             ) {
-                                                Text(
-                                                    stn.code,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = RailBluePrimary
-                                                )
+                                                Text(stn.code, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = RailBluePrimary)
                                             }
                                         }
                                         HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFF1F5F9))
@@ -447,178 +517,90 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // -------------------------------------------------------------
-                    // 📅 Date of Journey & Calendar Feature (Seamless Modular Strip)
-                    // -------------------------------------------------------------
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Date of Journey",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                        )
-
-                        // Clickable Date Pill
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .background(RailBluePrimary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                                .clickable { showCalendarDialog = true }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("📅", fontSize = 12.sp)
-                            Text(
-                                selectedTravelDate.fullFormatted,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = RailBluePrimary
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Quick Dates Horizontal Selector
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // First 4 upcoming dates
-                        items(travelDates.take(4)) { tDate ->
-                            val isSelected = (selectedTravelDate.dayNumber == tDate.dayNumber && selectedTravelDate.monthNumber == tDate.monthNumber)
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (isSelected) RailBluePrimary else Color(0xFFF1F5F9),
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .clickable { selectedTravelDate = tDate }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    tDate.displayLabel,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else Color(0xFF334155)
-                                )
-                            }
-                        }
-
-                        // Pick Date / Calendar Action Pill
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-                                    .clickable { showCalendarDialog = true }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("🗓️", fontSize = 11.sp)
-                                    Text("Calendar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Validation Message Hint (if user taps search without stations)
+                    // ── FIND TRAINS BUTTON – directly below To field ──
                     if (validationError != null) {
                         Text(
                             text = validationError ?: "",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFDC2626),
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 6.dp)
                         )
                     }
 
-                    // Find Trains Action Button
                     Button(
                         onClick = {
                             isFromDropdownOpen = false
                             isToDropdownOpen = false
                             triggerSearch(fromStationQuery, toStationQuery)
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
                     ) {
                         if (isSearching) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Searching Pan-India Trains…",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
+                            Text("Searching…", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                         } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text("🔍", fontSize = 16.sp)
-                                Text(
-                                    "Find Trains",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = Color.White
-                                )
-                            }
+                            Text("🔍  Find Trains", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Quick Popular Corridors Chips
-                    Text("Popular Corridors:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val popularCorridors = listOf(
-                            "MTJ → JP",
-                            "NDLS → BSB",
-                            "NDLS → MMCT",
-                            "HWH → NDLS",
-                            "NDLS → BPL",
-                            "MMCT → ADI"
-                        )
+                    // ── DATE OF JOURNEY (compact, opens "Where is my Train" style picker) ──
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Date of Journey", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .background(RailBluePrimary.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                .clickable { showDateQuickPicker = true }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text("📅", fontSize = 11.sp)
+                            Text(
+                                selectedTravelDate.shortLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RailBluePrimary
+                            )
+                            Text("▾", fontSize = 10.sp, color = RailBluePrimary)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Popular Corridors
+                    Text("Popular Corridors:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(5.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        val popularCorridors = listOf("MTJ → JP", "NDLS → BSB", "NDLS → MMCT", "HWH → NDLS", "NDLS → BPL", "MMCT → ADI")
                         items(popularCorridors) { corridor ->
                             Box(
                                 modifier = Modifier
-                                    .background(Color(0xFFF1F5F9), RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
                                     .clickable {
                                         val parts = corridor.split(" → ")
-                                        val fromCode = parts[0]
-                                        val toCode = parts[1]
-                                        val fromStn = StationDataService.allStations.find { it.code == fromCode }
-                                        val toStn = StationDataService.allStations.find { it.code == toCode }
-
-                                        fromStationQuery = if (fromStn != null) "${fromStn.name} (${fromStn.code})" else fromCode
-                                        toStationQuery = if (toStn != null) "${toStn.name} (${toStn.code})" else toCode
-
-                                        isFromDropdownOpen = false
-                                        isToDropdownOpen = false
-                                        validationError = null
+                                        val fromStn = StationDataService.allStations.find { it.code == parts[0] }
+                                        val toStn = StationDataService.allStations.find { it.code == parts[1] }
+                                        fromStationQuery = if (fromStn != null) "${fromStn.name} (${fromStn.code})" else parts[0]
+                                        toStationQuery = if (toStn != null) "${toStn.name} (${toStn.code})" else parts[1]
+                                        isFromDropdownOpen = false; isToDropdownOpen = false; validationError = null
                                         triggerSearch(fromStationQuery, toStationQuery)
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
                             ) {
-                                Text(corridor, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                Text(corridor, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
                             }
                         }
                     }
@@ -626,18 +608,100 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             }
         }
 
-        // 2. Category Filters (All, Vande Bharat, Rajdhani, Shatabdi, Superfast, Express, Passenger)
+        // ─────────────────────────────────────────────────────
+        // 2. RECENT SEARCHES – max 3, with 🗑 delete per row
+        // ─────────────────────────────────────────────────────
+        if (recentRoutes.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text(
+                        "Recent Searches",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    recentRoutes.forEachIndexed { index, entry ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surface,
+                                    if (index == 0 && recentRoutes.size == 1) RoundedCornerShape(12.dp)
+                                    else if (index == 0) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                                    else if (index == recentRoutes.size - 1) RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                                    else RoundedCornerShape(0.dp)
+                                )
+                                .border(
+                                    0.5.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                    if (index == 0 && recentRoutes.size == 1) RoundedCornerShape(12.dp)
+                                    else if (index == 0) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                                    else if (index == recentRoutes.size - 1) RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                                    else RoundedCornerShape(0.dp)
+                                )
+                                .clickable {
+                                    fromStationQuery = entry.fromQuery
+                                    toStationQuery = entry.toQuery
+                                    isFromDropdownOpen = false; isToDropdownOpen = false
+                                    triggerSearch(entry.fromQuery, entry.toQuery, addToHistory = false)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("🕒", fontSize = 14.sp)
+                                Column {
+                                    Text(
+                                        "${entry.fromLabel}  →  ${entry.toLabel}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            // 🗑 Red bin delete button
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(Color(0xFFFEE2E2), CircleShape)
+                                    .clickable {
+                                        recentRoutes = recentRoutes.toMutableList().also { it.removeAt(index) }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🗑", fontSize = 13.sp)
+                            }
+                        }
+                        if (index < recentRoutes.size - 1) {
+                            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 0.5.dp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────
+        // 3. CATEGORY FILTERS
+        // ─────────────────────────────────────────────────────
         if (searchResults.isNotEmpty()) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        text = "${I18n.t("rs_filter_by")} Category",
-                        fontSize = 13.sp,
+                        "${I18n.t("rs_filter_by")} Category",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         val categories = listOf("All", "Vande Bharat", "Rajdhani", "Shatabdi", "Superfast", "Express", "Passenger")
                         items(categories) { cat ->
                             val isSelected = selectedCategoryFilter == cat
@@ -645,19 +709,19 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 modifier = Modifier
                                     .background(
                                         if (isSelected) RailBluePrimary else MaterialTheme.colorScheme.surface,
-                                        RoundedCornerShape(20.dp)
+                                        RoundedCornerShape(18.dp)
                                     )
                                     .border(
                                         1.dp,
                                         if (isSelected) RailBluePrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                        RoundedCornerShape(20.dp)
+                                        RoundedCornerShape(18.dp)
                                     )
                                     .clickable { selectedCategoryFilter = cat }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     cat,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
@@ -668,7 +732,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             }
         }
 
-        // 3. Train Results Header
+        // ─────────────────────────────────────────────────────
+        // 4. RESULTS HEADER
+        // ─────────────────────────────────────────────────────
         if (hasSearchedOnce && searchResults.isNotEmpty()) {
             item {
                 val fCode = StationDataService.resolveStationCode(fromStationQuery)
@@ -679,14 +745,14 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isSearching) "Searching trains…" else "${filteredTrains.size} Direct Trains Found ($fCode → $tCode)",
-                        fontSize = 14.sp,
+                        if (isSearching) "Searching trains…" else "${filteredTrains.size} Trains Found ($fCode → $tCode)",
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = selectedTravelDate.displayLabel,
-                        fontSize = 11.sp,
+                        selectedTravelDate.shortLabel,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = RailBluePrimary
                     )
@@ -694,42 +760,28 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             }
         }
 
-        // 4. Initial Welcoming State (When user opens tab before searching)
+        // ─────────────────────────────────────────────────────
+        // 5. WELCOME STATE (no search yet)
+        // ─────────────────────────────────────────────────────
         if (!hasSearchedOnce) {
             item {
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("🗺️", fontSize = 36.sp)
-                        Spacer(modifier = Modifier.height(10.dp))
+                    Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🗺️", fontSize = 32.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Plan Your Train Journey", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(5.dp))
                         Text(
-                            "Plan Your Train Journey",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                            "Search from 8,690+ Indian Railway stations. Pick a date and track trains live.",
+                            fontSize = 11.sp, color = Color.Gray, textAlign = TextAlign.Center, lineHeight = 16.sp
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            "Search direct trains between any of the 8,690+ Indian Railway stations, pick your departure date, and track live schedules.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 17.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             FeaturePill(icon = "⚡", label = "Live GPS", modifier = Modifier.weight(1f))
                             FeaturePill(icon = "⏱️", label = "Delays", modifier = Modifier.weight(1f))
                             FeaturePill(icon = "📅", label = "Calendar", modifier = Modifier.weight(1f))
@@ -739,33 +791,24 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             }
         }
 
-        // 5. Train Cards List or No Results State
+        // ─────────────────────────────────────────────────────
+        // 6. TRAIN RESULTS
+        // ─────────────────────────────────────────────────────
         if (filteredTrains.isEmpty() && !isSearching && hasSearchedOnce) {
             item {
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("🚆", fontSize = 36.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "No Direct Trains Found",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🚆", fontSize = 32.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("No Direct Trains Found", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Try searching with popular junction station codes such as MTJ, JP, NDLS, AGC, or MMCT.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 16.sp
+                            "Try junction codes like MTJ, JP, NDLS, AGC, or MMCT.",
+                            fontSize = 11.sp, color = Color.Gray, textAlign = TextAlign.Center, lineHeight = 15.sp
                         )
                     }
                 }
@@ -788,22 +831,19 @@ fun FeaturePill(icon: String, label: String, modifier: Modifier = Modifier) {
         modifier = modifier
             .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
             .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-            .padding(vertical = 8.dp),
+            .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(icon, fontSize = 13.sp)
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(icon, fontSize = 12.sp)
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
         }
     }
 }
 
-// -------------------------------------------------------------
-// Interactive Calendar Dialog for Journey Planning
-// -------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
+// Google "Where is my Train" style full grid Calendar dialog
+// ─────────────────────────────────────────────────────────────────
 @Composable
 fun CalendarPickerDialog(
     currentSelected: RouteTravelDate,
@@ -814,152 +854,140 @@ fun CalendarPickerDialog(
     var viewingMonth by remember { mutableStateOf(currentSelected.monthNumber) }
     var viewingYear by remember { mutableStateOf(currentSelected.year) }
 
-    val monthTitle = when (viewingMonth) {
-        11 -> "November 2026"
-        12 -> "December 2026"
-        1 -> "January 2027"
-        else -> "Month $viewingMonth $viewingYear"
+    val monthFullNames = listOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+    // leap-year aware
+    fun daysInMonth(m: Int, y: Int): Int {
+        if (m == 2) return if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 29 else 28
+        return intArrayOf(0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)[m]
     }
+    // Compute first day of week (0=Sun..6=Sat) using Tomohiko Sakamoto's algorithm
+    fun firstDayOffset(month: Int, year: Int): Int {
+        val t = intArrayOf(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
+        val y = if (month < 3) year - 1 else year
+        return (y + y/4 - y/100 + y/400 + t[month - 1] + 1) % 7
+    }
+
+    val daysInViewingMonth = daysInMonth(viewingMonth, viewingYear)
+    val firstOffset = firstDayOffset(viewingMonth, viewingYear)
+    val monthLabel = "${monthFullNames[viewingMonth]} $viewingYear"
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close", fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                Text("Cancel", fontWeight = FontWeight.SemiBold, color = RailBluePrimary, fontSize = 14.sp)
             }
         },
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Select Journey Date", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                IconButton(onClick = onDismiss) {
-                    Text("✕", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                }
-            }
-        },
+        title = null,
         text = {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                // Month Header with Prev/Next
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Header: "Choose the date"
+                Text(
+                    "Choose the date",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                )
+
+                // Month navigation header with ‹ MonthYear › arrows
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = {
-                            if (viewingMonth > 11 || viewingYear > 2026) {
-                                if (viewingMonth == 1) {
-                                    viewingMonth = 12
-                                    viewingYear--
-                                } else {
-                                    viewingMonth--
-                                }
+                            if (!(viewingMonth == 11 && viewingYear == 2026)) {
+                                if (viewingMonth == 1) { viewingMonth = 12; viewingYear-- }
+                                else viewingMonth--
                             }
                         },
                         enabled = !(viewingMonth == 11 && viewingYear == 2026)
                     ) {
-                        Text(
-                            "‹",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (viewingMonth == 11 && viewingYear == 2026) Color.LightGray else RailBluePrimary
-                        )
+                        Text("‹", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            color = if (viewingMonth == 11 && viewingYear == 2026) Color.LightGray else MaterialTheme.colorScheme.onSurface)
                     }
 
-                    Text(
-                        monthTitle,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    // Month/year with dropdown arrow (tappable shows month selector in future)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(monthLabel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("▾", fontSize = 11.sp, color = Color.Gray)
+                    }
 
                     IconButton(
                         onClick = {
-                            if (viewingMonth == 12) {
-                                viewingMonth = 1
-                                viewingYear++
-                            } else if (viewingMonth < 12) {
-                                viewingMonth++
-                            }
+                            if (viewingMonth == 12) { viewingMonth = 1; viewingYear++ }
+                            else viewingMonth++
                         },
-                        enabled = viewingMonth < 12 || viewingYear == 2026
+                        enabled = !(viewingMonth == 2 && viewingYear == 2027)
                     ) {
-                        Text("›", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                        Text("›", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            color = if (viewingMonth == 2 && viewingYear == 2027) Color.LightGray else MaterialTheme.colorScheme.onSurface)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Weekday header: Su Mo Tu We Th Fr Sa
+                // Day-of-week headers: S M T W T F S
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                    listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa").forEach { d ->
+                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
                         Text(
-                            d,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Gray,
-                            modifier = Modifier.width(34.dp),
+                            d, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray, modifier = Modifier.width(36.dp),
                             textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // Calendar Grid
-                val daysInMonth = if (viewingMonth == 11) 30 else 31
-                val firstDayOffset = if (viewingMonth == 11) 0 else if (viewingMonth == 12) 2 else 5
+                // Calendar grid
+                val rows = (firstOffset + daysInViewingMonth + 6) / 7
+                val todayDay = 8; val todayMonth = 11; val todayYear = 2026
 
-                val totalCells = firstDayOffset + daysInMonth
-                val rows = (totalCells + 6) / 7
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     for (row in 0 until rows) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                             for (col in 0 until 7) {
                                 val cellIndex = row * 7 + col
-                                val dayNum = cellIndex - firstDayOffset + 1
-                                if (cellIndex < firstDayOffset || dayNum > daysInMonth) {
-                                    Box(modifier = Modifier.size(34.dp))
+                                val dayNum = cellIndex - firstOffset + 1
+                                if (cellIndex < firstOffset || dayNum > daysInViewingMonth) {
+                                    Box(modifier = Modifier.size(36.dp))
                                 } else {
-                                    val isPast = (viewingMonth == 11 && viewingYear == 2026 && dayNum < 8)
+                                    val isPast = (viewingMonth == todayMonth && viewingYear == todayYear && dayNum < todayDay)
                                     val isSelected = (currentSelected.dayNumber == dayNum && currentSelected.monthNumber == viewingMonth && currentSelected.year == viewingYear)
-                                    val isToday = (viewingMonth == 11 && viewingYear == 2026 && dayNum == 8)
+                                    val isToday = (dayNum == todayDay && viewingMonth == todayMonth && viewingYear == todayYear)
 
                                     Box(
                                         modifier = Modifier
-                                            .size(34.dp)
+                                            .size(36.dp)
                                             .background(
                                                 when {
                                                     isSelected -> RailBluePrimary
-                                                    isToday -> RailBluePrimary.copy(alpha = 0.12f)
                                                     else -> Color.Transparent
                                                 },
                                                 CircleShape
                                             )
                                             .border(
-                                                width = if (isToday && !isSelected) 1.dp else 0.dp,
+                                                width = if (isToday && !isSelected) 1.5.dp else 0.dp,
                                                 color = if (isToday && !isSelected) RailBluePrimary else Color.Transparent,
                                                 shape = CircleShape
                                             )
                                             .clickable(enabled = !isPast) {
-                                                val matched = allDates.find { it.dayNumber == dayNum && it.monthNumber == viewingMonth && it.year == viewingYear }
-                                                if (matched != null) {
-                                                    onDateSelected(matched)
+                                                val matched = allDates.find {
+                                                    it.dayNumber == dayNum && it.monthNumber == viewingMonth && it.year == viewingYear
                                                 }
+                                                if (matched != null) onDateSelected(matched)
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "$dayNum",
-                                            fontSize = 12.sp,
+                                            "$dayNum",
+                                            fontSize = 13.sp,
                                             fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
                                             color = when {
                                                 isSelected -> Color.White
-                                                isPast -> Color.LightGray
+                                                isPast -> Color(0xFFCBD5E1)
                                                 isToday -> RailBluePrimary
                                                 else -> MaterialTheme.colorScheme.onSurface
                                             }
@@ -977,27 +1005,27 @@ fun CalendarPickerDialog(
     )
 }
 
-// -------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
 // Train Card Item with Date Specific Running Verification
-// -------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────
 @Composable
 fun TrainCardItem(
     train: Train,
     selectedDate: RouteTravelDate,
     onTrackClick: () -> Unit
 ) {
-    val dayIndex = selectedDate.dayOfWeekIndex // 0 = Sun..6 = Sat
+    val dayIndex = selectedDate.dayOfWeekIndex
     val runsOnSelectedDate = train.runsOnDays.getOrElse(dayIndex) { true }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Top Row: Number, Name & Category Pill
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Train number, name, category
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1005,24 +1033,16 @@ fun TrainCardItem(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
-                        modifier = Modifier
-                            .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.background(Color(0xFF0F172A), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
-                        Text(train.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(train.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
-                    Text(
-                        train.name,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(train.name, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
                 Box(
@@ -1035,14 +1055,12 @@ fun TrainCardItem(
                                 train.type.contains("Superfast", ignoreCase = true) -> Color(0xFFFAF5FF)
                                 else -> Color(0xFFF8FAFC)
                             },
-                            RoundedCornerShape(8.dp)
+                            RoundedCornerShape(7.dp)
                         )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        train.type,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        train.type, fontWeight = FontWeight.Bold, fontSize = 10.sp,
                         color = when {
                             train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFF1D4ED8)
                             train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFB91C1C)
@@ -1054,132 +1072,78 @@ fun TrainCardItem(
                 }
             }
 
-            // Running verification pill on selected date
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(top = 8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (runsOnSelectedDate) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
-                            RoundedCornerShape(6.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        if (runsOnSelectedDate) "✓ Runs on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}"
-                        else "✕ Doesn't run on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (runsOnSelectedDate) RailGreenOnTime else Color(0xFFDC2626)
+            // Date-specific run badge
+            Box(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .background(
+                        if (runsOnSelectedDate) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
+                        RoundedCornerShape(5.dp)
                     )
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    if (runsOnSelectedDate) "✓ Runs on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}"
+                    else "✕ Doesn't run on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}",
+                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    color = if (runsOnSelectedDate) RailGreenOnTime else Color(0xFFDC2626)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Timings
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text(train.departureTime, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(train.origin.substringBefore(" ("), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val hrs = train.durationMinutes / 60; val mins = train.durationMinutes % 60
+                    val dur = if (hrs > 0) "${hrs}h ${mins}m" else if (mins > 0) "${mins}m" else "Direct"
+                    Text(dur, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(5.dp).background(RailBluePrimary, CircleShape))
+                        HorizontalDivider(modifier = Modifier.width(50.dp), thickness = 2.dp, color = RailBluePrimary)
+                        Box(modifier = Modifier.size(5.dp).background(RailBluePrimary, CircleShape))
+                    }
+                    Text(if (train.platform.isNotEmpty()) "PF ${train.platform}" else "Daily", fontSize = 9.sp, color = Color.Gray)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(train.arrivalTime, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(train.destination.substringBefore(" ("), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Timings Row: Dep Time -> Duration -> Arr Time
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Departure Station & Time
-                Column {
-                    Text(
-                        train.departureTime,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        train.origin.substringBefore(" ("),
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Duration Indicator
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val hrs = train.durationMinutes / 60
-                    val mins = train.durationMinutes % 60
-                    val durText = if (hrs > 0) "${hrs}h ${mins}m" else if (mins > 0) "${mins}m" else "Direct"
-                    Text(durText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).background(RailBluePrimary, CircleShape))
-                        HorizontalDivider(modifier = Modifier.width(55.dp), thickness = 2.dp, color = RailBluePrimary)
-                        Box(modifier = Modifier.size(6.dp).background(RailBluePrimary, CircleShape))
-                    }
-                    Text(if (train.platform.isNotEmpty()) "PF ${train.platform}" else "Daily", fontSize = 10.sp, color = Color.Gray)
-                }
-
-                // Arrival Station & Time
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        train.arrivalTime,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        train.destination.substringBefore(" ("),
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Running Days Row (S M T W T F S) with highlighted selected travel day
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
+            // Running days + Track button
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    val letters = listOf("S","M","T","W","T","F","S")
                     val runsList = if (train.runsOnDays.size == 7) train.runsOnDays else List(7) { true }
                     runsList.forEachIndexed { idx, runs ->
                         val isTravelDay = (idx == dayIndex)
                         Box(
                             modifier = Modifier
-                                .size(24.dp)
-                                .background(
-                                    if (runs) RailBluePrimary else Color(0xFFE2E8F0),
-                                    CircleShape
-                                )
-                                .border(
-                                    width = if (isTravelDay) 2.dp else 0.dp,
-                                    color = if (isTravelDay) Color(0xFF044E42) else Color.Transparent,
-                                    shape = CircleShape
-                                ),
+                                .size(22.dp)
+                                .background(if (runs) RailBluePrimary else Color(0xFFE2E8F0), CircleShape)
+                                .border(if (isTravelDay) 2.dp else 0.dp, if (isTravelDay) Color(0xFF044E42) else Color.Transparent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                dayLetters[idx],
-                                fontSize = 10.sp,
-                                fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.Bold,
-                                color = if (runs) Color.White else Color.Gray
-                            )
+                            Text(letters[idx], fontSize = 9.sp, fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.Bold,
+                                color = if (runs) Color.White else Color.Gray)
                         }
                     }
                 }
 
-                // Track Live Button -> Directly opens train in Live Map tab
                 Button(
                     onClick = onTrackClick,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RailBluePrimary),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
                 ) {
-                    Text("🚆 Track Live", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("🚆 Track Live", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
