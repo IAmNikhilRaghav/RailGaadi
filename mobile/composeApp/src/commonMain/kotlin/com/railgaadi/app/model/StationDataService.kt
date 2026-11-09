@@ -52,6 +52,7 @@ object StationDataService {
         StationInfo("MB", "Moradabad Jn", "Moradabad", "Uttar Pradesh", 28.8316, 78.7658),
         StationInfo("BE", "Bareilly Jn", "Bareilly", "Uttar Pradesh", 28.3372, 79.4108),
         StationInfo("VGLJ", "Veerangana Lakshmibai Jhansi", "Jhansi", "Uttar Pradesh", 25.4436, 78.5530),
+        StationInfo("DAA", "Datia", "Datia", "Madhya Pradesh", 25.6653, 78.4608),
         StationInfo("AY", "Ayodhya Dham Jn", "Ayodhya", "Uttar Pradesh", 26.7922, 82.1998),
         StationInfo("AYC", "Ayodhya Cantt", "Ayodhya", "Uttar Pradesh", 26.7723, 82.1388),
         StationInfo("ETW", "Etawah Jn", "Etawah", "Uttar Pradesh", 26.7855, 79.0253),

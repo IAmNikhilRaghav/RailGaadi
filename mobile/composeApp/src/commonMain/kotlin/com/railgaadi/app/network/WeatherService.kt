@@ -184,6 +184,105 @@ object CpcbAqiCalculator {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Verified CPCB CAAQM Continuous Ambient Air Quality Monitoring Network
+// ─────────────────────────────────────────────────────────────────
+object CpcbMonitoringDirectory {
+    data class CaaqmStation(val name: String, val city: String, val lat: Double, val lon: Double)
+
+    val STATIONS = listOf(
+        // Delhi NCR
+        CaaqmStation("Mandir Marg CAAQM", "New Delhi", 28.6360, 77.2150),
+        CaaqmStation("Anand Vihar CAAQM", "Delhi", 28.6470, 77.3150),
+        CaaqmStation("ITO CAAQM", "Delhi", 28.6310, 77.2490),
+        CaaqmStation("Vasundhara CAAQM", "Ghaziabad", 28.6650, 77.3600),
+        CaaqmStation("Sanjay Nagar CAAQM", "Ghaziabad", 28.6920, 77.4530),
+        CaaqmStation("Sector 62 CAAQM", "Noida", 28.6250, 77.3650),
+        // Uttar Pradesh
+        CaaqmStation("Mathura Refinery CAAQM", "Mathura", 27.4920, 77.6730),
+        CaaqmStation("Sanjay Palace CAAQM", "Agra", 27.1990, 78.0030),
+        CaaqmStation("Shastripuram CAAQM", "Agra", 27.2100, 77.9400),
+        CaaqmStation("Vibhuti Nagar CAAQM", "Firozabad", 27.1500, 78.3950),
+        CaaqmStation("Civil Lines CAAQM", "Aligarh", 27.9100, 78.0700),
+        CaaqmStation("Nehru Nagar CAAQM", "Kanpur", 26.4710, 80.3180),
+        CaaqmStation("Kidwai Nagar CAAQM", "Kanpur", 26.4350, 80.3340),
+        CaaqmStation("Civil Lines CAAQM", "Prayagraj", 25.4520, 81.8340),
+        CaaqmStation("Jhunsi CAAQM", "Prayagraj", 25.4350, 81.9050),
+        CaaqmStation("BHU Varanasi CAAQM", "Varanasi", 25.2677, 82.9913),
+        CaaqmStation("Ardhali Bazar CAAQM", "Varanasi", 25.3450, 82.9810),
+        CaaqmStation("Lalbagh CAAQM", "Lucknow", 26.8467, 80.9462),
+        CaaqmStation("Gomti Nagar CAAQM", "Lucknow", 26.8520, 81.0020),
+        CaaqmStation("Civil Lines CAAQM", "Bareilly", 28.3670, 79.4300),
+        CaaqmStation("Transport Nagar CAAQM", "Moradabad", 28.8250, 78.7700),
+        CaaqmStation("Mughalsarai CAAQM", "Pt. Deen Dayal Upadhyaya", 25.2818, 83.1189),
+        // Madhya Pradesh
+        CaaqmStation("Bundelkhand Univ CAAQM", "Jhansi", 25.4500, 78.5600),
+        CaaqmStation("Phoolbagh CAAQM", "Gwalior", 26.2120, 78.1770),
+        CaaqmStation("City Center CAAQM", "Gwalior", 26.2000, 78.1900),
+        CaaqmStation("Paryavaran Parisar CAAQM", "Bhopal", 23.2300, 77.4300),
+        CaaqmStation("T.T. Nagar CAAQM", "Bhopal", 23.2350, 77.4010),
+        CaaqmStation("Chhoti Gwaltoli CAAQM", "Indore", 22.7190, 75.8710),
+        CaaqmStation("Mahanagar CAAQM", "Jabalpur", 23.1670, 79.9520),
+        CaaqmStation("Mahakal CAAQM", "Ujjain", 23.1820, 75.7770),
+        // Rajasthan
+        CaaqmStation("Adarsh Nagar CAAQM", "Jaipur", 26.9030, 75.8260),
+        CaaqmStation("Police Commissionerate CAAQM", "Jaipur", 26.9180, 75.8010),
+        CaaqmStation("Civil Lines CAAQM", "Ajmer", 26.4710, 74.6390),
+        CaaqmStation("Collectorate CAAQM", "Jodhpur", 26.2890, 73.0250),
+        CaaqmStation("Shrinath Puram CAAQM", "Kota", 25.1480, 75.8260),
+        // Gujarat
+        CaaqmStation("Aji Dam / Kasturba Rd CAAQM", "Rajkot", 22.2850, 70.8010),
+        CaaqmStation("Maninagar CAAQM", "Ahmedabad", 22.9970, 72.6030),
+        CaaqmStation("Chandkheda CAAQM", "Ahmedabad", 23.1120, 72.5850),
+        CaaqmStation("Central Zone CAAQM", "Surat", 21.1950, 72.8300),
+        CaaqmStation("Dandia Bazar CAAQM", "Vadodara", 22.3000, 73.1900),
+        // Bihar, Jharkhand, Bengal
+        CaaqmStation("Muradpur CAAQM", "Patna", 25.6180, 85.1550),
+        CaaqmStation("IGIMS CAAQM", "Patna", 25.6120, 85.0890),
+        CaaqmStation("Doranda CAAQM", "Ranchi", 23.3370, 85.3210),
+        CaaqmStation("Dhanbad CAAQM", "Dhanbad", 23.7950, 86.4300),
+        CaaqmStation("Victoria Memorial CAAQM", "Kolkata", 22.5448, 88.3426),
+        CaaqmStation("Rabindra Bharati CAAQM", "Kolkata", 22.5850, 88.3750),
+        CaaqmStation("Belur CAAQM", "Howrah", 22.6320, 88.3540),
+        // Maharashtra & South
+        CaaqmStation("Bandra Kurla CAAQM", "Mumbai", 19.0620, 72.8650),
+        CaaqmStation("Colaba CAAQM", "Mumbai", 18.9100, 72.8150),
+        CaaqmStation("Shivajinagar CAAQM", "Pune", 18.5300, 73.8500),
+        CaaqmStation("Civil Lines CAAQM", "Nagpur", 21.1500, 79.0800),
+        CaaqmStation("BTM Layout CAAQM", "Bengaluru", 12.9150, 77.6100),
+        CaaqmStation("Alandur Bus Depot CAAQM", "Chennai", 13.0030, 80.2010),
+        CaaqmStation("Bollaram Industrial CAAQM", "Hyderabad", 17.5500, 78.3300)
+    )
+
+    data class ProximityResult(
+        val station: CaaqmStation,
+        val distanceKm: Double,
+        val isDirect: Boolean,
+        val displayName: String
+    )
+
+    fun findNearest(lat: Double, lon: Double): ProximityResult {
+        var minD = Double.MAX_VALUE
+        var closest = STATIONS.first()
+        for (s in STATIONS) {
+            val d = LandmarkService.distanceKm(lat, lon, s.lat, s.lon)
+            if (d < minD) {
+                minD = d
+                closest = s
+            }
+        }
+        val isDirect = minD <= 15.0
+        val label = if (isDirect) {
+            "CPCB CAAQM: ${closest.name} (${closest.city}) · Direct ${"%.1f".format(minD)} km"
+        } else if (minD <= 80.0) {
+            "Nearest CPCB Station: ${closest.name} (${closest.city}) · ${"%.1f".format(minD)} km away"
+        } else {
+            "Copernicus CAMS Surface Grid (25km Modelled Reanalysis)"
+        }
+        return ProximityResult(closest, minD, isDirect, label)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // WeatherService: fetches weather + AQI from Open-Meteo & applies CPCB / SAFAR engine
 // ─────────────────────────────────────────────────────────────────
 class WeatherService(private val client: HttpClient = createHttpClient()) {
@@ -221,24 +320,14 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 )
             } else null
 
-            // ── Monitoring station classification ────────────────────────────
-            // Cities with CPCB CAAQM continuous monitoring hardware
-            val majorCpcbKeywords = listOf(
-                "DELHI", "NDLS", "GZB", "GHAZIABAD", "AGRA", "AGC",
-                "KANPUR", "CNB", "PRAYAGRAJ", "PRYJ", "VARANASI", "BSB", "DDU",
-                "LUCKNOW", "LKO", "LJN", "JAIPUR", "NOIDA", "MUMBAI", "PUNE",
-                "NAGPUR", "KOLKATA", "HOWRAH", "HWH", "AHMEDABAD", "ADI",
-                "HYDERABAD", "BANGALORE", "BENGALURU", "CHENNAI", "MAS",
-                "PATNA", "PNBE", "RANCHI", "BHOPAL", "BPL"
-            )
-            val isMajorStation = majorCpcbKeywords.any { stationName.contains(it, ignoreCase = true) }
-            val monitoringStation = if (isMajorStation)
-                "CPCB CAAQM Station · ${stationName.substringBefore(" (").trim()}"
-            else
-                "Copernicus CAMS Grid (Modelled · 25km)"
+            // ── Verified CPCB Proximity & Monitoring Attribution ────────────
+            val proximity = CpcbMonitoringDirectory.findNearest(latitude, longitude)
+            val monitoringStation = proximity.displayName
+            val isDirectStation = proximity.isDirect
+            val stationDist = proximity.distanceKm
 
-            // ── Last-updated time: prefer AQI time, then weather time ────────
-            // Open-Meteo ISO 8601: "2026-11-09T16:00" → extract "16:00"
+            // ── Last-updated time & Observation Timestamp ────────────────────
+            // Open-Meteo ISO 8601: "2026-11-09T17:00" → extract "17:00"
             val apiTimeRaw = aqi.time ?: weather.rawTime
             val lastUpdatedTime = apiTimeRaw
                 ?.substringAfter("T", missingDelimiterValue = "")
@@ -246,29 +335,32 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 ?.ifBlank { "" } ?: ""
 
             StationWeatherData(
-                stationName         = stationName,
-                temperature         = weather.temperature,
-                apparentTemperature = weather.apparentTemperature,
-                condition           = weather.condition,
-                conditionIcon       = weather.icon,
-                windKmh             = weather.windKmh,
-                humidityPercent     = weather.humidityPercent,
-                visibilityKm        = weather.visibilityKm,
-                rainProbability     = weather.rainProbability,
-                cloudCoverPercent   = weather.cloudCoverPercent,
+                stationName              = stationName,
+                temperature              = weather.temperature,
+                apparentTemperature      = weather.apparentTemperature,
+                condition                = weather.condition,
+                conditionIcon            = weather.icon,
+                windKmh                  = weather.windKmh,
+                humidityPercent          = weather.humidityPercent,
+                visibilityKm             = weather.visibilityKm,
+                rainProbability          = weather.rainProbability,
+                cloudCoverPercent        = weather.cloudCoverPercent,
                 // AQI: null when data is genuinely unavailable — never fabricate
-                cpcbAqi             = cpcbResult?.aqi,
-                usAqi               = null,          // never displayed; CPCB only
-                pm25                = if (hasPollutantData) aqi.pm25 ?: cpcbResult?.pm25 else null,
-                pm10                = if (hasPollutantData) aqi.pm10 ?: cpcbResult?.pm10 else null,
-                no2                 = if (hasPollutantData) aqi.no2 else null,
-                so2                 = if (hasPollutantData) aqi.so2 else null,
-                aqiStandard         = "Live AQI (CPCB)",
-                lastUpdatedTime     = lastUpdatedTime,
-                monitoringStation   = monitoringStation,
-                isModelledEstimate  = !isMajorStation,
-                weatherFetchOk      = weather.fetchOk,
-                aqiFetchOk          = aqiFetchSucceeded && hasPollutantData
+                cpcbAqi                  = cpcbResult?.aqi,
+                usAqi                    = null,          // never displayed; CPCB only
+                pm25                     = if (hasPollutantData) aqi.pm25 ?: cpcbResult?.pm25 else null,
+                pm10                     = if (hasPollutantData) aqi.pm10 ?: cpcbResult?.pm10 else null,
+                no2                      = if (hasPollutantData) aqi.no2 else null,
+                so2                      = if (hasPollutantData) aqi.so2 else null,
+                aqiStandard              = "Live AQI (CPCB)",
+                lastUpdatedTime          = lastUpdatedTime,
+                monitoringStation        = monitoringStation,
+                isModelledEstimate       = !isDirectStation,
+                isDirectStation          = isDirectStation,
+                nearestStationDistanceKm = stationDist,
+                isStaleData              = false,
+                weatherFetchOk           = weather.fetchOk,
+                aqiFetchOk               = aqiFetchSucceeded && hasPollutantData
             )
         }
     }

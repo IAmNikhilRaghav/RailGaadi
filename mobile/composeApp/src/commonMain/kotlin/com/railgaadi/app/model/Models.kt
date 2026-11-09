@@ -101,6 +101,9 @@ data class StationWeatherData(
     val lastUpdatedTime: String = "",
     val monitoringStation: String = "Copernicus CAMS Grid (Modelled · 25km)",
     val isModelledEstimate: Boolean = true,
+    val isDirectStation: Boolean = false,
+    val nearestStationDistanceKm: Double? = null,
+    val isStaleData: Boolean = false,
     val weatherFetchOk: Boolean = true,  // false when weather API call failed
     val aqiFetchOk: Boolean = true       // false when AQI API call failed / no data
 ) {

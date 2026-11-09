@@ -466,30 +466,29 @@ fun WeatherScreen() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val monTag = if (w.isModelledEstimate) "📡 Modelled · ${w.monitoringStation}" else "🏭 ${w.monitoringStation}"
+                                val tagColor = if (w.isDirectStation) RailGreenOnTime else RailAmberWarning
                                 Box(
                                     modifier = Modifier
+                                        .weight(1f, fill = false)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(
-                                            if (w.isModelledEstimate) RailAmberWarning.copy(alpha = 0.08f)
-                                            else RailGreenOnTime.copy(alpha = 0.08f)
-                                        )
+                                        .background(tagColor.copy(alpha = 0.08f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = monTag,
+                                        text = w.monitoringStation,
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (w.isModelledEstimate) RailAmberWarning else RailGreenOnTime,
+                                        color = tagColor,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
+                                Spacer(Modifier.width(8.dp))
                                 if (w.lastUpdatedTime.isNotBlank()) {
                                     Text(
-                                        text = "Updated ${w.lastUpdatedTime}",
+                                        text = "Observed ${w.lastUpdatedTime}",
                                         fontSize = 8.sp,
-                                        color = textSecondary.copy(alpha = 0.55f)
+                                        color = textSecondary.copy(alpha = 0.65f)
                                     )
                                 }
                             }
