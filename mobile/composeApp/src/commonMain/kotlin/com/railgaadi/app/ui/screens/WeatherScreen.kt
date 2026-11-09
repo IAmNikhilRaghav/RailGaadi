@@ -381,7 +381,7 @@ fun WeatherScreen() {
                                     color = Color(w.aqiCategory.colorHex)
                                 )
                                 Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                    Text("National AQI (CPCB / SAFAR)", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
+                                    Text(w.aqiStandard, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
                                     Text(
                                         "${w.aqiCategory.emoji} ${w.aqiCategory.label}",
                                         fontSize = 13.sp,
@@ -408,7 +408,7 @@ fun WeatherScreen() {
                             }
 
                             Text(
-                                "Source: CPCB / SAFAR Standard · Open-Meteo Sensor Telemetry",
+                                "Source: Live Station Sensor Telemetry · SAFAR & EPA Standard",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
 

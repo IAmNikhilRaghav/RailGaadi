@@ -126,22 +126,10 @@ object CpcbAqiCalculator {
         return if (conc > breakpoints.last().cHi) 500 else 0
     }
 
-    // Regional surface inversion factor:
-    // CAMS satellite/chemical column averages over 25km grid boxes.
-    // In Indo-Gangetic Plain (Delhi-NCR, Haryana, UP, Bihar, Punjab, Bengal: lat 23°-32.5°, lon 74°-89°),
-    // ground-level CAAQM stations record 2.2x - 2.5x higher surface concentrations during post-monsoon/winter inversion.
-    fun getSurfaceInversionFactor(lat: Double, lon: Double): Double {
-        return if (lat in 23.0..32.5 && lon in 74.0..89.0) {
-            2.35 // Indo-Gangetic Plain ground calibration
-        } else {
-            1.25 // Peninsular / Coastal India
-        }
-    }
-
     data class CpcbResult(
         val aqi: Int,
-        val calibratedPm25: Double,
-        val calibratedPm10: Double
+        val pm25: Double,
+        val pm10: Double
     )
 
     fun calculate(
@@ -153,17 +141,14 @@ object CpcbAqiCalculator {
         lat: Double,
         lon: Double
     ): CpcbResult {
-        val factor = getSurfaceInversionFactor(lat, lon)
-        val calPm25 = (rawPm25 * factor).coerceAtLeast(0.0)
-        val calPm10 = ((rawPm10 + rawDust * 0.8) * (factor * 0.85)).coerceAtLeast(0.0)
-
-        val iPm25 = calcSubindex(calPm25, PM25_BREAKPOINTS)
-        val iPm10 = calcSubindex(calPm10, PM10_BREAKPOINTS)
+        // Direct standard CPCB NAQI calculation without synthetic multipliers
+        val iPm25 = calcSubindex(rawPm25, PM25_BREAKPOINTS)
+        val iPm10 = calcSubindex(rawPm10, PM10_BREAKPOINTS)
         val iNo2 = calcSubindex(no2, NO2_BREAKPOINTS)
         val iSo2 = calcSubindex(so2, SO2_BREAKPOINTS)
 
         val finalAqi = maxOf(iPm25, iPm10, iNo2, iSo2).coerceIn(1, 500)
-        return CpcbResult(finalAqi, calPm25, calPm10)
+        return CpcbResult(finalAqi, rawPm25, rawPm10)
     }
 }
 
@@ -207,11 +192,11 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 rainProbability = weather.rainProbability,
                 cpcbAqi = cpcb.aqi,
                 usAqi = aqi.usAqi,
-                pm25 = cpcb.calibratedPm25,
-                pm10 = cpcb.calibratedPm10,
+                pm25 = aqi.pm25 ?: cpcb.pm25,
+                pm10 = aqi.pm10 ?: cpcb.pm10,
                 no2 = aqi.no2,
                 so2 = aqi.so2,
-                aqiStandard = "CPCB / SAFAR-India"
+                aqiStandard = if (aqi.usAqi != null) "Live AQI (US EPA / SAFAR)" else "National AQI (CPCB)"
             )
         }
     }
