@@ -36,7 +36,8 @@ data class OpenMeteoCurrent(
     @SerialName("weather_code") val weatherCode: Int = 1,
     @SerialName("wind_speed_10m") val windSpeed: Double = 12.0,
     @SerialName("visibility") val visibilityMeters: Double = 10000.0,
-    @SerialName("precipitation_probability") val rainProbability: Int? = 20
+    @SerialName("precipitation_probability") val rainProbability: Int? = 20,
+    @SerialName("time") val time: String? = null
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -70,7 +71,8 @@ data class StationWeather(
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
     val rainProbability: Int = 20,
-    val source: String = "Open-Meteo"
+    val source: String = "Open-Meteo",
+    val rawTime: String? = null       // ISO 8601 from API, e.g. "2026-11-09T16:00"
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -180,6 +182,25 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 lon = longitude
             )
 
+            // Determine whether this is a real CAAQM monitoring station or modelled CAMS grid
+            val majorCpcbKeywords = listOf(
+                "DELHI", "NDLS", "GZB", "GHAZIABAD", "AGRA", "AGC", "KANPUR", "CNB",
+                "PRAYAGRAJ", "PRYJ", "VARANASI", "BSB", "DDU", "LUCKNOW", "LKO", "LJN",
+                "JAIPUR", "NOIDA", "MUMBAI", "PUNE", "NAGPUR", "KOLKATA", "HOWRAH"
+            )
+            val isMajorStation = majorCpcbKeywords.any { stationName.contains(it, ignoreCase = true) }
+            val monitoringStation = if (isMajorStation)
+                "CPCB CAAQM Monitoring Station"
+            else
+                "Copernicus CAMS Surface Grid (Modelled)"
+
+            // Format last-updated time (HH:MM) from API time field or current moment
+            val rawTime = weather.rawTime
+            val lastUpdatedTime = if (!rawTime.isNullOrBlank()) {
+                // Open-Meteo time is ISO 8601 like "2026-11-09T16:00" — extract HH:MM
+                rawTime.substringAfter("T").take(5).ifBlank { "" }
+            } else ""
+
             StationWeatherData(
                 stationName = stationName,
                 temperature = weather.temperature,
@@ -191,12 +212,15 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 visibilityKm = weather.visibilityKm,
                 rainProbability = weather.rainProbability,
                 cpcbAqi = cpcb.aqi,
-                usAqi = aqi.usAqi,
+                usAqi = null, // We use CPCB NAQI exclusively
                 pm25 = aqi.pm25 ?: cpcb.pm25,
                 pm10 = aqi.pm10 ?: cpcb.pm10,
                 no2 = aqi.no2,
                 so2 = aqi.so2,
-                aqiStandard = if (aqi.usAqi != null) "Live AQI (US EPA / SAFAR)" else "National AQI (CPCB)"
+                aqiStandard = "Live AQI (CPCB)",
+                lastUpdatedTime = lastUpdatedTime,
+                monitoringStation = monitoringStation,
+                isModelledEstimate = !isMajorStation
             )
         }
     }
@@ -215,7 +239,7 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoForecastResponse = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,precipitation_probability")
+                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,precipitation_probability,time")
                 parameter("timezone", "auto")
             }.body()
 
@@ -231,7 +255,8 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 windKmh = cur?.windSpeed ?: 12.0,
                 humidityPercent = cur?.humidity ?: 60,
                 visibilityKm = (cur?.visibilityMeters ?: 10000.0) / 1000.0,
-                rainProbability = cur?.rainProbability ?: 20
+                rainProbability = cur?.rainProbability ?: 20,
+                rawTime = cur?.time
             )
         } catch (_: Exception) {
             StationWeather(

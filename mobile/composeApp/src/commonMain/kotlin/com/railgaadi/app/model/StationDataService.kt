@@ -55,6 +55,17 @@ object StationDataService {
         StationInfo("AYC", "Ayodhya Cantt", "Ayodhya", "Uttar Pradesh", 26.7723, 82.1388),
         StationInfo("ETW", "Etawah Jn", "Etawah", "Uttar Pradesh", 26.7855, 79.0253),
 
+        // ── New Delhi–Howrah / Prayagraj corridor intermediate stations ──
+        StationInfo("JGR", "Jaswantnagar", "Jaswantnagar", "Uttar Pradesh", 26.9806, 78.9669),
+        StationInfo("BNT", "Bharthana", "Bharthana", "Uttar Pradesh", 26.7510, 79.2390),
+        StationInfo("PHD", "Phaphund", "Phaphund", "Uttar Pradesh", 26.6120, 79.6240),
+        StationInfo("PNKD", "Panki Dham", "Kanpur", "Uttar Pradesh", 26.4680, 80.2690),
+        StationInfo("FTP", "Fatehpur", "Fatehpur", "Uttar Pradesh", 25.9280, 80.8120),
+        StationInfo("SRO", "Sirathu", "Sirathu", "Uttar Pradesh", 25.6480, 81.3190),
+        StationInfo("BRE", "Bharwari", "Bharwari", "Uttar Pradesh", 25.5510, 81.5010),
+        StationInfo("SMH", "Samhon", "Etawah", "Uttar Pradesh", 26.9100, 78.7600),
+        StationInfo("HNG", "Hirangaon", "Firozabad", "Uttar Pradesh", 27.1700, 78.3300),
+
         // Rajasthan
         StationInfo("JP", "Jaipur Jn", "Jaipur", "Rajasthan", 26.9202, 75.7869),
         StationInfo("GADJ", "Gandhinagar Jaipur", "Jaipur", "Rajasthan", 26.8837, 75.8012),
@@ -196,6 +207,15 @@ object StationDataService {
         val base = stationMapByCode[clean]
         if (base != null && base.lat != 0.0 && base.lon != 0.0) {
             return Pair(base.lat, base.lon)
+        }
+
+        // Fuzzy fallback: search by name/city across all known stations
+        val nameMatch = (dynamicCache.values + allStations).find { stn ->
+            stn.name.contains(clean, ignoreCase = true) ||
+            stn.city.contains(clean, ignoreCase = true)
+        }
+        if (nameMatch != null && nameMatch.lat != 0.0 && nameMatch.lon != 0.0) {
+            return Pair(nameMatch.lat, nameMatch.lon)
         }
 
         return Pair(28.6139, 77.2090) // Default fallback to Delhi center

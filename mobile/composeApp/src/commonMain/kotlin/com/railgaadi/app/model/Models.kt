@@ -96,32 +96,37 @@ data class StationWeatherData(
     val pm10: Double? = null,
     val no2: Double? = null,
     val so2: Double? = null,
-    val aqiStandard: String = "Live AQI (US EPA / SAFAR)"
+    val aqiStandard: String = "Live AQI (CPCB)",
+    val lastUpdatedTime: String = "",
+    val monitoringStation: String = "Copernicus CAMS Surface Grid",
+    val isModelledEstimate: Boolean = true
 ) {
-    val aqiValue: Int? get() = usAqi ?: cpcbAqi
+    // CPCB NAQI: use max(sub-index) — cpcbAqi is preferred over usAqi
+    val aqiValue: Int? get() = cpcbAqi ?: usAqi
 
-    // Standard Air Quality Index Breakpoints
+    // Official Indian CPCB / CAQM 6-tier classification
     val aqiCategory: AqiCategory get() = when {
-        aqiValue == null -> AqiCategory.UNKNOWN
-        aqiValue!! <= 50 -> AqiCategory.GOOD
-        aqiValue!! <= 100 -> AqiCategory.SATISFACTORY
-        aqiValue!! <= 150 -> AqiCategory.MODERATE
-        aqiValue!! <= 200 -> AqiCategory.POOR
-        aqiValue!! <= 300 -> AqiCategory.VERY_POOR
-        else -> AqiCategory.SEVERE
+        aqiValue == null    -> AqiCategory.UNKNOWN
+        aqiValue!! <= 50    -> AqiCategory.GOOD          // 0-50   Green
+        aqiValue!! <= 100   -> AqiCategory.SATISFACTORY  // 51-100 Parrot Green
+        aqiValue!! <= 200   -> AqiCategory.MODERATE      // 101-200 Yellow  ← AQI 175 = Moderate
+        aqiValue!! <= 300   -> AqiCategory.POOR          // 201-300 Orange
+        aqiValue!! <= 400   -> AqiCategory.VERY_POOR     // 301-400 Red
+        else                -> AqiCategory.SEVERE        // 401-500 Maroon
     }
     val isFogAdvisory: Boolean get() = visibilityKm < 1.5 || condition.contains("Fog", ignoreCase = true)
     val isSmogAdvisory: Boolean get() = (aqiValue ?: 0) > 200
 }
 
+// Official Indian CPCB / CAQM 6-tier AQI classification
 enum class AqiCategory(val label: String, val emoji: String, val colorHex: Long) {
-    GOOD("Good", "🟢", 0xFF16A34A),
-    SATISFACTORY("Satisfactory", "🟡", 0xFF65A30D),
-    MODERATE("Moderate", "🟠", 0xFFD97706),
-    POOR("Poor", "🔴", 0xFFDC2626),
-    VERY_POOR("Very Poor", "🟣", 0xFF7C3AED),
-    SEVERE("Severe", "🟤", 0xFF92400E),
-    UNKNOWN("—", "⚪", 0xFF94A3B8)
+    GOOD("Good",           "🟢", 0xFF16A34A),  // Green
+    SATISFACTORY("Satisfactory", "🟢", 0xFF84CC16),  // Parrot Green
+    MODERATE("Moderate",   "🟡", 0xFFEAB308),  // Yellow   ← AQI 101-200
+    POOR("Poor",           "🟠", 0xFFF97316),  // Orange   ← AQI 201-300
+    VERY_POOR("Very Poor", "🔴", 0xFFEF4444),  // Red      ← AQI 301-400
+    SEVERE("Severe",       "🟤", 0xFF7F1D1D),  // Maroon   ← AQI 401-500
+    UNKNOWN("—",           "⚪", 0xFF94A3B8)
 }
 
 @Serializable

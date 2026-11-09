@@ -327,7 +327,10 @@ fun WeatherScreen() {
                         }
 
                         Text(
-                            "Source: Open-Meteo (ECMWF) · Updated live",
+                            if (w.lastUpdatedTime.isNotBlank())
+                                "Source: Open-Meteo (ECMWF) · Updated ${w.lastUpdatedTime}"
+                            else
+                                "Source: Open-Meteo (ECMWF) · Updated live",
                             fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                         )
                     }
@@ -401,16 +404,48 @@ fun WeatherScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceAround
                             ) {
-                                if (w.pm25 != null) PollutantChip("PM2.5", "${"%.1f".format(w.pm25)} µg", textPrimary, textSecondary)
-                                if (w.pm10 != null) PollutantChip("PM10", "${"%.0f".format(w.pm10)} µg", textPrimary, textSecondary)
-                                if (w.no2 != null) PollutantChip("NO₂", "${"%.1f".format(w.no2)} µg", textPrimary, textSecondary)
-                                if (w.so2 != null) PollutantChip("SO₂", "${"%.1f".format(w.so2)} µg", textPrimary, textSecondary)
+                                if (w.pm25 != null) PollutantChip("PM2.5", "${"%.1f".format(w.pm25)} µg/m³", textPrimary, textSecondary)
+                                if (w.pm10 != null) PollutantChip("PM10", "${"%.0f".format(w.pm10)} µg/m³", textPrimary, textSecondary)
+                                if (w.no2 != null) PollutantChip("NO₂", "${"%.1f".format(w.no2)} µg/m³", textPrimary, textSecondary)
+                                if (w.so2 != null) PollutantChip("SO₂", "${"%.1f".format(w.so2)} µg/m³", textPrimary, textSecondary)
                             }
 
                             Text(
-                                "Source: Live Station Sensor Telemetry · SAFAR & EPA Standard",
+                                "Source: CPCB / SAFAR Standard · Open-Meteo Sensor Telemetry",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
+
+                            // Monitoring station type tag + last-updated time
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val monTag = if (w.isModelledEstimate) "📡 Modelled Reanalysis" else "🏭 Station Monitoring"
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            if (w.isModelledEstimate) RailAmberWarning.copy(alpha = 0.08f)
+                                            else RailGreenOnTime.copy(alpha = 0.08f)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = monTag,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (w.isModelledEstimate) RailAmberWarning else RailGreenOnTime
+                                    )
+                                }
+                                if (w.lastUpdatedTime.isNotBlank()) {
+                                    Text(
+                                        text = "Updated ${w.lastUpdatedTime}",
+                                        fontSize = 8.sp,
+                                        color = textSecondary.copy(alpha = 0.55f)
+                                    )
+                                }
+                            }
 
                             HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
 
@@ -547,12 +582,12 @@ private fun AqiBadge(category: AqiCategory) {
 @Composable
 private fun AqiScaleBar(aqi: Int, isDark: Boolean) {
     val segments = listOf(
-        50 to Color(0xFF16A34A),   // 0-50 Good
-        100 to Color(0xFF65A30D),  // 51-100 Satisfactory
-        200 to Color(0xFFD97706),  // 101-200 Moderate
-        300 to Color(0xFFDC2626),  // 201-300 Poor
-        400 to Color(0xFF7C3AED),  // 301-400 Very Poor
-        500 to Color(0xFF92400E)   // 401-500 Severe
+        50  to Color(0xFF16A34A),   // 0-50   Good          → Green
+        100 to Color(0xFF84CC16),  // 51-100 Satisfactory  → Parrot Green
+        200 to Color(0xFFEAB308),  // 101-200 Moderate     → Yellow
+        300 to Color(0xFFF97316),  // 201-300 Poor         → Orange
+        400 to Color(0xFFEF4444),  // 301-400 Very Poor    → Red
+        500 to Color(0xFF7F1D1D)   // 401-500 Severe       → Maroon
     )
     val maxAqi = 500
     val clampedAqi = aqi.coerceIn(0, maxAqi)
