@@ -770,28 +770,48 @@ fun AnalyticsScreen(
                                             isDark = isDark
                                         )
 
-                                        // If there are pass-through stations after this halt stop, show collapse pill
+                                        // If there are pass-through stations after this halt stop, show collapse pill / active train bar
                                         if (seg.passThroughs.isNotEmpty()) {
                                             val ptCount = seg.passThroughs.size
                                             val trackDone = RailBluePrimary
                                             val trackFuture = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
                                             val segPassed = seg.passThroughs.all { (ptIdx, _) -> ptIdx < curIdx }
+                                            val nextHaltIdx = if (segIdx + 1 < segments.size) segments[segIdx + 1].haltIndex else stations.size
+                                            val isTrainInThisSegment = curIdx > seg.haltIndex && curIdx < nextHaltIdx
+                                            val activePassThrough = seg.passThroughs.find { (ptIdx, _) -> ptIdx == curIdx }?.second ?: curStation
 
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(IntrinsicSize.Min),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                // LEFT: empty time column
-                                                Spacer(modifier = Modifier.width(62.dp))
-
-                                                // CENTER: spine + pill
+                                            if (isTrainInThisSegment && !isExpanded) {
+                                                // ─────────────────────────────────────────────────────────────
+                                                // ACTIVE TRAIN ON PLAIN BAR (Pass-Through Corridor)
+                                                // ─────────────────────────────────────────────────────────────
                                                 Row(
-                                                    modifier = Modifier.weight(1f),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(IntrinsicSize.Min),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    // Track spine column
+                                                    // LEFT: Live Speed & Telemetry Column
+                                                    Column(
+                                                        modifier = Modifier.width(62.dp),
+                                                        horizontalAlignment = Alignment.Start,
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Text(
+                                                            text = "LIVE",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = RailGreenOnTime
+                                                        )
+                                                        val curSpeed = liveStatus?.speedKmh ?: 85
+                                                        Text(
+                                                            text = "${curSpeed} km/h",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = RailBluePrimary
+                                                        )
+                                                    }
+
+                                                    // CENTER: Active Track Spine with Pulsing Train Node
                                                     Column(
                                                         modifier = Modifier
                                                             .width(28.dp)
@@ -801,56 +821,186 @@ fun AnalyticsScreen(
                                                         Box(
                                                             modifier = Modifier
                                                                 .width(3.dp)
-                                                                .fillMaxHeight()
-                                                                .background(if (segPassed) trackDone else trackFuture)
+                                                                .weight(1f)
+                                                                .background(trackDone)
+                                                        )
+                                                        LiveTrainPulseNode()
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(3.dp)
+                                                                .weight(1f)
+                                                                .background(trackFuture)
                                                         )
                                                     }
 
                                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                                    // Collapse/Expand pill
-                                                    Box(
+                                                    // RIGHT: Interactive Active Train Corridor Status Card
+                                                    Card(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        colors = CardDefaults.cardColors(
+                                                            containerColor = RailBluePrimary.copy(alpha = if (isDark) 0.16f else 0.08f)
+                                                        ),
+                                                        border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.45f)),
                                                         modifier = Modifier
-                                                            .padding(vertical = 6.dp)
-                                                            .clip(RoundedCornerShape(50.dp))
-                                                            .background(
-                                                                if (isDark)
-                                                                    RailBluePrimary.copy(alpha = 0.12f)
-                                                                else
-                                                                    RailBluePrimary.copy(alpha = 0.08f)
-                                                            )
+                                                            .weight(1f)
                                                             .clickable {
-                                                                expandedSegments.value = if (isExpanded)
-                                                                    expandedSegments.value - segIdx
-                                                                else
-                                                                    expandedSegments.value + segIdx
+                                                                expandedSegments.value = expandedSegments.value + segIdx
                                                             }
-                                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                            .padding(vertical = 4.dp)
                                                     ) {
-                                                        Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
+                                                        Column(
+                                                            modifier = Modifier.padding(10.dp),
+                                                            verticalArrangement = Arrangement.spacedBy(4.dp)
                                                         ) {
-                                                            Text(
-                                                                text = if (isExpanded) "▲" else "▼",
-                                                                fontSize = 8.sp,
-                                                                color = RailBluePrimary.copy(alpha = 0.7f)
-                                                            )
-                                                            Text(
-                                                                text = if (isExpanded)
-                                                                    "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}"
-                                                                else
-                                                                    "$ptCount pass-through station${if (ptCount > 1) "s" else ""}",
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.Medium,
-                                                                color = RailBluePrimary.copy(alpha = 0.85f)
-                                                            )
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Row(
+                                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    modifier = Modifier.weight(1f, fill = false)
+                                                                ) {
+                                                                    Text(
+                                                                        text = "🚆 Crossing ${activePassThrough?.name ?: liveStatus?.currentStation ?: "Pass-through"}",
+                                                                        fontSize = 12.sp,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        color = RailBluePrimary,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis
+                                                                    )
+                                                                }
+                                                                Text(
+                                                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
+                                                                )
+                                                            }
+
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                val delay = liveStatus?.delayMinutes ?: 0
+                                                                Text(
+                                                                    text = if (delay == 0) "Running On Time" else "Delayed +${delay}m",
+                                                                    fontSize = 10.sp,
+                                                                    fontWeight = FontWeight.SemiBold,
+                                                                    color = if (delay == 0) RailGreenOnTime else RailRedDelayed
+                                                                )
+
+                                                                // Interactive Expand Pill Button
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .clip(RoundedCornerShape(20.dp))
+                                                                        .background(RailBluePrimary.copy(alpha = 0.15f))
+                                                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                                ) {
+                                                                    Row(
+                                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                                        verticalAlignment = Alignment.CenterVertically
+                                                                    ) {
+                                                                        Text("▼", fontSize = 8.sp, color = RailBluePrimary)
+                                                                        Text(
+                                                                            text = "$ptCount stations",
+                                                                            fontSize = 10.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            color = RailBluePrimary
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
+                                            } else {
+                                                // Standard Pass-Through Collapse/Expand Pill Row
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(IntrinsicSize.Min),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    // LEFT: empty time column
+                                                    Spacer(modifier = Modifier.width(62.dp))
 
-                                                // RIGHT: empty departure column
-                                                Spacer(modifier = Modifier.width(62.dp))
+                                                    // CENTER: spine + pill
+                                                    Row(
+                                                        modifier = Modifier.weight(1f),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        // Track spine column
+                                                        Column(
+                                                            modifier = Modifier
+                                                                .width(28.dp)
+                                                                .fillMaxHeight(),
+                                                            horizontalAlignment = Alignment.CenterHorizontally
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .width(3.dp)
+                                                                    .fillMaxHeight()
+                                                                    .background(if (segPassed || isTrainInThisSegment) trackDone else trackFuture)
+                                                            )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                                        // Collapse/Expand pill
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .padding(vertical = 6.dp)
+                                                                .clip(RoundedCornerShape(50.dp))
+                                                                .background(
+                                                                    if (isTrainInThisSegment)
+                                                                        RailBluePrimary.copy(alpha = 0.18f)
+                                                                    else if (isDark)
+                                                                        RailBluePrimary.copy(alpha = 0.12f)
+                                                                    else
+                                                                        RailBluePrimary.copy(alpha = 0.08f)
+                                                                )
+                                                                .border(
+                                                                    if (isTrainInThisSegment) 1.dp else 0.dp,
+                                                                    if (isTrainInThisSegment) RailBluePrimary else Color.Transparent,
+                                                                    RoundedCornerShape(50.dp)
+                                                                )
+                                                                .clickable {
+                                                                    expandedSegments.value = if (isExpanded)
+                                                                        expandedSegments.value - segIdx
+                                                                    else
+                                                                        expandedSegments.value + segIdx
+                                                                }
+                                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                        ) {
+                                                            Row(
+                                                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Text(
+                                                                    text = if (isExpanded) "▲" else "▼",
+                                                                    fontSize = 8.sp,
+                                                                    color = RailBluePrimary.copy(alpha = 0.7f)
+                                                                )
+                                                                Text(
+                                                                    text = if (isExpanded)
+                                                                        "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}" + if (isTrainInThisSegment) " (● Live inside)" else ""
+                                                                    else
+                                                                        "$ptCount pass-through station${if (ptCount > 1) "s" else ""}",
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = if (isTrainInThisSegment) FontWeight.Bold else FontWeight.Medium,
+                                                                    color = RailBluePrimary.copy(alpha = 0.85f)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // RIGHT: empty departure column
+                                                    Spacer(modifier = Modifier.width(62.dp))
+                                                }
                                             }
 
                                             // Expanded pass-through station rows
@@ -1266,6 +1416,93 @@ fun AnalyticsScreen(
 }
 
 /**
+ * Concentric pulsing sonar rings + train badge
+ */
+@Composable
+private fun LiveTrainPulseNode(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "trainPulse")
+
+    val outerRingScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 2.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "outerScale"
+    )
+    val outerRingAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "outerAlpha"
+    )
+
+    val innerRingScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.55f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "innerScale"
+    )
+    val innerRingAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "innerAlpha"
+    )
+
+    val badgeScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "badgeScale"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.size(36.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .scale(outerRingScale)
+                .clip(CircleShape)
+                .background(RailBluePrimary.copy(alpha = outerRingAlpha))
+        )
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .scale(innerRingScale)
+                .clip(CircleShape)
+                .background(RailBluePrimary.copy(alpha = innerRingAlpha))
+        )
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .scale(badgeScale)
+                .clip(CircleShape)
+                .background(RailBluePrimary)
+                .border(2.dp, Color.White, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("🚆", fontSize = 11.sp)
+        }
+    }
+}
+
+/**
  * Individual Station Node & Vertical Spine Component in Where Is My Train (WIMT) Format
  */
 @Composable
@@ -1356,96 +1593,7 @@ private fun WimtStationTrackRow(
 
                 // Station Node Icon
                 if (isCurrent) {
-                    // ─── Animated Live Train Marker ───────────────────────
-                    // Two concentric pulsing rings (slow outer, fast inner)
-                    // + a scale-bounce on the core badge = "live & moving" feel
-                    val infiniteTransition = rememberInfiniteTransition(label = "trainPulse")
-
-                    // Outer ring: slow expand + fade out (ping / sonar effect)
-                    val outerRingScale by infiniteTransition.animateFloat(
-                        initialValue = 1f,
-                        targetValue = 2.0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1800, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "outerScale"
-                    )
-                    val outerRingAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.55f,
-                        targetValue = 0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1800, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "outerAlpha"
-                    )
-
-                    // Inner ring: slightly faster, offset phase → dual-ripple look
-                    val innerRingScale by infiniteTransition.animateFloat(
-                        initialValue = 1f,
-                        targetValue = 1.55f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1200, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "innerScale"
-                    )
-                    val innerRingAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.45f,
-                        targetValue = 0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1200, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "innerAlpha"
-                    )
-
-                    // Core badge scale: gentle breathing bounce
-                    val badgeScale by infiniteTransition.animateFloat(
-                        initialValue = 1f,
-                        targetValue = 1.12f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(700, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "badgeScale"
-                    )
-
-                    // Stack rings + badge in a Box so they all share the same center
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(48.dp)   // give room for the outer ring
-                    ) {
-                        // Outer sonar ring
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .scale(outerRingScale)
-                                .clip(CircleShape)
-                                .background(RailBluePrimary.copy(alpha = outerRingAlpha))
-                        )
-                        // Inner sonar ring
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .scale(innerRingScale)
-                                .clip(CircleShape)
-                                .background(RailBluePrimary.copy(alpha = innerRingAlpha))
-                        )
-                        // Core badge: solid blue circle with white border + train emoji
-                        Box(
-                            modifier = Modifier
-                                .size(26.dp)
-                                .scale(badgeScale)
-                                .clip(CircleShape)
-                                .background(RailBluePrimary)
-                                .border(2.dp, Color.White, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🚆", fontSize = 12.sp)
-                        }
-                    }
+                    LiveTrainPulseNode()
                 } else if (isHaltStop) {
                     // ● Halt station: dark blue filled circle (passed = solid, future = slightly lighter)
                     Box(
