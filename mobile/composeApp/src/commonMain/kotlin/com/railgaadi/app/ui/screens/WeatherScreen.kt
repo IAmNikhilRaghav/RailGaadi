@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +101,64 @@ fun WeatherScreen() {
                         ) {
                             Text(if (TrainTrackerState.isAutoRefreshing) "⏳" else "🔄", fontSize = 11.sp)
                             Text("Refresh", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                        }
+                    }
+                }
+            }
+
+            // ── Route Corridor Station Selector ───────────────────
+            val routeStations = liveStatus?.stations?.filter { it.haltMinutes > 0 || it.name.contains(liveStatus?.currentStation ?: "___", ignoreCase = true) } ?: emptyList()
+            if (routeStations.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Corridor Stations (Tap to view local Weather & AQI)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textSecondary
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val isLiveActive = TrainTrackerState.selectedWeatherStationName == null
+                            item {
+                                val liveStnName = liveStatus?.currentStation?.substringBefore(" (") ?: "Current"
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(if (isLiveActive) RailGreenOnTime else surface)
+                                        .border(1.dp, if (isLiveActive) RailGreenOnTime else border, RoundedCornerShape(20.dp))
+                                        .clickable { TrainTrackerState.selectWeatherStation(null) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "● Live: $liveStnName",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isLiveActive) Color.White else textPrimary
+                                    )
+                                }
+                            }
+
+                            items(routeStations.filter { !it.name.contains(liveStatus?.currentStation?.substringBefore(" (") ?: "___", ignoreCase = true) }) { stn ->
+                                val isSelected = TrainTrackerState.selectedWeatherStationName?.equals(stn.name, ignoreCase = true) == true
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(if (isSelected) RailBluePrimary else surface)
+                                        .border(1.dp, if (isSelected) RailBluePrimary else border, RoundedCornerShape(20.dp))
+                                        .clickable { TrainTrackerState.selectWeatherStation(stn.name) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = stn.name,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else textPrimary
+                                    )
+                                }
+                            }
                         }
                     }
                 }

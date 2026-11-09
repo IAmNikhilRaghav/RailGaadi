@@ -129,11 +129,18 @@ data class RailRadarLiveStatusData(
 )
 
 @Serializable
+data class RailRadarCoordinates(
+    val lat: Double? = null,
+    val lng: Double? = null
+)
+
+@Serializable
 data class RailRadarCurrentLocation(
     val stationCode: String? = null,
     val stationName: String? = null,
     val speed: Double? = null,
-    val delayMinutes: Int? = null
+    val delayMinutes: Int? = null,
+    val coordinates: RailRadarCoordinates? = null
 )
 
 @Serializable
@@ -151,6 +158,8 @@ data class RailRadarRouteStop(
     val stationName: String? = null,
     val isHalt: Boolean? = true,
     val status: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
     val scheduledArrival: String? = null,
     val scheduledDeparture: String? = null,
     val actualArrival: String? = null,
@@ -556,7 +565,27 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
 
                 val stations = allStops.map { stop ->
                     val code = stop.stationCode ?: ""
-                    val coords = StationDataService.getCoordinates(code)
+                    val apiLat = stop.lat ?: 0.0
+                    val apiLng = stop.lng ?: 0.0
+
+                    // 1. Prefer API real latitude & longitude (provided dynamically for all route stations)
+                    val coords = if (apiLat != 0.0 && apiLng != 0.0) {
+                        Pair(apiLat, apiLng)
+                    } else {
+                        StationDataService.getCoordinates(code)
+                    }
+
+                    // Dynamically cache exact station coordinates into station directory
+                    if (coords.first != 0.0 && coords.second != 0.0) {
+                        StationDataService.cacheStation(
+                            StationInfo(
+                                code = code,
+                                name = stop.stationName ?: code,
+                                lat = coords.first,
+                                lon = coords.second
+                            )
+                        )
+                    }
 
                     val dep = formatIsoTime(stop.scheduledDeparture ?: stop.actualDeparture)
                     val arr = formatIsoTime(stop.scheduledArrival ?: stop.actualArrival)
@@ -573,6 +602,22 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                         // haltMinutes=0 → pass-through (train doesn't stop); >0 → scheduled halt
                         haltMinutes = if (stop.isHalt == true) 2 else 0
                     )
+                }
+
+                // Also dynamically cache current train position coordinates if available
+                val curCoords = data.currentLocation?.coordinates
+                if (curCoords != null && (curCoords.lat ?: 0.0) != 0.0 && (curCoords.lng ?: 0.0) != 0.0) {
+                    val curCode = data.currentLocation.stationCode ?: ""
+                    if (curCode.isNotBlank()) {
+                        StationDataService.cacheStation(
+                            StationInfo(
+                                code = curCode,
+                                name = data.currentLocation.stationName ?: curCode,
+                                lat = curCoords.lat!!,
+                                lon = curCoords.lng!!
+                            )
+                        )
+                    }
                 }
 
                 // If geojson was empty, synthesize track coordinates from station pins

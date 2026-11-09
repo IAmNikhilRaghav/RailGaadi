@@ -180,6 +180,7 @@ object TrainTrackerState {
         }
         addRecentTrain(train)
 
+        selectedWeatherStationName = null
         scope.launch {
             isLoadingStatus = true
             liveStatus = service.getLiveStatus(train.number)
@@ -205,12 +206,31 @@ object TrainTrackerState {
         }
     }
 
+    var selectedWeatherStationName by mutableStateOf<String?>(null)
+
+    fun selectWeatherStation(stationName: String?) {
+        selectedWeatherStationName = stationName
+        refreshWeather(silent = false)
+    }
+
     fun refreshWeather(silent: Boolean = false) {
         val stations = liveStatus?.stations ?: return
-        val currentStation = stations.getOrNull(
-            stations.indexOfFirst { it.name.contains(liveStatus?.currentStation ?: "", ignoreCase = true) }.takeIf { it >= 0 } ?: 0
-        ) ?: stations.firstOrNull() ?: return
+        if (stations.isEmpty()) return
 
+        // 1. Determine target station name (user selected corridor station OR live train current station)
+        val selectedTarget = selectedWeatherStationName?.substringBefore(" (")?.trim()
+        val liveTarget = (liveStatus?.currentStation ?: "").substringBefore(" (").trim()
+        val query = if (!selectedTarget.isNullOrBlank()) selectedTarget else liveTarget
+
+        // 2. Resolve matching station from live train route
+        val currentStation = stations.find { stn ->
+            val cleanName = stn.name.substringBefore(" (").trim()
+            stn.code.equals(query, ignoreCase = true) ||
+            cleanName.contains(query, ignoreCase = true) ||
+            (query.isNotEmpty() && query.contains(cleanName, ignoreCase = true))
+        } ?: stations.firstOrNull() ?: return
+
+        // 3. Obtain real GPS coordinates (provided dynamically by API or station cache)
         val coords = if (currentStation.latitude != 0.0 && currentStation.longitude != 0.0) {
             Pair(currentStation.latitude, currentStation.longitude)
         } else {
