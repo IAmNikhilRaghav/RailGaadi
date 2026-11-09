@@ -28,6 +28,7 @@ object StationDataService {
         StationInfo("RE", "Rewari Jn", "Rewari", "Haryana", 28.2028, 76.6094),
 
         // Uttar Pradesh
+        StationInfo("BTSR", "Bhuteshwar", "Mathura", "Uttar Pradesh", 27.5020, 77.6680),
         StationInfo("MTJ", "Mathura Jn", "Mathura", "Uttar Pradesh", 27.4801, 77.6731),
         StationInfo("MRT", "Mathura Cantt", "Mathura", "Uttar Pradesh", 27.4912, 77.6851),
         StationInfo("AGC", "Agra Cantt", "Agra", "Uttar Pradesh", 27.1580, 77.9902),

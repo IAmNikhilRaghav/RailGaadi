@@ -62,20 +62,27 @@ data class OpenMeteoAirQualityResponse(
 
 /**
  * Raw AQI response from Open-Meteo air-quality API.
- * Note: values are model-based Copernicus CAMS reanalysis, NOT CPCB station readings.
- * They are used as inputs to the CPCB NAQI sub-index formula only.
- * [time] is ISO 8601 e.g. "2026-11-09T16:00"
+ * MUST remain a pure @Serializable class — no non-JSON fields.
+ * [time] is auto-included by Open-Meteo (ISO 8601 "2026-11-09T16:00").
  */
 @Serializable
 data class OpenMeteoAqiCurrent(
-    @SerialName("us_aqi") val usAqi: Int? = null,          // intentionally ignored for display
     @SerialName("pm2_5") val pm25: Double? = null,
     @SerialName("pm10") val pm10: Double? = null,
     @SerialName("dust") val dust: Double? = null,
     @SerialName("nitrogen_dioxide") val no2: Double? = null,
     @SerialName("sulphur_dioxide") val so2: Double? = null,
-    @SerialName("time") val time: String? = null,
-    val fetchSucceeded: Boolean = true                     // set false on network error
+    @SerialName("time") val time: String? = null
+    // us_aqi intentionally excluded — we use CPCB NAQI sub-index formula only
+)
+
+/**
+ * Non-serializable wrapper that carries both the parsed AQI data
+ * and a network-fetch status flag. Keeps @Serializable classes clean.
+ */
+data class AqiFetchResult(
+    val data: OpenMeteoAqiCurrent,
+    val fetchSucceeded: Boolean
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -192,12 +199,14 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val aqiDeferred    = async { fetchAqi(latitude, longitude) }
 
             val weather = weatherDeferred.await()
-            val aqi     = aqiDeferred.await()
+            val aqiResult = aqiDeferred.await()
+            val aqi = aqiResult.data
+            val aqiFetchSucceeded = aqiResult.fetchSucceeded
 
             // ── CPCB NAQI sub-index engine ───────────────────────────────────
             // Only compute AQI if the API call actually succeeded AND at least one
             // pollutant reading is non-zero (guards against fake 1 from all-zero inputs).
-            val hasPollutantData = aqi.fetchSucceeded &&
+            val hasPollutantData = aqiFetchSucceeded &&
                 listOfNotNull(aqi.pm25, aqi.pm10, aqi.no2, aqi.so2).any { it > 0.0 }
 
             val cpcbResult = if (hasPollutantData) {
@@ -259,7 +268,7 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 monitoringStation   = monitoringStation,
                 isModelledEstimate  = !isMajorStation,
                 weatherFetchOk      = weather.fetchOk,
-                aqiFetchOk          = aqi.fetchSucceeded && hasPollutantData
+                aqiFetchOk          = aqiFetchSucceeded && hasPollutantData
             )
         }
     }
@@ -278,8 +287,8 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoForecastResponse = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                // current block: does NOT include precipitation_probability (hourly only)
-                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,cloud_cover,time")
+                // Note: time is auto-included by Open-Meteo in current JSON — do NOT request 'time' as a variable
+                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,cloud_cover")
                 // hourly: take first value = current-hour precipitation_probability
                 parameter("hourly", "precipitation_probability")
                 parameter("forecast_hours", 1)
@@ -318,20 +327,23 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
         }
     }
 
-    private suspend fun fetchAqi(lat: Double, lon: Double): OpenMeteoAqiCurrent {
+    private suspend fun fetchAqi(lat: Double, lon: Double): AqiFetchResult {
         return try {
             val response: OpenMeteoAirQualityResponse = client.get("https://air-quality-api.open-meteo.com/v1/air-quality") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                // request time so we can show actual last-updated timestamp
-                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide,time")
+                // time is auto-included in every Open-Meteo current response — do NOT list it here
+                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide")
             }.body()
-            // If API returned a block, mark success. If null body, signal unavailability.
-            response.current?.copy(fetchSucceeded = true)
-                ?: OpenMeteoAqiCurrent(fetchSucceeded = false)
+            val current = response.current
+            if (current != null) {
+                AqiFetchResult(data = current, fetchSucceeded = true)
+            } else {
+                AqiFetchResult(data = OpenMeteoAqiCurrent(), fetchSucceeded = false)
+            }
         } catch (_: Exception) {
-            // Network / parse failure — explicitly signal unavailability, never fake zeros
-            OpenMeteoAqiCurrent(fetchSucceeded = false)
+            // Network / parse failure — signal unavailability; never compute AQI from zeros
+            AqiFetchResult(data = OpenMeteoAqiCurrent(), fetchSucceeded = false)
         }
     }
 
