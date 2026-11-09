@@ -1,11 +1,16 @@
 package com.railgaadi.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -329,6 +334,18 @@ fun WeatherScreen() {
                                 "Source: CPCB / SAFAR Standard · Open-Meteo Sensor Telemetry",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
+
+                            HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                            // ── Collapsible Health Guidance, Travel Safety & Citizen Action ──
+                            AqiAdvisoryCollapsible(
+                                aqi = w.aqiValue ?: 0,
+                                category = w.aqiCategory,
+                                isDark = isDark,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                border = border
+                            )
                         } else {
                             Box(
                                 modifier = Modifier
@@ -613,6 +630,251 @@ private fun LandmarkCard(
                     }
                 }
             }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Collapsible Health Guidance & Citizen Action Component
+// ─────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AqiAdvisoryCollapsible(
+    aqi: Int,
+    category: AqiCategory,
+    isDark: Boolean,
+    textPrimary: Color,
+    textSecondary: Color,
+    border: Color
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) } // 0: Health, 1: Protection, 2: Green Action
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isDark) Color(0xFF0F172A).copy(alpha = 0.6f) else Color(0xFFF8FAFC))
+            .border(1.dp, border.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+    ) {
+        // Toggle Header Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(category.colorHex).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (isExpanded) "🌱" else "🛡️", fontSize = 15.sp)
+                }
+                Column {
+                    Text(
+                        text = "Health Advisory & Clean Air Action",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary
+                    )
+                    Text(
+                        text = if (isExpanded) "Tap to collapse" else "Consequences, travel protection & citizen tips",
+                        fontSize = 10.sp,
+                        color = textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(RailBluePrimary.copy(alpha = 0.1f))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = if (isExpanded) "Hide ▲" else "Guide ▼",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RailBluePrimary
+                )
+            }
+        }
+
+        // Expanded Content with Animation
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                HorizontalDivider(color = border.copy(alpha = 0.4f), thickness = 0.5.dp)
+
+                // Category Selector: Health Risks | Travel Care | Clean City
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "🩺 Health Risks",
+                        "🛡️ Travel Care",
+                        "🌱 Clean City"
+                    ).forEachIndexed { idx, title ->
+                        val isSelected = selectedTab == idx
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) RailBluePrimary else if (isDark) DarkSurface else Color.White
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) RailBluePrimary else border.copy(alpha = 0.6f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { selectedTab = idx }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else textSecondary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                // Tab Content View
+                when (selectedTab) {
+                    0 -> HealthConsequencesTab(aqi, category, textPrimary, textSecondary)
+                    1 -> TravelProtectionTab(textPrimary, textSecondary)
+                    2 -> CitizenInitiativesTab(textPrimary, textSecondary)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthConsequencesTab(
+    aqi: Int,
+    category: AqiCategory,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val impactSummary = when {
+            aqi > 400 -> "Hazardous: Severe respiratory and cardiovascular strain across healthy population; emergency for lung/heart patients."
+            aqi > 300 -> "Very Poor: Triggers respiratory illness on prolonged exposure. Significant risk for asthma, bronchitis, or heart conditions."
+            aqi > 200 -> "Poor: Causes breathing discomfort, throat burning, and eye stinging on prolonged outdoor exposure."
+            aqi > 100 -> "Moderate: Breathing discomfort for sensitive individuals, children, and elderly travelers on extended platform stays."
+            else -> "Good / Satisfactory: Air quality is safe for normal outdoor breathing."
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(category.colorHex).copy(alpha = 0.12f))
+                .padding(10.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(category.emoji, fontSize = 16.sp)
+                Column {
+                    Text(
+                        "Current Impact: ${category.label} (AQI $aqi)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(category.colorHex)
+                    )
+                    Text(
+                        impactSummary,
+                        fontSize = 10.sp,
+                        color = textPrimary,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+        }
+
+        AdvisoryItem("🫁 Lungs & Airway", "Fine PM2.5 penetrates deep into alveoli and bloodstream, reducing oxygen uptake and causing persistent coughing or wheezing.", textPrimary, textSecondary)
+        AdvisoryItem("👁️ Eyes & Throat", "Nitrogen dioxide (NO₂) and ozone cause stinging eyes, dry throat, and sinus congestion along rail corridors.", textPrimary, textSecondary)
+        AdvisoryItem("👶 High-Risk Groups", "Children, elderly travelers, pregnant women, and asthmatics suffer 3x higher vulnerability during railway transit in smog.", textPrimary, textSecondary)
+    }
+}
+
+@Composable
+private fun TravelProtectionTab(
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AdvisoryItem("😷 Wear N95 Mask", "Cloth masks don't filter PM2.5. Wear a certified N95/FFP2 mask when waiting on open platforms or at carriage doors.", textPrimary, textSecondary)
+        AdvisoryItem("🪟 Pull Down Windows", "In Sleeper and General coaches, keep glass shutters down while crossing major industrial corridors and congested rail yards.", textPrimary, textSecondary)
+        AdvisoryItem("💧 Regular Warm Hydration", "Sipping warm water or tea helps clear toxic particles trapped in throat mucous membranes and prevents dehydration.", textPrimary, textSecondary)
+        AdvisoryItem("👁️ Saline Eye / Nasal Relief", "Carry sterile lubricating eye drops and saline nasal spray to quickly rinse smog particulate residue at station halts.", textPrimary, textSecondary)
+        AdvisoryItem("🚶 Minimize Platform Strolls", "Avoid brisk walking or heavy exercise during long halts; stay inside shaded, ventilated waiting halls or AC coaches.", textPrimary, textSecondary)
+    }
+}
+
+@Composable
+private fun CitizenInitiativesTab(
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AdvisoryItem("🚫 Zero Open Burning", "Never burn dried leaves, plastic, or domestic waste. Report illegal garbage or farm fires on the official CPCB Sameer App.", textPrimary, textSecondary)
+        AdvisoryItem("🚆 Champion Public Transit", "Traveling by Indian Railways and Metro rather than solo cars prevents kilograms of carbon and particulate emissions per trip.", textPrimary, textSecondary)
+        AdvisoryItem("🌿 Plant Native Air Purifiers", "Grow native trees (Peepal, Neem, Banyan) in your society and keep indoor plants (Snake Plant, Areca Palm, Tulsi) at home.", textPrimary, textSecondary)
+        AdvisoryItem("🚗 Vehicle PUC & Carpooling", "Keep your vehicle's PUC certification valid, maintain correct tyre pressure, and turn off your engine at railway crossings.", textPrimary, textSecondary)
+        AdvisoryItem("💧 Dust Suppression", "Sprinkle water on loose soil or unpaved paths around your home/shop to prevent ambient dust from kicking up into the air.", textPrimary, textSecondary)
+    }
+}
+
+@Composable
+private fun AdvisoryItem(
+    title: String,
+    desc: String,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(RailBluePrimary)
+        )
+        Column {
+            Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+            Text(desc, fontSize = 10.sp, color = textSecondary, lineHeight = 14.sp)
         }
     }
 }
