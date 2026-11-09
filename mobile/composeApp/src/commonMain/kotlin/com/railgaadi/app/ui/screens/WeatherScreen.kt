@@ -38,6 +38,7 @@ import com.railgaadi.app.model.Landmark
 import com.railgaadi.app.model.StationWeatherData
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.LiveAutoRefreshPill
 import kotlin.math.roundToInt
 
 @Composable
@@ -59,7 +60,8 @@ fun WeatherScreen() {
     // Auto-refresh weather when screen is opened and train is active
     LaunchedEffect(activeTrain.number) {
         if (activeTrain.number.isNotBlank()) {
-            TrainTrackerState.refreshWeather()
+            TrainTrackerState.refreshWeather(silent = false)
+            TrainTrackerState.startAutoRefresh(10)
         }
     }
 
@@ -76,21 +78,27 @@ fun WeatherScreen() {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    LiveAutoRefreshPill(
+                        countdown = TrainTrackerState.autoRefreshCountdown,
+                        isRefreshing = TrainTrackerState.isAutoRefreshing,
+                        onForceRefresh = { TrainTrackerState.triggerManualRefresh() }
+                    )
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(RailBluePrimary.copy(alpha = 0.1f))
-                            .clickable { TrainTrackerState.refreshWeather() }
+                            .clickable { TrainTrackerState.triggerManualRefresh() }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🔄", fontSize = 11.sp)
+                            Text(if (TrainTrackerState.isAutoRefreshing) "⏳" else "🔄", fontSize = 11.sp)
                             Text("Refresh", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
                         }
                     }
@@ -211,11 +219,16 @@ fun WeatherScreen() {
                         ) {
                             Column {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("🌡️ Live Weather", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                    Text("● LIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                    Text(
+                                        text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
+                                    )
                                 }
                                 Text(w.stationName, fontSize = 11.sp, color = textSecondary)
                             }
@@ -280,11 +293,16 @@ fun WeatherScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("💨 Air Quality Index", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                Text("● LIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                Text(
+                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
+                                )
                             }
                             if (w.aqiValue != null) {
                                 AqiBadge(w.aqiCategory)

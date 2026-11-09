@@ -203,6 +203,9 @@ fun LiveMapScreen() {
     }
 
     LaunchedEffect(activeTrain.number) {
+        if (activeTrain.number.isNotBlank()) {
+            TrainTrackerState.startAutoRefresh(10)
+        }
         isNavigationMode = false
         val target = TrainTrackerState.userBoardingStation
         if (target != null) {

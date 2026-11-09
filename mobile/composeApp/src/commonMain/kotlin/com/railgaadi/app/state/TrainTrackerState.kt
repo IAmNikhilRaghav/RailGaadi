@@ -99,6 +99,68 @@ object TrainTrackerState {
         isSearchDropdownOpen = false
     }
 
+    // Live Auto-Refresh Polling Engine (8-12 seconds, default 10s)
+    const val AUTO_REFRESH_INTERVAL_SECONDS = 10
+    var autoRefreshCountdown by mutableStateOf(AUTO_REFRESH_INTERVAL_SECONDS)
+    var isAutoRefreshing by mutableStateOf(false)
+    var isAutoRefreshEnabled by mutableStateOf(true)
+    private var autoRefreshJob: Job? = null
+
+    fun startAutoRefresh(intervalSeconds: Int = AUTO_REFRESH_INTERVAL_SECONDS) {
+        if (!isAutoRefreshEnabled) return
+        autoRefreshJob?.cancel()
+        autoRefreshCountdown = intervalSeconds
+
+        autoRefreshJob = scope.launch {
+            while (true) {
+                delay(1000)
+                if (!isAutoRefreshEnabled || activeTrain.number.isBlank()) continue
+
+                if (autoRefreshCountdown > 1) {
+                    autoRefreshCountdown -= 1
+                } else {
+                    autoRefreshCountdown = 0
+                    isAutoRefreshing = true
+                    try {
+                        // Silent background live fetch (no blocking spinner)
+                        val updated = service.getLiveStatus(activeTrain.number)
+                        if (updated != null) {
+                            liveStatus = updated
+                            refreshWeather(silent = true)
+                        }
+                    } catch (_: Exception) {
+                    } finally {
+                        isAutoRefreshing = false
+                        autoRefreshCountdown = intervalSeconds
+                    }
+                }
+            }
+        }
+    }
+
+    fun stopAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+    }
+
+    fun triggerManualRefresh() {
+        if (activeTrain.number.isBlank()) return
+        autoRefreshCountdown = AUTO_REFRESH_INTERVAL_SECONDS
+        scope.launch {
+            isAutoRefreshing = true
+            try {
+                val updated = service.getLiveStatus(activeTrain.number)
+                if (updated != null) {
+                    liveStatus = updated
+                    refreshWeather(silent = true)
+                }
+            } catch (_: Exception) {
+            } finally {
+                isAutoRefreshing = false
+            }
+        }
+    }
+
     fun selectTrain(train: Train, boardingStationInput: String? = null) {
         if (train.number.isBlank()) return   // guard: no-op for empty placeholder train
         activeTrain = train
@@ -122,16 +184,13 @@ object TrainTrackerState {
             isLoadingStatus = true
             liveStatus = service.getLiveStatus(train.number)
             isLoadingStatus = false
+            refreshWeather(silent = false)
+            startAutoRefresh(AUTO_REFRESH_INTERVAL_SECONDS)
         }
     }
 
     fun refreshLiveStatus() {
-        if (activeTrain.number.isBlank()) return
-        scope.launch {
-            isLoadingStatus = true
-            liveStatus = service.getLiveStatus(activeTrain.number)
-            isLoadingStatus = false
-        }
+        triggerManualRefresh()
     }
 
     fun selectByNumber(number: String) {
@@ -146,7 +205,7 @@ object TrainTrackerState {
         }
     }
 
-    fun refreshWeather() {
+    fun refreshWeather(silent: Boolean = false) {
         val stations = liveStatus?.stations ?: return
         val currentStation = stations.getOrNull(
             stations.indexOfFirst { it.name.contains(liveStatus?.currentStation ?: "", ignoreCase = true) }.takeIf { it >= 0 } ?: 0
@@ -163,12 +222,12 @@ object TrainTrackerState {
         if (lat == 0.0 && lon == 0.0) return
 
         scope.launch {
-            isLoadingWeather = true
+            if (!silent) isLoadingWeather = true
             try {
                 weatherData = weatherService.getStationWeatherData(currentStation.name, lat, lon)
                 nearbyLandmarks = LandmarkService.getNearbyLandmarks(lat, lon)
             } catch (_: Exception) { }
-            isLoadingWeather = false
+            if (!silent) isLoadingWeather = false
         }
     }
 }

@@ -40,6 +40,7 @@ import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.LiveAutoRefreshPill
 import com.railgaadi.app.ui.components.MetricBox
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -69,10 +70,13 @@ fun AnalyticsScreen(
     var searchResults by remember { mutableStateOf<List<Train>>(emptyList()) }
     var isSearchingTrains by remember { mutableStateOf(false) }
 
-    // If active train is set but liveStatus is not yet fetched, fetch it dynamically
+    // If active train is set, ensure liveStatus is fetched and start live auto-refresh (10s)
     LaunchedEffect(activeTrain.number) {
-        if (activeTrain.number.isNotBlank() && liveStatus == null) {
-            TrainTrackerState.refreshLiveStatus()
+        if (activeTrain.number.isNotBlank()) {
+            if (liveStatus == null) {
+                TrainTrackerState.refreshLiveStatus()
+            }
+            TrainTrackerState.startAutoRefresh(10)
         }
     }
 
@@ -305,21 +309,31 @@ fun AnalyticsScreen(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Top row: action buttons only (no redundant title)
+                            // Top row: Auto-refresh countdown indicator + action buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Live Auto-Refresh Ticker Badge: ● LIVE · 10s
+                                LiveAutoRefreshPill(
+                                    countdown = TrainTrackerState.autoRefreshCountdown,
+                                    isRefreshing = TrainTrackerState.isAutoRefreshing,
+                                    onForceRefresh = { TrainTrackerState.triggerManualRefresh() }
+                                )
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     // Refresh button
                                     IconButton(
-                                        onClick = { TrainTrackerState.refreshLiveStatus() },
+                                        onClick = { TrainTrackerState.triggerManualRefresh() },
                                         modifier = Modifier
                                             .size(36.dp)
                                             .background(RailBluePrimary.copy(alpha = 0.12f), CircleShape)
                                     ) {
-                                        Text("🔄", fontSize = 14.sp)
+                                        Text(if (TrainTrackerState.isAutoRefreshing) "⏳" else "🔄", fontSize = 14.sp)
                                     }
 
                                     // Change train button
@@ -1557,10 +1571,10 @@ private fun WimtStationTrackRow(
                                     color = RailBluePrimary
                                 )
                                 Text(
-                                    text = "● LIVE",
+                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = RailGreenOnTime
+                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
                                 )
                             }
                             Text(
