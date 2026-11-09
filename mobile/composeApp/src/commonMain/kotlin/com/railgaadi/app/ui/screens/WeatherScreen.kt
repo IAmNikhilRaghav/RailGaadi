@@ -283,7 +283,11 @@ fun WeatherScreen() {
                                 ) {
                                     Text("🌡️ Live Weather", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                                     Text(
-                                        text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
+                                        text = when {
+                                            TrainTrackerState.isAutoRefreshing -> "● UPDATING…"
+                                            w.lastUpdatedTime.isNotBlank()     -> "● Updated ${w.lastUpdatedTime}"
+                                            else                               -> "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s"
+                                        },
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
@@ -294,36 +298,53 @@ fun WeatherScreen() {
                             Text(w.conditionIcon, fontSize = 36.sp)
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(0.dp)
-                        ) {
-                            Text(
-                                "${w.temperature.roundToInt()}°C",
-                                fontSize = 42.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textPrimary
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column(
-                                verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(top = 8.dp)
+                        if (!w.weatherFetchOk) {
+                            // Weather fetch failed — show honest error, not fake data
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(w.condition, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
-                                Text("Feels like ${w.apparentTemperature.roundToInt()}°C", fontSize = 11.sp, color = textSecondary)
+                                Text(
+                                    "⚠️ Weather data temporarily unavailable. Tap Refresh to retry.",
+                                    fontSize = 11.sp,
+                                    color = RailAmberWarning,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 15.sp
+                                )
                             }
-                        }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(0.dp)
+                            ) {
+                                Text(
+                                    "${w.temperature.roundToInt()}°C",
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textPrimary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text(w.condition, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
+                                    Text("Feels like ${w.apparentTemperature.roundToInt()}°C", fontSize = 11.sp, color = textSecondary)
+                                }
+                            }
 
-                        HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            WeatherMetricChip("💧", "Humidity", "${w.humidityPercent}%", textPrimary, textSecondary)
-                            WeatherMetricChip("💨", "Wind", "${w.windKmh.roundToInt()} km/h", textPrimary, textSecondary)
-                            WeatherMetricChip("👁️", "Visibility", "${"%.1f".format(w.visibilityKm)} km", textPrimary, textSecondary)
-                            WeatherMetricChip("🌧️", "Rain", "${w.rainProbability}%", textPrimary, textSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                WeatherMetricChip("💧", "Humidity", "${w.humidityPercent}%", textPrimary, textSecondary)
+                                WeatherMetricChip("💨", "Wind", "${w.windKmh.roundToInt()} km/h", textPrimary, textSecondary)
+                                WeatherMetricChip("👁️", "Visibility", "${"%.1f".format(w.visibilityKm)} km", textPrimary, textSecondary)
+                                // Rain probability comes from hourly block; cloud cover from current
+                                WeatherMetricChip("🌧️", "Rain", "${w.rainProbability}%", textPrimary, textSecondary)
+                            }
                         }
 
                         Text(
@@ -360,7 +381,11 @@ fun WeatherScreen() {
                             ) {
                                 Text("💨 Air Quality Index", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                                 Text(
-                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
+                                    text = when {
+                                        TrainTrackerState.isAutoRefreshing -> "● UPDATING…"
+                                        w.lastUpdatedTime.isNotBlank()     -> "● Updated ${w.lastUpdatedTime}"
+                                        else                               -> "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s"
+                                    },
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
@@ -371,7 +396,26 @@ fun WeatherScreen() {
                             }
                         }
 
-                        if (w.aqiValue != null) {
+                        if (!w.aqiFetchOk || w.aqiValue == null) {
+                            // AQI unavailable — be explicit, never show fabricated data
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("AQI data unavailable for this location", fontSize = 12.sp, color = textSecondary)
+                                    Text(
+                                        "No CPCB station data or modelled estimate available.",
+                                        fontSize = 9.sp,
+                                        color = textSecondary.copy(alpha = 0.6f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else {
                             // Big AQI number
                             Row(
                                 verticalAlignment = Alignment.Bottom,
@@ -394,7 +438,7 @@ fun WeatherScreen() {
                                 }
                             }
 
-                            // AQI scale bar (CPCB Standard: 0-50, 51-100, 101-200, 201-300, 301-400, 401-500)
+                            // AQI scale bar (CPCB 6-tier: 0-50, 51-100, 101-200, 201-300, 301-400, 401-500)
                             AqiScaleBar(w.aqiValue ?: 0, isDark)
 
                             HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
@@ -410,8 +454,9 @@ fun WeatherScreen() {
                                 if (w.so2 != null) PollutantChip("SO₂", "${"%.1f".format(w.so2)} µg/m³", textPrimary, textSecondary)
                             }
 
+                            // Source + monitoring station transparency row
                             Text(
-                                "Source: CPCB / SAFAR Standard · Open-Meteo Sensor Telemetry",
+                                "Source: CPCB NAQI Standard · Copernicus CAMS via Open-Meteo",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
 
@@ -421,7 +466,7 @@ fun WeatherScreen() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val monTag = if (w.isModelledEstimate) "📡 Modelled Reanalysis" else "🏭 Station Monitoring"
+                                val monTag = if (w.isModelledEstimate) "📡 Modelled · ${w.monitoringStation}" else "🏭 ${w.monitoringStation}"
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
@@ -435,7 +480,9 @@ fun WeatherScreen() {
                                         text = monTag,
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (w.isModelledEstimate) RailAmberWarning else RailGreenOnTime
+                                        color = if (w.isModelledEstimate) RailAmberWarning else RailGreenOnTime,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 if (w.lastUpdatedTime.isNotBlank()) {
@@ -458,15 +505,6 @@ fun WeatherScreen() {
                                 textSecondary = textSecondary,
                                 border = border
                             )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(60.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("AQI data unavailable for this location", fontSize = 12.sp, color = textSecondary)
-                            }
                         }
                     }
                 }

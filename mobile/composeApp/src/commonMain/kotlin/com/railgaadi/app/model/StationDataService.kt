@@ -185,7 +185,17 @@ object StationDataService {
         StationInfo("PURI", "Puri", "Puri", "Odisha", 19.8130, 85.8310),
         StationInfo("CTC", "Cuttack Jn", "Cuttack", "Odisha", 20.4666, 85.9016),
         StationInfo("GHY", "Guwahati", "Guwahati", "Assam", 26.1826, 91.7519),
-        StationInfo("DBRG", "Dibrugarh", "Dibrugarh", "Assam", 27.4636, 94.9353)
+        StationInfo("DBRG", "Dibrugarh", "Dibrugarh", "Assam", 27.4636, 94.9353),
+
+        // ── Kumaon / Terai corridor (Lalkua, Kichha, Baheri, Izzatnagar) ──
+        StationInfo("LKU", "Lalkua Jn", "Lalkua", "Uttarakhand", 29.0797, 79.5213),
+        StationInfo("KCHA", "Kichha", "Kichha", "Uttarakhand", 28.9140, 79.4800),
+        StationInfo("BHR", "Baheri", "Baheri", "Uttarakhand", 29.1570, 79.2740),
+        StationInfo("IZN", "Izzatnagar", "Bareilly", "Uttar Pradesh", 28.3760, 79.4330),
+        StationInfo("KMVN", "Kathgodam", "Nainital", "Uttarakhand", 29.2130, 79.5230),
+        StationInfo("RDP", "Rudrapur City", "Rudrapur", "Uttarakhand", 28.9790, 79.4020),
+        StationInfo("KGM", "Kasya", "Kashipur", "Uttarakhand", 29.2080, 78.9680),
+        StationInfo("MB", "Moradabad Jn", "Moradabad", "Uttar Pradesh", 28.8316, 78.7658)
     )
 
     private val stationMapByCode = allStations.associateBy { it.code.uppercase() }

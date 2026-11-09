@@ -89,7 +89,8 @@ data class StationWeatherData(
     val windKmh: Double = 12.0,
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
-    val rainProbability: Int = 20,
+    val rainProbability: Int = 0,       // from hourly precipitation_probability (not current)
+    val cloudCoverPercent: Int = 0,     // from current cloud_cover
     val cpcbAqi: Int? = null,
     val usAqi: Int? = null,
     val pm25: Double? = null,
@@ -98,8 +99,10 @@ data class StationWeatherData(
     val so2: Double? = null,
     val aqiStandard: String = "Live AQI (CPCB)",
     val lastUpdatedTime: String = "",
-    val monitoringStation: String = "Copernicus CAMS Surface Grid",
-    val isModelledEstimate: Boolean = true
+    val monitoringStation: String = "Copernicus CAMS Grid (Modelled · 25km)",
+    val isModelledEstimate: Boolean = true,
+    val weatherFetchOk: Boolean = true,  // false when weather API call failed
+    val aqiFetchOk: Boolean = true       // false when AQI API call failed / no data
 ) {
     // CPCB NAQI: use max(sub-index) — cpcbAqi is preferred over usAqi
     val aqiValue: Int? get() = cpcbAqi ?: usAqi

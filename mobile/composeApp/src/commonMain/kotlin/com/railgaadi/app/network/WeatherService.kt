@@ -24,9 +24,15 @@ import kotlin.math.sqrt
 // ─────────────────────────────────────────────────────────────────
 @Serializable
 data class OpenMeteoForecastResponse(
-    val current: OpenMeteoCurrent? = null
+    val current: OpenMeteoCurrent? = null,
+    val hourly: OpenMeteoHourly? = null
 )
 
+/**
+ * Open-Meteo current weather block.
+ * Note: precipitation_probability is NOT available in the current block;
+ * it comes from the hourly block. We exclude it here to avoid null/default errors.
+ */
 @Serializable
 data class OpenMeteoCurrent(
     @SerialName("temperature_2m") val temperature: Double = 28.0,
@@ -36,8 +42,14 @@ data class OpenMeteoCurrent(
     @SerialName("weather_code") val weatherCode: Int = 1,
     @SerialName("wind_speed_10m") val windSpeed: Double = 12.0,
     @SerialName("visibility") val visibilityMeters: Double = 10000.0,
-    @SerialName("precipitation_probability") val rainProbability: Int? = 20,
+    @SerialName("cloud_cover") val cloudCover: Int = 0,
     @SerialName("time") val time: String? = null
+)
+
+/** Hourly block — we request only the next-hour precipitation_probability */
+@Serializable
+data class OpenMeteoHourly(
+    @SerialName("precipitation_probability") val precipitationProbability: List<Int?> = emptyList()
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -48,14 +60,22 @@ data class OpenMeteoAirQualityResponse(
     val current: OpenMeteoAqiCurrent? = null
 )
 
+/**
+ * Raw AQI response from Open-Meteo air-quality API.
+ * Note: values are model-based Copernicus CAMS reanalysis, NOT CPCB station readings.
+ * They are used as inputs to the CPCB NAQI sub-index formula only.
+ * [time] is ISO 8601 e.g. "2026-11-09T16:00"
+ */
 @Serializable
 data class OpenMeteoAqiCurrent(
-    @SerialName("us_aqi") val usAqi: Int? = null,
+    @SerialName("us_aqi") val usAqi: Int? = null,          // intentionally ignored for display
     @SerialName("pm2_5") val pm25: Double? = null,
     @SerialName("pm10") val pm10: Double? = null,
     @SerialName("dust") val dust: Double? = null,
     @SerialName("nitrogen_dioxide") val no2: Double? = null,
-    @SerialName("sulphur_dioxide") val so2: Double? = null
+    @SerialName("sulphur_dioxide") val so2: Double? = null,
+    @SerialName("time") val time: String? = null,
+    val fetchSucceeded: Boolean = true                     // set false on network error
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -70,9 +90,11 @@ data class StationWeather(
     val windKmh: Double,
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
-    val rainProbability: Int = 20,
+    val rainProbability: Int = 0,      // from hourly[0] precipitation_probability
+    val cloudCoverPercent: Int = 0,    // from current cloud_cover
     val source: String = "Open-Meteo",
-    val rawTime: String? = null       // ISO 8601 from API, e.g. "2026-11-09T16:00"
+    val rawTime: String? = null,       // ISO 8601 from API, e.g. "2026-11-09T16:00"
+    val fetchOk: Boolean = true        // false when network/parse failed
 )
 
 // ─────────────────────────────────────────────────────────────────
@@ -167,60 +189,77 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
     ): StationWeatherData = withContext(Dispatchers.IO) {
         coroutineScope {
             val weatherDeferred = async { fetchWeather(stationName, latitude, longitude) }
-            val aqiDeferred = async { fetchAqi(latitude, longitude) }
+            val aqiDeferred    = async { fetchAqi(latitude, longitude) }
 
             val weather = weatherDeferred.await()
-            val aqi = aqiDeferred.await()
+            val aqi     = aqiDeferred.await()
 
-            val cpcb = CpcbAqiCalculator.calculate(
-                rawPm25 = aqi.pm25 ?: 0.0,
-                rawPm10 = aqi.pm10 ?: 0.0,
-                rawDust = aqi.dust ?: 0.0,
-                no2 = aqi.no2 ?: 0.0,
-                so2 = aqi.so2 ?: 0.0,
-                lat = latitude,
-                lon = longitude
-            )
+            // ── CPCB NAQI sub-index engine ───────────────────────────────────
+            // Only compute AQI if the API call actually succeeded AND at least one
+            // pollutant reading is non-zero (guards against fake 1 from all-zero inputs).
+            val hasPollutantData = aqi.fetchSucceeded &&
+                listOfNotNull(aqi.pm25, aqi.pm10, aqi.no2, aqi.so2).any { it > 0.0 }
 
-            // Determine whether this is a real CAAQM monitoring station or modelled CAMS grid
+            val cpcbResult = if (hasPollutantData) {
+                CpcbAqiCalculator.calculate(
+                    rawPm25 = aqi.pm25 ?: 0.0,
+                    rawPm10 = aqi.pm10 ?: 0.0,
+                    rawDust = aqi.dust ?: 0.0,
+                    no2     = aqi.no2  ?: 0.0,
+                    so2     = aqi.so2  ?: 0.0,
+                    lat     = latitude,
+                    lon     = longitude
+                )
+            } else null
+
+            // ── Monitoring station classification ────────────────────────────
+            // Cities with CPCB CAAQM continuous monitoring hardware
             val majorCpcbKeywords = listOf(
-                "DELHI", "NDLS", "GZB", "GHAZIABAD", "AGRA", "AGC", "KANPUR", "CNB",
-                "PRAYAGRAJ", "PRYJ", "VARANASI", "BSB", "DDU", "LUCKNOW", "LKO", "LJN",
-                "JAIPUR", "NOIDA", "MUMBAI", "PUNE", "NAGPUR", "KOLKATA", "HOWRAH"
+                "DELHI", "NDLS", "GZB", "GHAZIABAD", "AGRA", "AGC",
+                "KANPUR", "CNB", "PRAYAGRAJ", "PRYJ", "VARANASI", "BSB", "DDU",
+                "LUCKNOW", "LKO", "LJN", "JAIPUR", "NOIDA", "MUMBAI", "PUNE",
+                "NAGPUR", "KOLKATA", "HOWRAH", "HWH", "AHMEDABAD", "ADI",
+                "HYDERABAD", "BANGALORE", "BENGALURU", "CHENNAI", "MAS",
+                "PATNA", "PNBE", "RANCHI", "BHOPAL", "BPL"
             )
             val isMajorStation = majorCpcbKeywords.any { stationName.contains(it, ignoreCase = true) }
             val monitoringStation = if (isMajorStation)
-                "CPCB CAAQM Monitoring Station"
+                "CPCB CAAQM Station · ${stationName.substringBefore(" (").trim()}"
             else
-                "Copernicus CAMS Surface Grid (Modelled)"
+                "Copernicus CAMS Grid (Modelled · 25km)"
 
-            // Format last-updated time (HH:MM) from API time field or current moment
-            val rawTime = weather.rawTime
-            val lastUpdatedTime = if (!rawTime.isNullOrBlank()) {
-                // Open-Meteo time is ISO 8601 like "2026-11-09T16:00" — extract HH:MM
-                rawTime.substringAfter("T").take(5).ifBlank { "" }
-            } else ""
+            // ── Last-updated time: prefer AQI time, then weather time ────────
+            // Open-Meteo ISO 8601: "2026-11-09T16:00" → extract "16:00"
+            val apiTimeRaw = aqi.time ?: weather.rawTime
+            val lastUpdatedTime = apiTimeRaw
+                ?.substringAfter("T", missingDelimiterValue = "")
+                ?.take(5)
+                ?.ifBlank { "" } ?: ""
 
             StationWeatherData(
-                stationName = stationName,
-                temperature = weather.temperature,
+                stationName         = stationName,
+                temperature         = weather.temperature,
                 apparentTemperature = weather.apparentTemperature,
-                condition = weather.condition,
-                conditionIcon = weather.icon,
-                windKmh = weather.windKmh,
-                humidityPercent = weather.humidityPercent,
-                visibilityKm = weather.visibilityKm,
-                rainProbability = weather.rainProbability,
-                cpcbAqi = cpcb.aqi,
-                usAqi = null, // We use CPCB NAQI exclusively
-                pm25 = aqi.pm25 ?: cpcb.pm25,
-                pm10 = aqi.pm10 ?: cpcb.pm10,
-                no2 = aqi.no2,
-                so2 = aqi.so2,
-                aqiStandard = "Live AQI (CPCB)",
-                lastUpdatedTime = lastUpdatedTime,
-                monitoringStation = monitoringStation,
-                isModelledEstimate = !isMajorStation
+                condition           = weather.condition,
+                conditionIcon       = weather.icon,
+                windKmh             = weather.windKmh,
+                humidityPercent     = weather.humidityPercent,
+                visibilityKm        = weather.visibilityKm,
+                rainProbability     = weather.rainProbability,
+                cloudCoverPercent   = weather.cloudCoverPercent,
+                // AQI: null when data is genuinely unavailable — never fabricate
+                cpcbAqi             = cpcbResult?.aqi,
+                usAqi               = null,          // never displayed; CPCB only
+                pm25                = if (hasPollutantData) aqi.pm25 ?: cpcbResult?.pm25 else null,
+                pm10                = if (hasPollutantData) aqi.pm10 ?: cpcbResult?.pm10 else null,
+                no2                 = if (hasPollutantData) aqi.no2 else null,
+                so2                 = if (hasPollutantData) aqi.so2 else null,
+                aqiStandard         = "Live AQI (CPCB)",
+                lastUpdatedTime     = lastUpdatedTime,
+                monitoringStation   = monitoringStation,
+                isModelledEstimate  = !isMajorStation,
+                weatherFetchOk      = weather.fetchOk,
+                aqiFetchOk          = aqi.fetchSucceeded && hasPollutantData
             )
         }
     }
@@ -239,33 +278,42 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoForecastResponse = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,precipitation_probability,time")
+                // current block: does NOT include precipitation_probability (hourly only)
+                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,cloud_cover,time")
+                // hourly: take first value = current-hour precipitation_probability
+                parameter("hourly", "precipitation_probability")
+                parameter("forecast_hours", 1)
                 parameter("timezone", "auto")
             }.body()
 
             val cur = response.current
             val (cond, icon) = weatherCodeToText(cur?.weatherCode ?: 1)
+            val precipProb = response.hourly?.precipitationProbability?.firstOrNull() ?: 0
 
             StationWeather(
-                stationName = stationName,
-                temperature = cur?.temperature ?: 28.0,
+                stationName        = stationName,
+                temperature        = cur?.temperature ?: 28.0,
                 apparentTemperature = cur?.apparentTemperature ?: cur?.temperature ?: 28.0,
-                condition = cond,
-                icon = icon,
-                windKmh = cur?.windSpeed ?: 12.0,
-                humidityPercent = cur?.humidity ?: 60,
-                visibilityKm = (cur?.visibilityMeters ?: 10000.0) / 1000.0,
-                rainProbability = cur?.rainProbability ?: 20,
-                rawTime = cur?.time
+                condition          = cond,
+                icon               = icon,
+                windKmh            = cur?.windSpeed ?: 12.0,
+                humidityPercent    = cur?.humidity ?: 60,
+                visibilityKm       = (cur?.visibilityMeters ?: 10000.0) / 1000.0,
+                rainProbability    = precipProb,
+                cloudCoverPercent  = cur?.cloudCover ?: 0,
+                rawTime            = cur?.time,
+                fetchOk            = true
             )
         } catch (_: Exception) {
             StationWeather(
-                stationName = stationName,
-                temperature = 28.0,
-                apparentTemperature = 28.0,
-                condition = "Clear Sky",
-                icon = "☀️",
-                windKmh = 14.0
+                stationName        = stationName,
+                temperature        = 0.0,
+                apparentTemperature = 0.0,
+                condition          = "Unavailable",
+                icon               = "❓",
+                windKmh            = 0.0,
+                rainProbability    = 0,
+                fetchOk            = false
             )
         }
     }
@@ -275,11 +323,15 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoAirQualityResponse = client.get("https://air-quality-api.open-meteo.com/v1/air-quality") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide,us_aqi")
+                // request time so we can show actual last-updated timestamp
+                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide,time")
             }.body()
-            response.current ?: OpenMeteoAqiCurrent()
+            // If API returned a block, mark success. If null body, signal unavailability.
+            response.current?.copy(fetchSucceeded = true)
+                ?: OpenMeteoAqiCurrent(fetchSucceeded = false)
         } catch (_: Exception) {
-            OpenMeteoAqiCurrent() // silent fallback
+            // Network / parse failure — explicitly signal unavailability, never fake zeros
+            OpenMeteoAqiCurrent(fetchSucceeded = false)
         }
     }
 
