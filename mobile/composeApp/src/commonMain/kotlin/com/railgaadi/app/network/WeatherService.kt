@@ -72,8 +72,9 @@ data class OpenMeteoAqiCurrent(
     @SerialName("dust") val dust: Double? = null,
     @SerialName("nitrogen_dioxide") val no2: Double? = null,
     @SerialName("sulphur_dioxide") val so2: Double? = null,
+    @SerialName("carbon_monoxide") val co: Double? = null,
+    @SerialName("ozone") val o3: Double? = null,
     @SerialName("time") val time: String? = null
-    // us_aqi intentionally excluded — we use CPCB NAQI sub-index formula only
 )
 
 /**
@@ -147,6 +148,26 @@ object CpcbAqiCalculator {
         Breakpoint(1600.1, 2000.0, 401, 500)
     )
 
+    // CO: CPCB standard in mg/m³ (8-hour averaging period)
+    private val CO_BREAKPOINTS = listOf(
+        Breakpoint(0.0, 1.0, 0, 50),
+        Breakpoint(1.01, 2.0, 51, 100),
+        Breakpoint(2.01, 10.0, 101, 200),
+        Breakpoint(10.01, 17.0, 201, 300),
+        Breakpoint(17.01, 34.0, 301, 400),
+        Breakpoint(34.01, 50.0, 401, 500)
+    )
+
+    // O3: CPCB standard in µg/m³ (8-hour averaging period)
+    private val O3_BREAKPOINTS = listOf(
+        Breakpoint(0.0, 50.0, 0, 50),
+        Breakpoint(50.1, 100.0, 51, 100),
+        Breakpoint(100.1, 168.0, 101, 200),
+        Breakpoint(168.1, 208.0, 201, 300),
+        Breakpoint(208.1, 748.0, 301, 400),
+        Breakpoint(748.1, 1000.0, 401, 500)
+    )
+
     private fun calcSubindex(conc: Double, breakpoints: List<Breakpoint>): Int {
         if (conc <= 0.0) return 0
         for (bp in breakpoints) {
@@ -159,8 +180,13 @@ object CpcbAqiCalculator {
 
     data class CpcbResult(
         val aqi: Int,
+        val dominantPollutant: String,
         val pm25: Double,
-        val pm10: Double
+        val pm10: Double,
+        val no2: Double,
+        val so2: Double,
+        val coMg: Double,
+        val o3: Double
     )
 
     fun calculate(
@@ -169,17 +195,42 @@ object CpcbAqiCalculator {
         rawDust: Double,
         no2: Double,
         so2: Double,
+        coUg: Double,
+        o3: Double,
         lat: Double,
         lon: Double
     ): CpcbResult {
-        // Direct standard CPCB NAQI calculation without synthetic multipliers
+        val coMg = coUg / 1000.0 // Convert Open-Meteo µg/m³ to CPCB mg/m³ for CO
+
         val iPm25 = calcSubindex(rawPm25, PM25_BREAKPOINTS)
         val iPm10 = calcSubindex(rawPm10, PM10_BREAKPOINTS)
-        val iNo2 = calcSubindex(no2, NO2_BREAKPOINTS)
-        val iSo2 = calcSubindex(so2, SO2_BREAKPOINTS)
+        val iNo2  = calcSubindex(no2, NO2_BREAKPOINTS)
+        val iSo2  = calcSubindex(so2, SO2_BREAKPOINTS)
+        val iCo   = calcSubindex(coMg, CO_BREAKPOINTS)
+        val iO3   = calcSubindex(o3, O3_BREAKPOINTS)
 
-        val finalAqi = maxOf(iPm25, iPm10, iNo2, iSo2).coerceIn(1, 500)
-        return CpcbResult(finalAqi, rawPm25, rawPm10)
+        val subIndices = listOf(
+            "PM2.5" to iPm25,
+            "PM10"  to iPm10,
+            "NO₂"   to iNo2,
+            "SO₂"   to iSo2,
+            "CO"    to iCo,
+            "O₃"    to iO3
+        )
+
+        val dominant = subIndices.maxByOrNull { it.second } ?: ("PM2.5" to 0)
+        val finalAqi = dominant.second.coerceIn(1, 500)
+
+        return CpcbResult(
+            aqi = finalAqi,
+            dominantPollutant = dominant.first,
+            pm25 = rawPm25,
+            pm10 = rawPm10,
+            no2 = no2,
+            so2 = so2,
+            coMg = coMg,
+            o3 = o3
+        )
     }
 }
 
@@ -187,70 +238,80 @@ object CpcbAqiCalculator {
 // Verified CPCB CAAQM Continuous Ambient Air Quality Monitoring Network
 // ─────────────────────────────────────────────────────────────────
 object CpcbMonitoringDirectory {
-    data class CaaqmStation(val name: String, val city: String, val lat: Double, val lon: Double)
+    data class CaaqmStation(
+        val name: String,
+        val city: String,
+        val lat: Double,
+        val lon: Double,
+        val board: String = "CPCB"
+    )
 
     val STATIONS = listOf(
-        // Delhi NCR
-        CaaqmStation("Mandir Marg CAAQM", "New Delhi", 28.6360, 77.2150),
-        CaaqmStation("Anand Vihar CAAQM", "Delhi", 28.6470, 77.3150),
-        CaaqmStation("ITO CAAQM", "Delhi", 28.6310, 77.2490),
-        CaaqmStation("Vasundhara CAAQM", "Ghaziabad", 28.6650, 77.3600),
-        CaaqmStation("Sanjay Nagar CAAQM", "Ghaziabad", 28.6920, 77.4530),
-        CaaqmStation("Sector 62 CAAQM", "Noida", 28.6250, 77.3650),
-        // Uttar Pradesh
-        CaaqmStation("Mathura Refinery CAAQM", "Mathura", 27.4920, 77.6730),
-        CaaqmStation("Sanjay Palace CAAQM", "Agra", 27.1990, 78.0030),
-        CaaqmStation("Shastripuram CAAQM", "Agra", 27.2100, 77.9400),
-        CaaqmStation("Vibhuti Nagar CAAQM", "Firozabad", 27.1500, 78.3950),
-        CaaqmStation("Civil Lines CAAQM", "Aligarh", 27.9100, 78.0700),
-        CaaqmStation("Nehru Nagar CAAQM", "Kanpur", 26.4710, 80.3180),
-        CaaqmStation("Kidwai Nagar CAAQM", "Kanpur", 26.4350, 80.3340),
-        CaaqmStation("Civil Lines CAAQM", "Prayagraj", 25.4520, 81.8340),
-        CaaqmStation("Jhunsi CAAQM", "Prayagraj", 25.4350, 81.9050),
-        CaaqmStation("BHU Varanasi CAAQM", "Varanasi", 25.2677, 82.9913),
-        CaaqmStation("Ardhali Bazar CAAQM", "Varanasi", 25.3450, 82.9810),
-        CaaqmStation("Lalbagh CAAQM", "Lucknow", 26.8467, 80.9462),
-        CaaqmStation("Gomti Nagar CAAQM", "Lucknow", 26.8520, 81.0020),
-        CaaqmStation("Civil Lines CAAQM", "Bareilly", 28.3670, 79.4300),
-        CaaqmStation("Transport Nagar CAAQM", "Moradabad", 28.8250, 78.7700),
-        CaaqmStation("Mughalsarai CAAQM", "Pt. Deen Dayal Upadhyaya", 25.2818, 83.1189),
-        // Madhya Pradesh
-        CaaqmStation("Bundelkhand Univ CAAQM", "Jhansi", 25.4500, 78.5600),
-        CaaqmStation("Phoolbagh CAAQM", "Gwalior", 26.2120, 78.1770),
-        CaaqmStation("City Center CAAQM", "Gwalior", 26.2000, 78.1900),
-        CaaqmStation("Paryavaran Parisar CAAQM", "Bhopal", 23.2300, 77.4300),
-        CaaqmStation("T.T. Nagar CAAQM", "Bhopal", 23.2350, 77.4010),
-        CaaqmStation("Chhoti Gwaltoli CAAQM", "Indore", 22.7190, 75.8710),
-        CaaqmStation("Mahanagar CAAQM", "Jabalpur", 23.1670, 79.9520),
-        CaaqmStation("Mahakal CAAQM", "Ujjain", 23.1820, 75.7770),
-        // Rajasthan
-        CaaqmStation("Adarsh Nagar CAAQM", "Jaipur", 26.9030, 75.8260),
-        CaaqmStation("Police Commissionerate CAAQM", "Jaipur", 26.9180, 75.8010),
-        CaaqmStation("Civil Lines CAAQM", "Ajmer", 26.4710, 74.6390),
-        CaaqmStation("Collectorate CAAQM", "Jodhpur", 26.2890, 73.0250),
-        CaaqmStation("Shrinath Puram CAAQM", "Kota", 25.1480, 75.8260),
-        // Gujarat
-        CaaqmStation("Aji Dam / Kasturba Rd CAAQM", "Rajkot", 22.2850, 70.8010),
-        CaaqmStation("Maninagar CAAQM", "Ahmedabad", 22.9970, 72.6030),
-        CaaqmStation("Chandkheda CAAQM", "Ahmedabad", 23.1120, 72.5850),
-        CaaqmStation("Central Zone CAAQM", "Surat", 21.1950, 72.8300),
-        CaaqmStation("Dandia Bazar CAAQM", "Vadodara", 22.3000, 73.1900),
-        // Bihar, Jharkhand, Bengal
-        CaaqmStation("Muradpur CAAQM", "Patna", 25.6180, 85.1550),
-        CaaqmStation("IGIMS CAAQM", "Patna", 25.6120, 85.0890),
-        CaaqmStation("Doranda CAAQM", "Ranchi", 23.3370, 85.3210),
-        CaaqmStation("Dhanbad CAAQM", "Dhanbad", 23.7950, 86.4300),
-        CaaqmStation("Victoria Memorial CAAQM", "Kolkata", 22.5448, 88.3426),
-        CaaqmStation("Rabindra Bharati CAAQM", "Kolkata", 22.5850, 88.3750),
-        CaaqmStation("Belur CAAQM", "Howrah", 22.6320, 88.3540),
-        // Maharashtra & South
-        CaaqmStation("Bandra Kurla CAAQM", "Mumbai", 19.0620, 72.8650),
-        CaaqmStation("Colaba CAAQM", "Mumbai", 18.9100, 72.8150),
-        CaaqmStation("Shivajinagar CAAQM", "Pune", 18.5300, 73.8500),
-        CaaqmStation("Civil Lines CAAQM", "Nagpur", 21.1500, 79.0800),
-        CaaqmStation("BTM Layout CAAQM", "Bengaluru", 12.9150, 77.6100),
-        CaaqmStation("Alandur Bus Depot CAAQM", "Chennai", 13.0030, 80.2010),
-        CaaqmStation("Bollaram Industrial CAAQM", "Hyderabad", 17.5500, 78.3300)
+        // Delhi NCR (DPCC / CPCB)
+        CaaqmStation("Mandir Marg CAAQM", "New Delhi", 28.6360, 77.2150, "DPCC / CPCB"),
+        CaaqmStation("Anand Vihar CAAQM", "Delhi", 28.6470, 77.3150, "DPCC / CPCB"),
+        CaaqmStation("ITO CAAQM", "Delhi", 28.6310, 77.2490, "DPCC / CPCB"),
+        CaaqmStation("Vasundhara CAAQM", "Ghaziabad", 28.6650, 77.3600, "UPPCB / CPCB"),
+        CaaqmStation("Sanjay Nagar CAAQM", "Ghaziabad", 28.6920, 77.4530, "UPPCB / CPCB"),
+        CaaqmStation("Sector 62 CAAQM", "Noida", 28.6250, 77.3650, "UPPCB / CPCB"),
+        // Maharashtra (MPCB / SAFAR)
+        CaaqmStation("Mazgaon CAAQM", "Mumbai", 18.9660, 72.8420, "SAFAR / MPCB"),
+        CaaqmStation("Worli CAAQM", "Mumbai", 19.0160, 72.8170, "MPCB"),
+        CaaqmStation("Bandra Kurla CAAQM", "Mumbai", 19.0620, 72.8650, "MPCB"),
+        CaaqmStation("Colaba CAAQM", "Mumbai", 18.9067, 72.8147, "MPCB"),
+        CaaqmStation("Shivajinagar CAAQM", "Pune", 18.5300, 73.8500, "MPCB / SAFAR"),
+        CaaqmStation("Civil Lines CAAQM", "Nagpur", 21.1500, 79.0800, "MPCB"),
+        // Gujarat (GPCB / CPCB)
+        CaaqmStation("Alkapuri CAAQM", "Vadodara", 22.3150, 73.1700, "GPCB"),
+        CaaqmStation("Dandia Bazar CAAQM", "Vadodara", 22.2985, 73.1950, "GPCB"),
+        CaaqmStation("Aji Dam / Kasturba Rd CAAQM", "Rajkot", 22.2850, 70.8010, "GPCB"),
+        CaaqmStation("Maninagar CAAQM", "Ahmedabad", 22.9970, 72.6030, "GPCB"),
+        CaaqmStation("Chandkheda CAAQM", "Ahmedabad", 23.1120, 72.5850, "GPCB"),
+        CaaqmStation("Central Zone CAAQM", "Surat", 21.1950, 72.8300, "GPCB"),
+        // Uttar Pradesh (UPPCB / CPCB)
+        CaaqmStation("Mathura Refinery CAAQM", "Mathura", 27.4920, 77.6730, "UPPCB"),
+        CaaqmStation("Sanjay Palace CAAQM", "Agra", 27.1990, 78.0030, "UPPCB"),
+        CaaqmStation("Shastripuram CAAQM", "Agra", 27.2100, 77.9400, "UPPCB"),
+        CaaqmStation("Vibhuti Nagar CAAQM", "Firozabad", 27.1500, 78.3950, "UPPCB"),
+        CaaqmStation("Civil Lines CAAQM", "Aligarh", 27.9100, 78.0700, "UPPCB"),
+        CaaqmStation("Nehru Nagar CAAQM", "Kanpur", 26.4710, 80.3180, "UPPCB"),
+        CaaqmStation("Kidwai Nagar CAAQM", "Kanpur", 26.4350, 80.3340, "UPPCB"),
+        CaaqmStation("Civil Lines CAAQM", "Prayagraj", 25.4520, 81.8340, "UPPCB"),
+        CaaqmStation("Jhunsi CAAQM", "Prayagraj", 25.4350, 81.9050, "UPPCB"),
+        CaaqmStation("BHU Varanasi CAAQM", "Varanasi", 25.2677, 82.9913, "UPPCB"),
+        CaaqmStation("Ardhali Bazar CAAQM", "Varanasi", 25.3450, 82.9810, "UPPCB"),
+        CaaqmStation("Lalbagh CAAQM", "Lucknow", 26.8467, 80.9462, "UPPCB"),
+        CaaqmStation("Gomti Nagar CAAQM", "Lucknow", 26.8520, 81.0020, "UPPCB"),
+        CaaqmStation("Civil Lines CAAQM", "Bareilly", 28.3670, 79.4300, "UPPCB"),
+        CaaqmStation("Transport Nagar CAAQM", "Moradabad", 28.8250, 78.7700, "UPPCB"),
+        CaaqmStation("Mughalsarai CAAQM", "Pt. Deen Dayal Upadhyaya", 25.2818, 83.1189, "UPPCB"),
+        // Madhya Pradesh (MPPCB / CPCB)
+        CaaqmStation("Bundelkhand Univ CAAQM", "Jhansi", 25.4500, 78.5600, "MPPCB"),
+        CaaqmStation("Phoolbagh CAAQM", "Gwalior", 26.2120, 78.1770, "MPPCB"),
+        CaaqmStation("City Center CAAQM", "Gwalior", 26.2000, 78.1900, "MPPCB"),
+        CaaqmStation("Paryavaran Parisar CAAQM", "Bhopal", 23.2300, 77.4300, "MPPCB"),
+        CaaqmStation("T.T. Nagar CAAQM", "Bhopal", 23.2350, 77.4010, "MPPCB"),
+        CaaqmStation("Chhoti Gwaltoli CAAQM", "Indore", 22.7190, 75.8710, "MPPCB"),
+        CaaqmStation("Mahanagar CAAQM", "Jabalpur", 23.1670, 79.9520, "MPPCB"),
+        CaaqmStation("Mahakal CAAQM", "Ujjain", 23.1820, 75.7770, "MPPCB"),
+        // Rajasthan (RSPCB / CPCB)
+        CaaqmStation("Adarsh Nagar CAAQM", "Jaipur", 26.9030, 75.8260, "RSPCB"),
+        CaaqmStation("Police Commissionerate CAAQM", "Jaipur", 26.9180, 75.8010, "RSPCB"),
+        CaaqmStation("Civil Lines CAAQM", "Ajmer", 26.4710, 74.6390, "RSPCB"),
+        CaaqmStation("Collectorate CAAQM", "Jodhpur", 26.2890, 73.0250, "RSPCB"),
+        CaaqmStation("Shrinath Puram CAAQM", "Kota", 25.1480, 75.8260, "RSPCB"),
+        // Bihar, Jharkhand, Bengal (BSPCB / JSPCB / WBPCB)
+        CaaqmStation("Muradpur CAAQM", "Patna", 25.6180, 85.1550, "BSPCB"),
+        CaaqmStation("IGIMS CAAQM", "Patna", 25.6120, 85.0890, "BSPCB"),
+        CaaqmStation("Doranda CAAQM", "Ranchi", 23.3370, 85.3210, "JSPCB"),
+        CaaqmStation("Dhanbad CAAQM", "Dhanbad", 23.7950, 86.4300, "JSPCB"),
+        CaaqmStation("Victoria Memorial CAAQM", "Kolkata", 22.5448, 88.3426, "WBPCB"),
+        CaaqmStation("Rabindra Bharati CAAQM", "Kolkata", 22.5850, 88.3750, "WBPCB"),
+        CaaqmStation("Belur CAAQM", "Howrah", 22.6320, 88.3540, "WBPCB"),
+        // South (KSPCB / TNPCB / TSPCB)
+        CaaqmStation("BTM Layout CAAQM", "Bengaluru", 12.9150, 77.6100, "KSPCB"),
+        CaaqmStation("Alandur Bus Depot CAAQM", "Chennai", 13.0030, 80.2010, "TNPCB"),
+        CaaqmStation("Bollaram Industrial CAAQM", "Hyderabad", 17.5500, 78.3300, "TSPCB")
     )
 
     data class ProximityResult(
@@ -270,11 +331,11 @@ object CpcbMonitoringDirectory {
                 closest = s
             }
         }
-        val isDirect = minD <= 15.0
+        val isDirect = minD <= 12.0
         val label = if (isDirect) {
-            "CPCB CAAQM: ${closest.name} (${closest.city}) · Direct ${"%.1f".format(minD)} km"
+            "${closest.board}: ${closest.name} (${closest.city}) · Direct ${"%.1f".format(minD)} km"
         } else if (minD <= 80.0) {
-            "Nearest CPCB Station: ${closest.name} (${closest.city}) · ${"%.1f".format(minD)} km away"
+            "Nearest Station: ${closest.name} (${closest.board}) · ${"%.1f".format(minD)} km away"
         } else {
             "Copernicus CAMS Surface Grid (25km Modelled Reanalysis)"
         }
@@ -315,6 +376,8 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                     rawDust = aqi.dust ?: 0.0,
                     no2     = aqi.no2  ?: 0.0,
                     so2     = aqi.so2  ?: 0.0,
+                    coUg    = aqi.co   ?: 0.0,
+                    o3      = aqi.o3   ?: 0.0,
                     lat     = latitude,
                     lon     = longitude
                 )
@@ -326,8 +389,8 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val isDirectStation = proximity.isDirect
             val stationDist = proximity.distanceKm
 
-            // ── Last-updated time & Observation Timestamp ────────────────────
-            // Open-Meteo ISO 8601: "2026-11-09T17:00" → extract "17:00"
+            // ── Last-updated time & Observation Timestamp in IST ────────────
+            // Open-Meteo ISO 8601: "2026-11-09T22:30" → extract "22:30"
             val apiTimeRaw = aqi.time ?: weather.rawTime
             val lastUpdatedTime = apiTimeRaw
                 ?.substringAfter("T", missingDelimiterValue = "")
@@ -352,9 +415,13 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 pm10                     = if (hasPollutantData) aqi.pm10 ?: cpcbResult?.pm10 else null,
                 no2                      = if (hasPollutantData) aqi.no2 else null,
                 so2                      = if (hasPollutantData) aqi.so2 else null,
+                co                       = if (hasPollutantData) cpcbResult?.coMg else null,
+                o3                       = if (hasPollutantData) aqi.o3 else null,
+                dominantPollutant        = cpcbResult?.dominantPollutant,
                 aqiStandard              = "Live AQI (CPCB)",
                 lastUpdatedTime          = lastUpdatedTime,
                 monitoringStation        = monitoringStation,
+                statePollutionBoard      = proximity.station.board,
                 isModelledEstimate       = !isDirectStation,
                 isDirectStation          = isDirectStation,
                 nearestStationDistanceKm = stationDist,
@@ -384,7 +451,7 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 // hourly: take first value = current-hour precipitation_probability
                 parameter("hourly", "precipitation_probability")
                 parameter("forecast_hours", 1)
-                parameter("timezone", "auto")
+                parameter("timezone", "Asia/Kolkata")
             }.body()
 
             val cur = response.current
@@ -424,8 +491,9 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoAirQualityResponse = client.get("https://air-quality-api.open-meteo.com/v1/air-quality") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                // time is auto-included in every Open-Meteo current response — do NOT list it here
-                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide")
+                // CPCB NAQI standard pollutants + IST timezone
+                parameter("current", "pm2_5,pm10,dust,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,ozone")
+                parameter("timezone", "Asia/Kolkata")
             }.body()
             val current = response.current
             if (current != null) {

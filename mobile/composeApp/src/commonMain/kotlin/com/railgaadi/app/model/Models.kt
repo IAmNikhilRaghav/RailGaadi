@@ -97,9 +97,13 @@ data class StationWeatherData(
     val pm10: Double? = null,
     val no2: Double? = null,
     val so2: Double? = null,
+    val co: Double? = null,             // CO in mg/m³ (CPCB 8-hr standard)
+    val o3: Double? = null,             // O3 in µg/m³ (CPCB 8-hr standard)
+    val dominantPollutant: String? = null,
     val aqiStandard: String = "Live AQI (CPCB)",
     val lastUpdatedTime: String = "",
     val monitoringStation: String = "Copernicus CAMS Grid (Modelled · 25km)",
+    val statePollutionBoard: String = "CPCB",
     val isModelledEstimate: Boolean = true,
     val isDirectStation: Boolean = false,
     val nearestStationDistanceKm: Double? = null,

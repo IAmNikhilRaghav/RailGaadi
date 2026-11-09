@@ -454,6 +454,26 @@ fun WeatherScreen() {
                                 if (w.so2 != null) PollutantChip("SO₂", "${"%.1f".format(w.so2)} µg/m³", textPrimary, textSecondary)
                             }
 
+                            if (w.co != null || w.o3 != null || !w.dominantPollutant.isNullOrBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceAround,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (w.co != null) PollutantChip("CO (8h)", "${"%.2f".format(w.co)} mg/m³", textPrimary, textSecondary)
+                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${"%.0f".format(w.o3)} µg/m³", textPrimary, textSecondary)
+                                    if (!w.dominantPollutant.isNullOrBlank()) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(w.dominantPollutant, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                            Text("Dominant", fontSize = 9.sp, color = textSecondary)
+                                        }
+                                    }
+                                }
+                            }
+
                             // Source + monitoring station transparency row
                             Text(
                                 "Source: CPCB NAQI Standard · Copernicus CAMS via Open-Meteo",
