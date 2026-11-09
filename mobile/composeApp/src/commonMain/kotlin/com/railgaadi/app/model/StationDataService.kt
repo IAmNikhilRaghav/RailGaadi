@@ -21,6 +21,7 @@ object StationDataService {
         StationInfo("NZM", "Hazrat Nizamuddin", "Delhi", "Delhi", 28.5888, 77.2534),
         StationInfo("ANVT", "Anand Vihar Terminal", "Delhi", "Delhi", 28.6469, 77.3160),
         StationInfo("DEC", "Delhi Cantt", "Delhi", "Delhi", 28.5912, 77.1214),
+        StationInfo("SBB", "Sahibabad", "Ghaziabad", "Uttar Pradesh", 28.6738, 77.3477),
         StationInfo("GZB", "Ghaziabad Jn", "Ghaziabad", "Uttar Pradesh", 28.6538, 77.4326),
         StationInfo("UMB", "Ambala Cantt Jn", "Ambala", "Haryana", 30.3389, 76.8270),
         StationInfo("KLK", "Kalka", "Kalka", "Haryana", 30.8377, 76.9318),

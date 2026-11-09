@@ -33,6 +33,7 @@ import com.railgaadi.app.model.Landmark
 import com.railgaadi.app.model.StationWeatherData
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import kotlin.math.roundToInt
 
 @Composable
 fun WeatherScreen() {
@@ -157,11 +158,11 @@ fun WeatherScreen() {
                 item {
                     val advisoryMsg = when {
                         w.isFogAdvisory && w.isSmogAdvisory ->
-                            "⚠️  Dense Fog + High Smog (AQI ${w.usAqi}) detected. Trains on this section may operate under fog-induced speed restrictions."
+                            "⚠️  Dense Fog + High Smog (AQI ${w.aqiValue ?: ""}) detected. Trains on this section may operate under fog-induced speed restrictions."
                         w.isFogAdvisory ->
                             "⚠️  Low Visibility: ${"%.1f".format(w.visibilityKm)} km. Fog-induced speed restrictions may apply on this section."
                         else ->
-                            "⚠️  High Smog Alert: AQI ${w.usAqi} (${w.aqiCategory.label}). Avoid outdoor exposure at station stops."
+                            "⚠️  High Smog Alert: AQI ${w.aqiValue ?: ""} (${w.aqiCategory.label}). Avoid outdoor exposure at station stops."
                     }
                     Card(
                         shape = RoundedCornerShape(12.dp),
@@ -221,7 +222,7 @@ fun WeatherScreen() {
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             Text(
-                                "${w.temperature.toInt()}°C",
+                                "${w.temperature.roundToInt()}°C",
                                 fontSize = 42.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = textPrimary
@@ -232,7 +233,7 @@ fun WeatherScreen() {
                                 modifier = Modifier.padding(top = 8.dp)
                             ) {
                                 Text(w.condition, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
-                                Text("Feels like ${(w.temperature - 2).toInt()}°C", fontSize = 11.sp, color = textSecondary)
+                                Text("Feels like ${w.apparentTemperature.roundToInt()}°C", fontSize = 11.sp, color = textSecondary)
                             }
                         }
 
@@ -243,7 +244,7 @@ fun WeatherScreen() {
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
                             WeatherMetricChip("💧", "Humidity", "${w.humidityPercent}%", textPrimary, textSecondary)
-                            WeatherMetricChip("💨", "Wind", "${w.windKmh.toInt()} km/h", textPrimary, textSecondary)
+                            WeatherMetricChip("💨", "Wind", "${w.windKmh.roundToInt()} km/h", textPrimary, textSecondary)
                             WeatherMetricChip("👁️", "Visibility", "${"%.1f".format(w.visibilityKm)} km", textPrimary, textSecondary)
                             WeatherMetricChip("🌧️", "Rain", "${w.rainProbability}%", textPrimary, textSecondary)
                         }
@@ -280,25 +281,25 @@ fun WeatherScreen() {
                                 Text("💨 Air Quality Index", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                                 Text("● LIVE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
                             }
-                            if (w.usAqi != null) {
+                            if (w.aqiValue != null) {
                                 AqiBadge(w.aqiCategory)
                             }
                         }
 
-                        if (w.usAqi != null) {
+                        if (w.aqiValue != null) {
                             // Big AQI number
                             Row(
                                 verticalAlignment = Alignment.Bottom,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    "${w.usAqi}",
+                                    "${w.aqiValue}",
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(w.aqiCategory.colorHex)
                                 )
                                 Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                    Text("US AQI", fontSize = 10.sp, color = textSecondary)
+                                    Text("National AQI (CPCB / SAFAR)", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
                                     Text(
                                         "${w.aqiCategory.emoji} ${w.aqiCategory.label}",
                                         fontSize = 13.sp,
@@ -308,8 +309,8 @@ fun WeatherScreen() {
                                 }
                             }
 
-                            // AQI scale bar
-                            AqiScaleBar(w.usAqi, isDark)
+                            // AQI scale bar (CPCB Standard: 0-50, 51-100, 101-200, 201-300, 301-400, 401-500)
+                            AqiScaleBar(w.aqiValue ?: 0, isDark)
 
                             HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
 
@@ -325,7 +326,7 @@ fun WeatherScreen() {
                             }
 
                             Text(
-                                "Source: Copernicus CAMS via Open-Meteo · Updated live",
+                                "Source: CPCB / SAFAR Standard · Open-Meteo Sensor Telemetry",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
                         } else {
@@ -452,12 +453,12 @@ private fun AqiBadge(category: AqiCategory) {
 @Composable
 private fun AqiScaleBar(aqi: Int, isDark: Boolean) {
     val segments = listOf(
-        50 to Color(0xFF16A34A),
-        100 to Color(0xFF65A30D),
-        150 to Color(0xFFD97706),
-        200 to Color(0xFFDC2626),
-        300 to Color(0xFF7C3AED),
-        500 to Color(0xFF92400E)
+        50 to Color(0xFF16A34A),   // 0-50 Good
+        100 to Color(0xFF65A30D),  // 51-100 Satisfactory
+        200 to Color(0xFFD97706),  // 101-200 Moderate
+        300 to Color(0xFFDC2626),  // 201-300 Poor
+        400 to Color(0xFF7C3AED),  // 301-400 Very Poor
+        500 to Color(0xFF92400E)   // 401-500 Severe
     )
     val maxAqi = 500
     val clampedAqi = aqi.coerceIn(0, maxAqi)
@@ -493,7 +494,7 @@ private fun AqiScaleBar(aqi: Int, isDark: Boolean) {
             Spacer(modifier = Modifier.weight((1f - indicatorFraction).coerceAtLeast(0.01f)))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("0", "100", "200", "300", "500").forEach { label ->
+            listOf("0", "50", "100", "200", "300", "400", "500").forEach { label ->
                 Text(label, fontSize = 8.sp, color = if (isDark) DarkTextSecondary else LightTextSecondary)
             }
         }

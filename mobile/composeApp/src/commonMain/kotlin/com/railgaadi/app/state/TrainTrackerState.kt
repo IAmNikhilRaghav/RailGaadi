@@ -152,8 +152,15 @@ object TrainTrackerState {
             stations.indexOfFirst { it.name.contains(liveStatus?.currentStation ?: "", ignoreCase = true) }.takeIf { it >= 0 } ?: 0
         ) ?: stations.firstOrNull() ?: return
 
-        val lat = currentStation.latitude.takeIf { it != 0.0 } ?: return
-        val lon = currentStation.longitude.takeIf { it != 0.0 } ?: return
+        val coords = if (currentStation.latitude != 0.0 && currentStation.longitude != 0.0) {
+            Pair(currentStation.latitude, currentStation.longitude)
+        } else {
+            StationDataService.getCoordinates(currentStation.code)
+        }
+
+        val lat = coords.first
+        val lon = coords.second
+        if (lat == 0.0 && lon == 0.0) return
 
         scope.launch {
             isLoadingWeather = true

@@ -83,29 +83,35 @@ data class LiveStatus(
 data class StationWeatherData(
     val stationName: String = "",
     val temperature: Double = 28.0,
+    val apparentTemperature: Double = 28.0,
     val condition: String = "Clear Sky",
     val conditionIcon: String = "☀️",
     val windKmh: Double = 12.0,
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
     val rainProbability: Int = 20,
+    val cpcbAqi: Int? = null,
     val usAqi: Int? = null,
     val pm25: Double? = null,
     val pm10: Double? = null,
     val no2: Double? = null,
-    val so2: Double? = null
+    val so2: Double? = null,
+    val aqiStandard: String = "CPCB / SAFAR"
 ) {
+    val aqiValue: Int? get() = cpcbAqi ?: usAqi
+
+    // Official CPCB / SAFAR National Air Quality Index (NAQI) Breakpoints
     val aqiCategory: AqiCategory get() = when {
-        usAqi == null -> AqiCategory.UNKNOWN
-        usAqi <= 50 -> AqiCategory.GOOD
-        usAqi <= 100 -> AqiCategory.SATISFACTORY
-        usAqi <= 150 -> AqiCategory.MODERATE
-        usAqi <= 200 -> AqiCategory.POOR
-        usAqi <= 300 -> AqiCategory.VERY_POOR
+        aqiValue == null -> AqiCategory.UNKNOWN
+        aqiValue!! <= 50 -> AqiCategory.GOOD
+        aqiValue!! <= 100 -> AqiCategory.SATISFACTORY
+        aqiValue!! <= 200 -> AqiCategory.MODERATE
+        aqiValue!! <= 300 -> AqiCategory.POOR
+        aqiValue!! <= 400 -> AqiCategory.VERY_POOR
         else -> AqiCategory.SEVERE
     }
     val isFogAdvisory: Boolean get() = visibilityKm < 1.5 || condition.contains("Fog", ignoreCase = true)
-    val isSmogAdvisory: Boolean get() = (usAqi ?: 0) > 250
+    val isSmogAdvisory: Boolean get() = (aqiValue ?: 0) > 250
 }
 
 enum class AqiCategory(val label: String, val emoji: String, val colorHex: Long) {
