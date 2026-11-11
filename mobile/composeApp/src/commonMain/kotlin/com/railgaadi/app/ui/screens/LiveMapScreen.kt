@@ -47,6 +47,7 @@ import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
+import com.railgaadi.app.util.PlatformSpeech
 
 // Pan-India Real-time Navigation Telemetry Calculator
 fun calculateNavigationTelemetry(
@@ -284,6 +285,14 @@ fun LiveMapScreen() {
                 navEtaTime = formatEtaDuration(dur)
                 showRoutePreviewSheet = true
                 showStationSheet = false
+                if (!isMuted) {
+                    PlatformSpeech.speak("Route to ${resolved.name}. Estimated travel time $dur minutes. $instr")
+                }
+            },
+            onVoiceInstruction = { instruction ->
+                if (!isMuted && instruction.isNotBlank()) {
+                    PlatformSpeech.speak(instruction)
+                }
             },
             onCompassRotationChanged = { bearing ->
                 compassBearing = bearing
@@ -292,9 +301,13 @@ fun LiveMapScreen() {
                 val km = distM / 1000.0
                 navDistanceKm = if (km < 1.0) "${distM.roundToInt()} m" else "${(km * 10).roundToInt() / 10.0} km"
                 navDurationMin = (durS / 60.0).roundToInt().coerceAtLeast(1)
+                val changed = navInstruction != instruction && instruction.isNotBlank()
                 navInstruction = instruction
                 navIcon = icon
                 navEtaTime = formatEtaDuration(navDurationMin)
+                if (changed && !isMuted && isNavigationMode) {
+                    PlatformSpeech.speak(instruction)
+                }
             }
         )
 
@@ -707,7 +720,15 @@ fun LiveMapScreen() {
                             // Voice Mute Toggle
                             MinimalMapToolButton(
                                 isActive = !isMuted,
-                                onClick = { isMuted = !isMuted }
+                                onClick = {
+                                    isMuted = !isMuted
+                                    if (!isMuted) {
+                                        val toSay = if (navInstruction.isNotBlank()) navInstruction else "Navigation voice guidance enabled"
+                                        PlatformSpeech.speak(toSay)
+                                    } else {
+                                        PlatformSpeech.stop()
+                                    }
+                                }
                             ) {
                                 VectorSoundIcon(isMuted = isMuted)
                             }
@@ -842,7 +863,16 @@ fun LiveMapScreen() {
                         if (isNavigationMode) {
                             MinimalMapToolButton(
                                 isActive = !isMuted,
-                                onClick = { isMuted = !isMuted; pingInteraction() }
+                                onClick = {
+                                    isMuted = !isMuted
+                                    if (!isMuted) {
+                                        val toSay = if (navInstruction.isNotBlank()) navInstruction else "Navigation voice guidance enabled"
+                                        PlatformSpeech.speak(toSay)
+                                    } else {
+                                        PlatformSpeech.stop()
+                                    }
+                                    pingInteraction()
+                                }
                             ) {
                                 VectorSoundIcon(isMuted = isMuted)
                             }
@@ -1102,7 +1132,15 @@ fun LiveMapScreen() {
                                     modifier = Modifier
                                         .size(40.dp)
                                         .background(Color(0xFFF1F5F9), CircleShape)
-                                        .clickable { isMuted = !isMuted },
+                                        .clickable {
+                                            isMuted = !isMuted
+                                            if (!isMuted) {
+                                                val toSay = if (navInstruction.isNotBlank()) navInstruction else "Navigation voice guidance enabled"
+                                                PlatformSpeech.speak(toSay)
+                                            } else {
+                                                PlatformSpeech.stop()
+                                            }
+                                        },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(if (isMuted) "🔇" else "🔊", fontSize = 16.sp)
@@ -1372,6 +1410,14 @@ fun LiveMapScreen() {
                                     isNavigationMode = true
                                     isNavigationPaused = false
                                     showRoutePreviewSheet = false
+                                    if (!isMuted) {
+                                        val announcement = if (navInstruction.isNotBlank()) {
+                                            "Navigation started to ${selectedStation.name}. $navInstruction"
+                                        } else {
+                                            "Navigation started to ${selectedStation.name}. Follow the highlighted route."
+                                        }
+                                        PlatformSpeech.speak(announcement)
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
                                 shape = RoundedCornerShape(12.dp),

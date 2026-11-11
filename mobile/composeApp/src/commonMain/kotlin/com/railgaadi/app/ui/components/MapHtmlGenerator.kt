@@ -101,6 +101,47 @@ object MapHtmlGenerator {
 <body>
     <div id="map"></div>
     <script>
+        // Universal RailBridge for Android (JavascriptInterface) and iOS (WKScriptMessageHandler)
+        if (!window.RailBridge) {
+            window.RailBridge = {
+                onStationClick: function(code, name, lat, lon, dep, arr, pf, halt) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.railBridge) {
+                        window.webkit.messageHandlers.railBridge.postMessage({
+                            action: 'onStationClick', code: code, name: name, lat: lat, lon: lon, dep: dep, arr: arr, pf: pf, halt: halt
+                        });
+                    }
+                },
+                onNavigateToStation: function(code, name, lat, lon) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.railBridge) {
+                        window.webkit.messageHandlers.railBridge.postMessage({
+                            action: 'onNavigateToStation', code: code, name: name, lat: lat, lon: lon
+                        });
+                    }
+                },
+                onCompassUpdate: function(bearing) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.railBridge) {
+                        window.webkit.messageHandlers.railBridge.postMessage({
+                            action: 'onCompassUpdate', bearing: bearing
+                        });
+                    }
+                },
+                onNavUpdate: function(distM, durS, instruction, icon) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.railBridge) {
+                        window.webkit.messageHandlers.railBridge.postMessage({
+                            action: 'onNavUpdate', distM: distM, durS: durS, instruction: instruction, icon: icon
+                        });
+                    }
+                },
+                speak: function(text) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.railBridge) {
+                        window.webkit.messageHandlers.railBridge.postMessage({
+                            action: 'speak', text: text
+                        });
+                    }
+                }
+            };
+        }
+
         const isNav = ${isNav};
         const uLat = ${uLat}, uLon = ${uLon};
         const dLat = ${dLat}, dLon = ${dLon};
@@ -248,6 +289,9 @@ object MapHtmlGenerator {
 
                             if (window.RailBridge && window.RailBridge.onNavUpdate) {
                                 window.RailBridge.onNavUpdate(route.distance, route.duration, firstTurnInstruction, maneuverIcon);
+                            }
+                            if (window.RailBridge && window.RailBridge.speak) {
+                                window.RailBridge.speak(firstTurnInstruction);
                             }
                         }
                     })
