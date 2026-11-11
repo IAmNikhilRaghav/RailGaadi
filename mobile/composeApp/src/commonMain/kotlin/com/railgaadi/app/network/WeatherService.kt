@@ -13,6 +13,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import com.railgaadi.app.util.formatDecimals
+import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.pow
@@ -333,9 +335,9 @@ object CpcbMonitoringDirectory {
         }
         val isDirect = minD <= 12.0
         val label = if (isDirect) {
-            "${closest.board}: ${closest.name} (${closest.city}) · Direct ${"%.1f".format(minD)} km"
+            "${closest.board}: ${closest.name} (${closest.city}) · Direct ${minD.formatDecimals(1)} km"
         } else if (minD <= 80.0) {
-            "Nearest Station: ${closest.name} (${closest.board}) · ${"%.1f".format(minD)} km away"
+            "Nearest Station: ${closest.name} (${closest.board}) · ${minD.formatDecimals(1)} km away"
         } else {
             "Copernicus CAMS Surface Grid (25km Modelled Reanalysis)"
         }
@@ -528,10 +530,10 @@ object LandmarkService {
     // Haversine distance in km
     fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371.0
-        val dLat = Math.PI / 180 * (lat2 - lat1)
-        val dLon = Math.PI / 180 * (lon2 - lon1)
+        val dLat = PI / 180 * (lat2 - lat1)
+        val dLon = PI / 180 * (lon2 - lon1)
         val a = sin(dLat / 2).pow(2) +
-                cos(Math.PI / 180 * lat1) * cos(Math.PI / 180 * lat2) * sin(dLon / 2).pow(2)
+                cos(PI / 180 * lat1) * cos(PI / 180 * lat2) * sin(dLon / 2).pow(2)
         return r * 2 * asin(sqrt(a))
     }
 

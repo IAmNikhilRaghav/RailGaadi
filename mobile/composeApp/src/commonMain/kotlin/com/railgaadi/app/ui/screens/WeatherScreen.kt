@@ -40,6 +40,7 @@ import com.railgaadi.app.model.StationWeatherData
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.LiveAutoRefreshPill
+import com.railgaadi.app.util.formatDecimals
 import kotlin.math.roundToInt
 
 @Composable
@@ -232,7 +233,7 @@ fun WeatherScreen() {
                         w.isFogAdvisory && w.isSmogAdvisory ->
                             "⚠️  Dense Fog + High Smog (AQI ${w.aqiValue ?: ""}) detected. Trains on this section may operate under fog-induced speed restrictions."
                         w.isFogAdvisory ->
-                            "⚠️  Low Visibility: ${"%.1f".format(w.visibilityKm)} km. Fog-induced speed restrictions may apply on this section."
+                            "⚠️  Low Visibility: ${w.visibilityKm.formatDecimals(1)} km. Fog-induced speed restrictions may apply on this section."
                         else ->
                             "⚠️  High Smog Alert: AQI ${w.aqiValue ?: ""} (${w.aqiCategory.label}). Avoid outdoor exposure at station stops."
                     }
@@ -341,7 +342,7 @@ fun WeatherScreen() {
                             ) {
                                 WeatherMetricChip("💧", "Humidity", "${w.humidityPercent}%", textPrimary, textSecondary)
                                 WeatherMetricChip("💨", "Wind", "${w.windKmh.roundToInt()} km/h", textPrimary, textSecondary)
-                                WeatherMetricChip("👁️", "Visibility", "${"%.1f".format(w.visibilityKm)} km", textPrimary, textSecondary)
+                                WeatherMetricChip("👁️", "Visibility", "${w.visibilityKm.formatDecimals(1)} km", textPrimary, textSecondary)
                                 // Rain probability comes from hourly block; cloud cover from current
                                 WeatherMetricChip("🌧️", "Rain", "${w.rainProbability}%", textPrimary, textSecondary)
                             }
@@ -448,10 +449,10 @@ fun WeatherScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceAround
                             ) {
-                                if (w.pm25 != null) PollutantChip("PM2.5", "${"%.1f".format(w.pm25)} µg/m³", textPrimary, textSecondary)
-                                if (w.pm10 != null) PollutantChip("PM10", "${"%.0f".format(w.pm10)} µg/m³", textPrimary, textSecondary)
-                                if (w.no2 != null) PollutantChip("NO₂", "${"%.1f".format(w.no2)} µg/m³", textPrimary, textSecondary)
-                                if (w.so2 != null) PollutantChip("SO₂", "${"%.1f".format(w.so2)} µg/m³", textPrimary, textSecondary)
+                                if (w.pm25 != null) PollutantChip("PM2.5", "${w.pm25.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
+                                if (w.pm10 != null) PollutantChip("PM10", "${w.pm10.formatDecimals(0)} µg/m³", textPrimary, textSecondary)
+                                if (w.no2 != null) PollutantChip("NO₂", "${w.no2.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
+                                if (w.so2 != null) PollutantChip("SO₂", "${w.so2.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
                             }
 
                             if (w.co != null || w.o3 != null || !w.dominantPollutant.isNullOrBlank()) {
@@ -460,8 +461,8 @@ fun WeatherScreen() {
                                     horizontalArrangement = Arrangement.SpaceAround,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (w.co != null) PollutantChip("CO (8h)", "${"%.2f".format(w.co)} mg/m³", textPrimary, textSecondary)
-                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${"%.0f".format(w.o3)} µg/m³", textPrimary, textSecondary)
+                                    if (w.co != null) PollutantChip("CO (8h)", "${w.co.formatDecimals(2)} mg/m³", textPrimary, textSecondary)
+                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${w.o3.formatDecimals(0)} µg/m³", textPrimary, textSecondary)
                                     if (!w.dominantPollutant.isNullOrBlank()) {
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -745,7 +746,7 @@ private fun LandmarkCard(
                             .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            "${"%.1f".format(landmark.distanceKm)} km",
+                            "${landmark.distanceKm.formatDecimals(1)} km",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = RailBluePrimary

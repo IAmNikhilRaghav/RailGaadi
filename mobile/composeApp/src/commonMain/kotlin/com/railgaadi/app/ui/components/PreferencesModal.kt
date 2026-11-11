@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.RailBluePrimary
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun PreferencesDrawer(
@@ -369,11 +372,11 @@ fun VectorThemeIcon(isDark: Boolean) {
             drawCircle(color = color, radius = size.width * 0.25f, center = center, style = Stroke(width = 1.8f))
             val rayLen = size.width * 0.12f
             for (i in 0 until 8) {
-                val angle = i * Math.PI / 4
-                val startX = (center.x + Math.cos(angle) * (size.width * 0.32f)).toFloat()
-                val startY = (center.y + Math.sin(angle) * (size.height * 0.32f)).toFloat()
-                val endX = (center.x + Math.cos(angle) * (size.width * 0.32f + rayLen)).toFloat()
-                val endY = (center.y + Math.sin(angle) * (size.height * 0.32f + rayLen)).toFloat()
+                val angle = i * PI / 4.0
+                val startX = (center.x + cos(angle) * (size.width * 0.32f)).toFloat()
+                val startY = (center.y + sin(angle) * (size.height * 0.32f)).toFloat()
+                val endX = (center.x + cos(angle) * (size.width * 0.32f + rayLen)).toFloat()
+                val endY = (center.y + sin(angle) * (size.height * 0.32f + rayLen)).toFloat()
                 drawLine(color, Offset(startX, startY), Offset(endX, endY), strokeWidth = 1.6f, cap = StrokeCap.Round)
             }
         }
