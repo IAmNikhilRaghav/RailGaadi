@@ -934,8 +934,9 @@ fun LiveMapScreen() {
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .background(Color(0xFF0F172A), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         activeTrain.number,
@@ -962,7 +963,9 @@ fun LiveMapScreen() {
                                 Box(
                                     modifier = Modifier
                                         .background(if (isDelayed) Color(0xFFFEF3C7) else Color(0xFFDCFCE7), RoundedCornerShape(20.dp))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        .border(1.dp, if (isDelayed) Color(0xFFFDE68A) else Color(0xFFBBF7D0), RoundedCornerShape(20.dp))
+                                        .padding(horizontal = 9.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
@@ -1450,17 +1453,17 @@ fun MinimalMapToolButton(
     Box(
         modifier = modifier
             .size(42.dp)
-            .shadow(3.dp, RoundedCornerShape(11.dp))
+            .shadow(4.dp, RoundedCornerShape(13.dp))
             .background(
-                if (isActive) Color(0xFF2563EB).copy(alpha = 0.13f)
-                else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(11.dp)
+                if (isActive) Color(0xFF2563EB).copy(alpha = 0.18f)
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                RoundedCornerShape(13.dp)
             )
             .border(
-                1.5.dp,
-                if (isActive) Color(0xFF2563EB).copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                RoundedCornerShape(11.dp)
+                1.dp,
+                if (isActive) Color(0xFF2563EB).copy(alpha = 0.45f)
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                RoundedCornerShape(13.dp)
             )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

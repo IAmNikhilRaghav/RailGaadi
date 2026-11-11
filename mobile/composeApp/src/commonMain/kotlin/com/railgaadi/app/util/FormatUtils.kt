@@ -31,3 +31,4 @@ fun Double.formatDecimals(decimals: Int): String {
 }
 
 fun Float.formatDecimals(decimals: Int): String = this.toDouble().formatDecimals(decimals)
+

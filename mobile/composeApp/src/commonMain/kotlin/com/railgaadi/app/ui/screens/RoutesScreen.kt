@@ -2,6 +2,7 @@ package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -617,10 +620,10 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         // Red bin logo at the right corner (clears recent history)
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFFEE2E2))
-                                .border(1.dp, Color(0xFFFCA5A5), CircleShape)
+                                .background(Color(0xFFFEE2E2).copy(alpha = 0.85f))
+                                .border(1.dp, Color(0xFFFCA5A5).copy(alpha = 0.5f), CircleShape)
                                 .clickable {
                                     TrainTrackerState.clearRecentTrains()
                                 },
@@ -634,9 +637,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     }
 
                     Card(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -660,11 +663,14 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                     ) {
                                         Box(
                                             modifier = Modifier
+                                                .height(28.dp)
                                                 .background(
-                                                    RailBluePrimary.copy(alpha = 0.12f),
+                                                    RailBluePrimary.copy(alpha = 0.10f),
                                                     RoundedCornerShape(8.dp)
                                                 )
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                .border(1.dp, RailBluePrimary.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = train.number,
@@ -699,23 +705,24 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
-                                    // Right: Cross mark '✕' for individual train history clearing
+                                    // Right: Cross mark '✕' - perfectly centered vector icon inside circle
+                                    val crossColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     Box(
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), CircleShape)
                                             .clickable {
                                                 TrainTrackerState.removeRecentTrain(train.number)
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            "✕",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Canvas(modifier = Modifier.size(9.dp)) {
+                                            val stroke = 1.6f
+                                            drawLine(crossColor, Offset(0f, 0f), Offset(size.width, size.height), strokeWidth = stroke, cap = StrokeCap.Round)
+                                            drawLine(crossColor, Offset(0f, size.height), Offset(size.width, 0f), strokeWidth = stroke, cap = StrokeCap.Round)
+                                        }
                                     }
                                 }
 
@@ -872,14 +879,14 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 fun FeaturePill(icon: String, label: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
-            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-            .padding(vertical = 7.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f), RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(icon, fontSize = 12.sp)
-            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }

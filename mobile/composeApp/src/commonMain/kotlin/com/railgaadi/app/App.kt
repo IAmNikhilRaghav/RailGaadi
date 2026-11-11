@@ -67,15 +67,18 @@ fun App() {
                         }
                     },
                     actions = {
-                        // 1. Language Pill Button (e.g. 🌐 EN)
+                        // 1. Language Pill Button (e.g. 🌐 EN) - sleek iOS pill
                         Box(
                             modifier = Modifier
+                                .height(36.dp)
                                 .background(
-                                    RailBluePrimary.copy(alpha = 0.12f),
-                                    RoundedCornerShape(20.dp)
+                                    RailBluePrimary.copy(alpha = 0.10f),
+                                    RoundedCornerShape(18.dp)
                                 )
+                                .border(1.dp, RailBluePrimary.copy(alpha = 0.20f), RoundedCornerShape(18.dp))
                                 .clickable { showLanguageModal = true }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "🌐 ${I18n.currentPill}",
@@ -87,12 +90,12 @@ fun App() {
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        // 2. Circular Theme Toggle Button (🌙 / ☀️)
+                        // 2. Circular Theme Toggle Button (🌙 / ☀️) - centered iOS frosted circle
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .border(1.dp, Color(0xFFE2E8F0), CircleShape)
-                                .background(MaterialTheme.colorScheme.surface, CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), CircleShape)
                                 .clickable { isDarkMode = !isDarkMode },
                             contentAlignment = Alignment.Center
                         ) {
@@ -101,22 +104,22 @@ fun App() {
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        // 3. Circular Hamburger Menu Button (☰) -> Opens Right-Side Drawer
+                        // 3. Circular Hamburger Menu Button (☰) - centered iOS frosted circle
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .border(1.dp, Color(0xFFE2E8F0), CircleShape)
-                                .background(MaterialTheme.colorScheme.surface, CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), CircleShape)
                                 .clickable { showPreferencesDrawer = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("☰", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("☰", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
                     )
                 )
             },
