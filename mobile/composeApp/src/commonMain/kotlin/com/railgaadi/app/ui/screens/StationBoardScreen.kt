@@ -1,9 +1,14 @@
 package com.railgaadi.app.ui.screens
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -15,8 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,7 +52,7 @@ fun StationBoardScreen(
     onTrackTrain: (Train) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
-    val isDark = isSystemInDarkTheme()
+    val isDark = TrainTrackerState.isDarkMode
     val railRadarService = remember { RailRadarService() }
 
     // Popular railway junction suggestions for quick 1-tap switching
@@ -225,11 +233,44 @@ fun StationBoardScreen(
                                 onValueChange = { searchQuery = it },
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = {
-                                    Text(
-                                        "Search station (e.g. NDLS, MTJ, HWH)...",
-                                        fontSize = 13.sp,
-                                        color = Color.Gray
+                                    val infiniteTransition = rememberInfiniteTransition(label = "station_search_marquee")
+                                    val marqueeProgress by infiniteTransition.animateFloat(
+                                        initialValue = 0f,
+                                        targetValue = 1f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(durationMillis = 7500, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Restart
+                                        ),
+                                        label = "station_marquee_progress"
                                     )
+
+                                    BoxWithConstraints(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clipToBounds(),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        val boxWidthPx = constraints.maxWidth.toFloat()
+                                        var textWidthPx by remember { mutableStateOf(0f) }
+                                        val density = LocalDensity.current
+                                        val defaultTextWidthPx = remember(density) { with(density) { 260.dp.toPx() } }
+                                        val effectiveTextWidth = if (textWidthPx > 0f) textWidthPx else defaultTextWidthPx
+                                        val currentX = boxWidthPx - marqueeProgress * (boxWidthPx + effectiveTextWidth)
+
+                                        Text(
+                                            text = "Search station (e.g. NDLS, MTJ, HWH, CSMT)...",
+                                            fontSize = 13.sp,
+                                            color = Color.Gray,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            onTextLayout = { textLayoutResult ->
+                                                textWidthPx = textLayoutResult.size.width.toFloat()
+                                            },
+                                            modifier = Modifier.graphicsLayer {
+                                                translationX = currentX
+                                            }
+                                        )
+                                    }
                                 },
                                 leadingIcon = {
                                     Text("🔍", fontSize = 15.sp)
@@ -379,7 +420,7 @@ fun StationBoardScreen(
                                         .clickable { loadBoardForStation(code, name) }
                                         .background(
                                             if (isSelected) RailBluePrimary
-                                            else if (isDark) DarkBackground
+                                            else if (isDark) DarkSurface
                                             else Color(0xFFF1F5F9)
                                         )
                                         .border(
@@ -387,7 +428,8 @@ fun StationBoardScreen(
                                             color = if (isSelected) RailBluePrimary else if (isDark) DarkBorder else LightBorder,
                                             shape = RoundedCornerShape(8.dp)
                                         )
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "$code • $name",
@@ -451,7 +493,9 @@ fun StationBoardScreen(
                                     Box(
                                         modifier = Modifier
                                             .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            .border(1.dp, RailBluePrimary.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = currentStationCode,
@@ -542,10 +586,12 @@ fun StationBoardScreen(
                                 modifier = Modifier
                                     .background(
                                         if (boardMode == StationBoardMode.DEPARTURES) Color.White.copy(alpha = 0.25f)
-                                        else Color.Gray.copy(alpha = 0.2f),
+                                        else if (isDark) Color.White.copy(alpha = 0.12f)
+                                        else Color.Black.copy(alpha = 0.08f),
                                         CircleShape
                                     )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "$departuresCount",
@@ -584,10 +630,12 @@ fun StationBoardScreen(
                                 modifier = Modifier
                                     .background(
                                         if (boardMode == StationBoardMode.ARRIVALS) Color.White.copy(alpha = 0.25f)
-                                        else Color.Gray.copy(alpha = 0.2f),
+                                        else if (isDark) Color.White.copy(alpha = 0.12f)
+                                        else Color.Black.copy(alpha = 0.08f),
                                         CircleShape
                                     )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "$arrivalsCount",
@@ -627,7 +675,8 @@ fun StationBoardScreen(
                                     color = if (isSelected) RailBluePrimary else if (isDark) DarkBorder else LightBorder,
                                     shape = RoundedCornerShape(20.dp)
                                 )
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = cat,
@@ -802,7 +851,8 @@ private fun StationBoardTrainCard(
                             Box(
                                 modifier = Modifier
                                     .background(typeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = train.type,
@@ -849,7 +899,8 @@ private fun StationBoardTrainCard(
                                     color = RailBluePrimary.copy(alpha = 0.3f),
                                     shape = RoundedCornerShape(6.dp)
                                 )
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = if (train.platform.startsWith("PF")) train.platform else "PF ${train.platform}",

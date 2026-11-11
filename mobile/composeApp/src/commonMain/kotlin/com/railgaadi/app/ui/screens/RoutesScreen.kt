@@ -404,6 +404,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                                 .clickable {
                                                     fromStationQuery = "${stn.name} (${stn.code})"
                                                     isFromDropdownOpen = false
+                                                    if (toStationQuery.isNotBlank()) {
+                                                        triggerSearch(fromStationQuery, toStationQuery)
+                                                    }
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -426,26 +429,45 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         }
                     }
 
-                    // Swap button between From / To
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                        contentAlignment = Alignment.Center
+                    // Swap button between From / To – clean connecting divider with zero overlap
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(
-                            onClick = {
-                                val temp = fromStationQuery
-                                fromStationQuery = toStationQuery
-                                toStationQuery = temp
-                                isFromDropdownOpen = false
-                                isToDropdownOpen = false
-                                if (fromStationQuery.isNotEmpty() && toStationQuery.isNotEmpty()) {
-                                    triggerSearch(fromStationQuery, toStationQuery)
-                                }
-                            },
-                            modifier = Modifier.size(32.dp).background(RailBluePrimary.copy(alpha = 0.1f), CircleShape)
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            thickness = 1.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(RailBluePrimary.copy(alpha = 0.10f))
+                                .border(1.dp, RailBluePrimary.copy(alpha = 0.25f), CircleShape)
+                                .clickable {
+                                    val temp = fromStationQuery
+                                    fromStationQuery = toStationQuery
+                                    toStationQuery = temp
+                                    isFromDropdownOpen = false
+                                    isToDropdownOpen = false
+                                    if (fromStationQuery.isNotBlank() && toStationQuery.isNotBlank()) {
+                                        triggerSearch(fromStationQuery, toStationQuery)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("⇅", fontSize = 16.sp, color = RailBluePrimary, fontWeight = FontWeight.ExtraBold)
+                            Text("⇅", fontSize = 16.sp, color = RailBluePrimary, fontWeight = FontWeight.Bold)
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            thickness = 1.dp
+                        )
                     }
 
                     // TO input
@@ -496,6 +518,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                                 .clickable {
                                                     toStationQuery = "${stn.name} (${stn.code})"
                                                     isToDropdownOpen = false
+                                                    if (fromStationQuery.isNotBlank()) {
+                                                        triggerSearch(fromStationQuery, toStationQuery)
+                                                    }
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -520,34 +545,26 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // ── FIND TRAINS BUTTON – directly below To field ──
+                    if (isSearching) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = RailBluePrimary,
+                            trackColor = RailBluePrimary.copy(alpha = 0.12f)
+                        )
+                    }
+
                     if (validationError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = validationError ?: "",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFDC2626),
-                            modifier = Modifier.padding(bottom = 6.dp)
+                            color = Color(0xFFDC2626)
                         )
-                    }
-
-                    Button(
-                        onClick = {
-                            isFromDropdownOpen = false
-                            isToDropdownOpen = false
-                            triggerSearch(fromStationQuery, toStationQuery)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF044E42))
-                    ) {
-                        if (isSearching) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Searching…", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
-                        } else {
-                            Text("🔍  Find Trains", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))

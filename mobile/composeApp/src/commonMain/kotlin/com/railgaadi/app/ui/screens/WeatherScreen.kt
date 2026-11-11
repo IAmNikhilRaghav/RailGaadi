@@ -14,7 +14,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -45,7 +44,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun WeatherScreen() {
-    val isDark = isSystemInDarkTheme()
+    val isDark = TrainTrackerState.isDarkMode
     val bg = if (isDark) DarkBackground else LightBackground
     val surface = if (isDark) DarkSurface else LightSurface
     val textPrimary = if (isDark) DarkTextPrimary else LightTextPrimary

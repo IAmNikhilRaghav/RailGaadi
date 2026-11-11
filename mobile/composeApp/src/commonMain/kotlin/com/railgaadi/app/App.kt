@@ -33,7 +33,7 @@ import com.railgaadi.app.ui.screens.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App() {
-    var isDarkMode by remember { mutableStateOf(false) }
+    val isDarkMode = TrainTrackerState.isDarkMode
     var selectedTab by remember { mutableStateOf(TabItem.LIVE_MAP) }
     var showLanguageModal by remember { mutableStateOf(false) }
     var showPreferencesDrawer by remember { mutableStateOf(false) }
@@ -45,13 +45,13 @@ fun App() {
                     title = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Professional App Logo (Blue rounded square with clean vector train icon)
+                            // Compact Minimalist Train Logo
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .background(RailBluePrimary, RoundedCornerShape(10.dp)),
+                                    .size(32.dp)
+                                    .background(RailBluePrimary, RoundedCornerShape(8.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 MinimalistTrainLogo()
@@ -60,30 +60,30 @@ fun App() {
                             Text(
                                 "RailGaadi",
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 19.sp,
+                                fontSize = 17.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 letterSpacing = (-0.3).sp
                             )
                         }
                     },
                     actions = {
-                        // 1. Language Pill Button (e.g. 🌐 EN) - sleek iOS pill
+                        // 1. Language Pill Button (e.g. 🌐 EN) - compact iOS pill
                         Box(
                             modifier = Modifier
-                                .height(36.dp)
+                                .height(32.dp)
                                 .background(
                                     RailBluePrimary.copy(alpha = 0.10f),
-                                    RoundedCornerShape(18.dp)
+                                    RoundedCornerShape(16.dp)
                                 )
-                                .border(1.dp, RailBluePrimary.copy(alpha = 0.20f), RoundedCornerShape(18.dp))
+                                .border(1.dp, RailBluePrimary.copy(alpha = 0.20f), RoundedCornerShape(16.dp))
                                 .clickable { showLanguageModal = true }
-                                .padding(horizontal = 12.dp),
+                                .padding(horizontal = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "🌐 ${I18n.currentPill}",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 color = RailBluePrimary
                             )
                         }
@@ -93,13 +93,13 @@ fun App() {
                         // 2. Circular Theme Toggle Button (🌙 / ☀️) - centered iOS frosted circle
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(32.dp)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), CircleShape)
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), CircleShape)
-                                .clickable { isDarkMode = !isDarkMode },
+                                .clickable { TrainTrackerState.isDarkMode = !TrainTrackerState.isDarkMode },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (isDarkMode) "☀️" else "🌙", fontSize = 15.sp)
+                            Text(if (isDarkMode) "☀️" else "🌙", fontSize = 14.sp)
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
@@ -107,13 +107,13 @@ fun App() {
                         // 3. Circular Hamburger Menu Button (☰) - centered iOS frosted circle
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(32.dp)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), CircleShape)
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), CircleShape)
                                 .clickable { showPreferencesDrawer = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("☰", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("☰", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
@@ -125,18 +125,19 @@ fun App() {
             },
             bottomBar = {
                 NavigationBar(
+                    modifier = Modifier.height(58.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
+                    tonalElevation = 2.dp
                 ) {
                     TabItem.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Text(tab.icon, fontSize = 18.sp) },
+                            icon = { Text(tab.icon, fontSize = 16.sp) },
                             label = {
                                 Text(
                                     I18n.t(tab.i18nKey),
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal
                                 )
                             },
@@ -175,7 +176,7 @@ fun App() {
                 PreferencesDrawer(
                     isOpen = showPreferencesDrawer,
                     isDarkMode = isDarkMode,
-                    onDarkModeChanged = { isDarkMode = it },
+                    onDarkModeChanged = { TrainTrackerState.isDarkMode = it },
                     onOpenLanguageModal = {
                         showPreferencesDrawer = false
                         showLanguageModal = true

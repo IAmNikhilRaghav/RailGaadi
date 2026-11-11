@@ -86,9 +86,8 @@ fun PreferencesDrawer(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 22.dp)
+                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp)
                 ) {
                     // Header: Preferences + Minimal Close Button
                     Row(
@@ -98,30 +97,30 @@ fun PreferencesDrawer(
                     ) {
                         Text(
                             text = "Preferences",
-                            fontSize = 20.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             letterSpacing = (-0.3).sp
                         )
 
+                        val closeColor = MaterialTheme.colorScheme.onSurfaceVariant
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(32.dp)
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
                                 .clickable(onClick = onDismiss),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "✕",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Canvas(modifier = Modifier.size(10.dp)) {
+                                val stroke = 1.8f
+                                drawLine(closeColor, Offset(0f, 0f), Offset(size.width, size.height), strokeWidth = stroke, cap = StrokeCap.Round)
+                                drawLine(closeColor, Offset(0f, size.height), Offset(size.width, 0f), strokeWidth = stroke, cap = StrokeCap.Round)
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 1. Dark Theme
                     CleanPreferenceTile(

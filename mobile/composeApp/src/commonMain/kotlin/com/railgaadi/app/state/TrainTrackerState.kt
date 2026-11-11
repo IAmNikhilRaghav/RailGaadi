@@ -67,6 +67,9 @@ object TrainTrackerState {
     // User's Onboarding / Boarding Station (Source of user's train journey)
     var userBoardingStation by mutableStateOf<Station?>(null)
 
+    // Global Theme State: Default to Light mode (false), toggled by sun/moon button
+    var isDarkMode by mutableStateOf(false)
+
     // Web App Preferences & Features
     var currentMapStyle by mutableStateOf("terrain") // "light", "dark", "satellite", "terrain"
     var tripDelayAlerts by mutableStateOf(false)

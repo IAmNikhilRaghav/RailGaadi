@@ -12,7 +12,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,9 +24,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +55,7 @@ enum class TimelineViewMode {
 fun AnalyticsScreen(
     onViewLiveMap: () -> Unit = {}
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = TrainTrackerState.isDarkMode
     val scope = rememberCoroutineScope()
     val service = remember { RailRadarService() }
 
@@ -168,35 +170,72 @@ fun AnalyticsScreen(
                     )
                 }
 
-                // Search Bar Trigger
+                // Dynamic Marquee Ticker Search Bar (Mobile & responsive)
                 item {
+                    val infiniteTransition = rememberInfiniteTransition(label = "analytics_search_marquee")
+                    val marqueeProgress by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 7500, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "analytics_marquee_progress"
+                    )
+
                     Card(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
-                        border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.3f)),
+                        border = BorderStroke(1.dp, if (isDark) DarkBorder else RailBluePrimary.copy(alpha = 0.25f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(52.dp)
                             .clickable { showTrainSearchModal = true }
                     ) {
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("🔍", fontSize = 18.sp)
-                            Text(
-                                text = "Search train name or number...",
-                                fontSize = 14.sp,
-                                color = Color.Gray,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Text("🔍", fontSize = 16.sp)
+
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clipToBounds(),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                val boxWidthPx = constraints.maxWidth.toFloat()
+                                var textWidthPx by remember { mutableStateOf(0f) }
+                                val density = LocalDensity.current
+                                val defaultTextWidthPx = remember(density) { with(density) { 260.dp.toPx() } }
+                                val effectiveTextWidth = if (textWidthPx > 0f) textWidthPx else defaultTextWidthPx
+                                val currentX = boxWidthPx - marqueeProgress * (boxWidthPx + effectiveTextWidth)
+
+                                Text(
+                                    text = "Search train name or number across Indian Railways...",
+                                    fontSize = 13.sp,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    onTextLayout = { textLayoutResult ->
+                                        textWidthPx = textLayoutResult.size.width.toFloat()
+                                    },
+                                    modifier = Modifier.graphicsLayer {
+                                        translationX = currentX
+                                    }
+                                )
+                            }
+
                             Box(
                                 modifier = Modifier
-                                    .background(RailBluePrimary, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    .background(RailBluePrimary, RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text("Search", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
