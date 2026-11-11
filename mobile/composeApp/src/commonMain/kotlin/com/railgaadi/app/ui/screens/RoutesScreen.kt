@@ -1253,20 +1253,40 @@ fun TrainCardItem(
 
             // Running days + Track button
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                // Day circles — centered in their space
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     val letters = listOf("S","M","T","W","T","F","S")
                     val runsList = if (train.runsOnDays.size == 7) train.runsOnDays else List(7) { true }
+                    val isDark = TrainTrackerState.isDarkMode
                     runsList.forEachIndexed { idx, runs ->
                         val isTravelDay = (idx == dayIndex)
                         Box(
                             modifier = Modifier
-                                .size(22.dp)
-                                .background(if (runs) RailBluePrimary else Color(0xFFE2E8F0), CircleShape)
-                                .border(if (isTravelDay) 2.dp else 0.dp, if (isTravelDay) Color(0xFF044E42) else Color.Transparent, CircleShape),
+                                .size(26.dp)
+                                .background(
+                                    color = when {
+                                        isTravelDay && runs -> RailBluePrimary
+                                        runs -> RailBluePrimary.copy(alpha = 0.75f)
+                                        else -> if (isDark) Color(0xFF2D3748) else Color(0xFFE2E8F0)
+                                    },
+                                    shape = CircleShape
+                                )
+                                .then(
+                                    if (isTravelDay) Modifier.border(2.dp, Color(0xFF10B981), CircleShape)
+                                    else Modifier
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(letters[idx], fontSize = 9.sp, fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.Bold,
-                                color = if (runs) Color.White else Color.Gray)
+                            Text(
+                                letters[idx],
+                                fontSize = 9.5.sp,
+                                fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                color = if (runs) Color.White else if (isDark) Color(0xFF8E8E93) else Color(0xFF94A3B8),
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }

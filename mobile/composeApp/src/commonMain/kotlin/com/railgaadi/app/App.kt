@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -52,8 +53,10 @@ private val barAnimSpec: AnimationSpec<Dp> = tween(durationMillis = 260, easing 
 private val alphaAnimSpec: AnimationSpec<Float> = tween(durationMillis = 220, easing = FastOutSlowInEasing)
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-private val TOP_BAR_HEIGHT = 56.dp
-private val BOTTOM_BAR_HEIGHT = 76.dp   // Proper iOS tab bar height with label room
+// These are the CONTENT heights of the bars (excluding system insets).
+// The bars themselves grow to cover system insets too, but content is padded by these values.
+private val TOP_BAR_CONTENT_HEIGHT = 54.dp
+private val BOTTOM_BAR_CONTENT_HEIGHT = 62.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,13 +104,13 @@ fun App() {
         }
     }
 
-    val topBarHeight by animateDpAsState(
-        targetValue = if (barsVisible) TOP_BAR_HEIGHT else 0.dp,
+    val topBarContentHeight by animateDpAsState(
+        targetValue = if (barsVisible) TOP_BAR_CONTENT_HEIGHT else 0.dp,
         animationSpec = barAnimSpec,
         label = "topBarHeight"
     )
-    val bottomBarHeight by animateDpAsState(
-        targetValue = if (barsVisible) BOTTOM_BAR_HEIGHT else 0.dp,
+    val bottomBarContentHeight by animateDpAsState(
+        targetValue = if (barsVisible) BOTTOM_BAR_CONTENT_HEIGHT else 0.dp,
         animationSpec = barAnimSpec,
         label = "bottomBarHeight"
     )
@@ -130,11 +133,16 @@ fun App() {
     RailGaadiTheme(darkTheme = isDarkMode) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // ── CONTENT — full-bleed, bars overlay on top ──────────────────────
+            // ── CONTENT — always covers full screen, padded so bars don't overlap ──
+            // statusBarsPadding + navigationBarsPadding always applied to prevent
+            // system UI overlap. topBarContentHeight/bottomBarContentHeight add
+            // EXTRA space for the floating glass bars when they're visible.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = topBarHeight, bottom = bottomBarHeight)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(top = topBarContentHeight, bottom = bottomBarContentHeight)
                     .nestedScroll(scrollConnection)
             ) {
                 when (selectedTab) {
@@ -154,11 +162,12 @@ fun App() {
                 }
             }
 
-            // ── TOP BAR — iOS glass, collapses upward ─────────────────────────
+            // ── TOP BAR — glass overlay, includes status bar inset ─────────────
+            // Uses WindowInsetsSides.Top so it covers exactly: statusBar + content height
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(topBarHeight)
+                    .wrapContentHeight()
                     .align(Alignment.TopCenter)
                     .alpha(barsAlpha)
                     .drawBehind {
@@ -171,82 +180,92 @@ fun App() {
                             strokeWidth = 0.8f
                         )
                     }
-                    .statusBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Logo + Name
+                // Status bar inset + content row
+                Column {
+                    // Fill the status bar area with glass (transparent spacer with inset padding)
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsTopHeight(WindowInsets.statusBars)
+                    )
+                    // Actual header row content
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(TOP_BAR_CONTENT_HEIGHT)
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(33.dp)
-                                .background(RailBluePrimary, RoundedCornerShape(9.dp)),
-                            contentAlignment = Alignment.Center
+                        // Logo + Name
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            MinimalistTrainLogo()
-                        }
-                        Text(
-                            "RailGaadi",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp,
-                            color = if (isDarkMode) Color.White else Color(0xFF0F172A),
-                            letterSpacing = (-0.4).sp
-                        )
-                    }
-
-                    // Action pills
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        // Language pill
-                        Box(
-                            modifier = Modifier
-                                .height(30.dp)
-                                .background(RailBluePrimary.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
-                                .border(0.8.dp, RailBluePrimary.copy(alpha = 0.22f), RoundedCornerShape(15.dp))
-                                .clickable { showLanguageModal = true }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(RailBluePrimary, RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                MinimalistTrainLogo()
+                            }
                             Text(
-                                text = "🌐 ${I18n.currentPill}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = RailBluePrimary
+                                "RailGaadi",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.sp,
+                                color = if (isDarkMode) Color.White else Color(0xFF0F172A),
+                                letterSpacing = (-0.5).sp
                             )
                         }
 
-                        // Theme toggle
-                        GlassCircleButton(
-                            isDarkMode = isDarkMode,
-                            borderColor = borderColor,
-                            onClick = { TrainTrackerState.isDarkMode = !TrainTrackerState.isDarkMode }
+                        // Action pills
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
-                            Text(if (isDarkMode) "☀️" else "🌙", fontSize = 14.sp)
-                        }
+                            // Language pill
+                            Box(
+                                modifier = Modifier
+                                    .height(30.dp)
+                                    .background(RailBluePrimary.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
+                                    .border(0.8.dp, RailBluePrimary.copy(alpha = 0.25f), RoundedCornerShape(15.dp))
+                                    .clickable { showLanguageModal = true }
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "🌐 ${I18n.currentPill}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = RailBluePrimary
+                                )
+                            }
 
-                        // Menu
-                        GlassCircleButton(isDarkMode = isDarkMode, borderColor = borderColor, onClick = { showPreferencesDrawer = true }) {
-                            Text("☰", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                            // Theme toggle
+                            GlassCircleButton(
+                                isDarkMode = isDarkMode,
+                                borderColor = borderColor,
+                                onClick = { TrainTrackerState.isDarkMode = !TrainTrackerState.isDarkMode }
+                            ) {
+                                Text(if (isDarkMode) "☀️" else "🌙", fontSize = 15.sp)
+                            }
+
+                            // Menu
+                            GlassCircleButton(isDarkMode = isDarkMode, borderColor = borderColor, onClick = { showPreferencesDrawer = true }) {
+                                Text("☰", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                            }
                         }
                     }
                 }
             }
 
-            // ── BOTTOM TAB BAR — iOS glass pill-style ─────────────────────────
+            // ── BOTTOM TAB BAR — glass overlay, includes nav bar inset ────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(bottomBarHeight)
+                    .wrapContentHeight()
                     .align(Alignment.BottomCenter)
                     .alpha(barsAlpha)
                     .drawBehind {
@@ -259,61 +278,78 @@ fun App() {
                             strokeWidth = 0.8f
                         )
                     }
-                    .navigationBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TabItem.entries.forEach { tab ->
-                        val isSelected = selectedTab == tab
-                        val tabAlpha by animateFloatAsState(
-                            targetValue = if (isSelected) 1f else 0.55f,
-                            animationSpec = tween(200),
-                            label = "tabAlpha"
-                        )
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable(
-                                    indication = null,
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                ) { selectedTab = tab }
-                                .padding(vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            // Active indicator dot above icon
-                            Box(
+                Column {
+                    // Tab items row — fixed 62dp, no system insets in here
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(BOTTOM_BAR_CONTENT_HEIGHT)
+                            .padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TabItem.entries.forEach { tab ->
+                            val isSelected = selectedTab == tab
+                            val tabAlpha by animateFloatAsState(
+                                targetValue = if (isSelected) 1f else 0.50f,
+                                animationSpec = tween(200),
+                                label = "tabAlpha"
+                            )
+                            Column(
                                 modifier = Modifier
-                                    .size(width = 24.dp, height = 3.dp)
-                                    .background(
-                                        color = if (isSelected) RailBluePrimary else Color.Transparent,
-                                        shape = RoundedCornerShape(2.dp)
-                                    )
-                            )
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable(
+                                        indication = null,
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                    ) { selectedTab = tab },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                // Active indicator bar above icon
+                                Box(
+                                    modifier = Modifier
+                                        .width(28.dp)
+                                        .height(3.dp)
+                                        .background(
+                                            color = if (isSelected) RailBluePrimary else Color.Transparent,
+                                            shape = RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp)
+                                        )
+                                )
 
-                            // Icon
-                            Text(
-                                text = tab.icon,
-                                fontSize = 20.sp,
-                                modifier = Modifier.alpha(tabAlpha)
-                            )
+                                Spacer(modifier = Modifier.height(5.dp))
 
-                            // Label — always fully visible
-                            Text(
-                                text = I18n.t(tab.i18nKey),
-                                fontSize = 10.5.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) RailBluePrimary else (if (isDarkMode) Color(0xFF8E8E93) else Color(0xFF6B7280)),
-                                letterSpacing = 0.sp,
-                                maxLines = 1
-                            )
+                                // Icon
+                                Text(
+                                    text = tab.icon,
+                                    fontSize = 21.sp,
+                                    modifier = Modifier.alpha(tabAlpha)
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                // Label — always visible, never clipped
+                                Text(
+                                    text = I18n.t(tab.i18nKey),
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) RailBluePrimary else (if (isDarkMode) Color(0xFF8E8E93) else Color(0xFF6B7280)),
+                                    letterSpacing = 0.sp,
+                                    maxLines = 1,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
+
+                    // Navigation bar inset space (home indicator on iPhone)
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                    )
                 }
             }
 
