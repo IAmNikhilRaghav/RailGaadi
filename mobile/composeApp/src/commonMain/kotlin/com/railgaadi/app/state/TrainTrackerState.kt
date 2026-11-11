@@ -102,8 +102,8 @@ object TrainTrackerState {
         isSearchDropdownOpen = false
     }
 
-    // Live Auto-Refresh Polling Engine (8-12 seconds, default 10s)
-    const val AUTO_REFRESH_INTERVAL_SECONDS = 10
+    // Live Auto-Refresh Polling Engine (Seamless 3-second live updates in background)
+    const val AUTO_REFRESH_INTERVAL_SECONDS = 3
     var autoRefreshCountdown by mutableStateOf(AUTO_REFRESH_INTERVAL_SECONDS)
     var isAutoRefreshing by mutableStateOf(false)
     var isAutoRefreshEnabled by mutableStateOf(true)

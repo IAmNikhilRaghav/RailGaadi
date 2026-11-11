@@ -4,3 +4,4 @@ expect object PlatformSpeech {
     fun speak(text: String)
     fun stop()
 }
+

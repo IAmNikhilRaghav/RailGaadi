@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -86,29 +87,33 @@ fun PreferencesDrawer(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .statusBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp)
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp)
                 ) {
                     // Header: Preferences + Minimal Close Button
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Preferences",
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            letterSpacing = (-0.3).sp
+                            letterSpacing = (-0.4).sp
                         )
 
                         val closeColor = MaterialTheme.colorScheme.onSurfaceVariant
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
+                                .clip(CircleShape)
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .clickable(onClick = onDismiss),
                             contentAlignment = Alignment.Center
                         ) {
@@ -120,7 +125,7 @@ fun PreferencesDrawer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     // 1. Dark Theme
                     CleanPreferenceTile(
@@ -292,9 +297,14 @@ fun CleanPreferenceTile(
     onClick: (() -> Unit)? = null,
     trailing: @Composable () -> Unit
 ) {
+    val isDark = TrainTrackerState.isDarkMode
+    val tileBg = if (isDark) Color(0xFF1E293B).copy(alpha = 0.55f) else Color(0xFFF1F5F9).copy(alpha = 0.70f)
+    val tileBorder = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        color = tileBg,
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, tileBorder),
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
@@ -302,26 +312,36 @@ fun CleanPreferenceTile(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(13.dp),
                 modifier = Modifier.weight(1f)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                        .size(38.dp)
+                        .background(
+                            if (isDark) Color(0xFF0F172A).copy(alpha = 0.6f) else Color.White,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .border(
+                            0.8.dp,
+                            if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f),
+                            RoundedCornerShape(10.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     icon()
                 }
 
-                Column {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = title,
                         fontWeight = FontWeight.SemiBold,
@@ -331,12 +351,14 @@ fun CleanPreferenceTile(
                     Text(
                         text = subtitle,
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                     )
                 }
             }
 
-            trailing()
+            Box(contentAlignment = Alignment.Center) {
+                trailing()
+            }
         }
     }
 }

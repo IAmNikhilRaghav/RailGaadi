@@ -1,11 +1,16 @@
 package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -121,11 +127,18 @@ fun generateTravelDates(startDate: Int = 7, startMonth: Int = 11, startYear: Int
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
+    val isDark = TrainTrackerState.isDarkMode
     val service = remember { RailRadarService() }
     val coroutineScope = rememberCoroutineScope()
 
     var fromStationQuery by remember { mutableStateOf("") }
     var toStationQuery by remember { mutableStateOf("") }
+    var swapRotation by remember { mutableStateOf(0f) }
+    val animatedSwapRotation by animateFloatAsState(
+        targetValue = swapRotation,
+        animationSpec = tween(320, easing = FastOutSlowInEasing),
+        label = "swap_rot"
+    )
 
     var isFromDropdownOpen by remember { mutableStateOf(false) }
     var isToDropdownOpen by remember { mutableStateOf(false) }
@@ -337,14 +350,19 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // ─────────────────────────────────────────────────────
-        // 1. COMPACT Station-to-Station Search Card
+        // 1. COMPACT Station-to-Station Search Card (Glassmorphic)
         // ─────────────────────────────────────────────────────
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) Color(0xFF1E293B).copy(alpha = 0.60f) else Color.White.copy(alpha = 0.88f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(
+                    1.dp,
+                    if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -445,10 +463,12 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         Box(
                             modifier = Modifier
                                 .size(34.dp)
+                                .graphicsLayer { rotationZ = animatedSwapRotation }
                                 .clip(CircleShape)
-                                .background(RailBluePrimary.copy(alpha = 0.10f))
-                                .border(1.dp, RailBluePrimary.copy(alpha = 0.25f), CircleShape)
+                                .background(RailBluePrimary.copy(alpha = 0.12f))
+                                .border(1.dp, RailBluePrimary.copy(alpha = 0.30f), CircleShape)
                                 .clickable {
+                                    swapRotation += 180f
                                     val temp = fromStationQuery
                                     fromStationQuery = toStationQuery
                                     toStationQuery = temp
@@ -768,31 +788,15 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val categories = listOf("All", "Vande Bharat", "Rajdhani", "Shatabdi", "Superfast", "Express", "Passenger")
                         items(categories) { cat ->
-                            val isSelected = selectedCategoryFilter == cat
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (isSelected) RailBluePrimary else MaterialTheme.colorScheme.surface,
-                                        RoundedCornerShape(18.dp)
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) RailBluePrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                        RoundedCornerShape(18.dp)
-                                    )
-                                    .clickable { selectedCategoryFilter = cat }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    cat,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            RouteCategoryChip(
+                                category = cat,
+                                isSelected = selectedCategoryFilter == cat,
+                                isDark = isDark,
+                                onClick = { selectedCategoryFilter = cat }
+                            )
                         }
                     }
                 }
@@ -1140,7 +1144,62 @@ fun CalendarPickerBottomSheet(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Train Card Item with Date Specific Running Verification
+// Interactive Glassmorphic Category Chip with Touch/Hover Response
+// ─────────────────────────────────────────────────────────────────
+@Composable
+private fun RouteCategoryChip(
+    category: String,
+    isSelected: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.93f else 1.0f,
+        animationSpec = tween(110, easing = FastOutSlowInEasing),
+        label = "chip_scale"
+    )
+
+    val bg = when {
+        isSelected -> RailBluePrimary
+        isDark -> Color(0xFF1E293B).copy(alpha = 0.65f)
+        else -> Color.White.copy(alpha = 0.85f)
+    }
+    val borderCol = when {
+        isSelected -> RailBluePrimary
+        isDark -> Color.White.copy(alpha = 0.12f)
+        else -> Color.Black.copy(alpha = 0.09f)
+    }
+
+    Box(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(20.dp))
+            .background(bg)
+            .border(0.8.dp, borderCol, RoundedCornerShape(20.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = category,
+            fontSize = 11.5.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color.White else if (isDark) DarkTextPrimary else LightTextPrimary
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Train Card Item with Date Specific Running Verification & Glassmorphism
 // ─────────────────────────────────────────────────────────────────
 @Composable
 fun TrainCardItem(
@@ -1148,15 +1207,38 @@ fun TrainCardItem(
     selectedDate: RouteTravelDate,
     onTrackClick: () -> Unit
 ) {
+    val isDark = TrainTrackerState.isDarkMode
     val dayIndex = selectedDate.dayOfWeekIndex
     val runsOnSelectedDate = train.runsOnDays.getOrElse(dayIndex) { true }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1.0f,
+        animationSpec = tween(120, easing = FastOutSlowInEasing),
+        label = "card_scale"
+    )
+
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDark) Color(0xFF1E293B).copy(alpha = 0.65f) else Color.White.copy(alpha = 0.88f)
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
-        modifier = Modifier.fillMaxWidth()
+        border = BorderStroke(
+            1.dp,
+            if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onTrackClick() }
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // Train number, name, category
@@ -1171,63 +1253,107 @@ fun TrainCardItem(
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
-                        modifier = Modifier.background(Color(0xFF0F172A), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 3.dp)
+                        modifier = Modifier
+                            .background(if (isDark) Color(0xFF0F172A) else Color(0xFF0F172A), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Text(train.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
-                    Text(train.name, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        train.name,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.5.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                val typeBg = if (isDark) {
+                    when {
+                        train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFF1E3A8A).copy(alpha = 0.4f)
+                        train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFF7F1D1D).copy(alpha = 0.4f)
+                        train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFF14532D).copy(alpha = 0.4f)
+                        train.type.contains("Superfast", ignoreCase = true) -> Color(0xFF581C87).copy(alpha = 0.4f)
+                        else -> Color(0xFF334155).copy(alpha = 0.4f)
+                    }
+                } else {
+                    when {
+                        train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFFEFF6FF)
+                        train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFFEF2F2)
+                        train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFFF0FDF4)
+                        train.type.contains("Superfast", ignoreCase = true) -> Color(0xFFFAF5FF)
+                        else -> Color(0xFFF8FAFC)
+                    }
+                }
+
+                val typeTextColor = if (isDark) {
+                    when {
+                        train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFF93C5FD)
+                        train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFFCA5A5)
+                        train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFF86EFAC)
+                        train.type.contains("Superfast", ignoreCase = true) -> Color(0xFFD8B4FE)
+                        else -> Color(0xFFCBD5E1)
+                    }
+                } else {
+                    when {
+                        train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFF1D4ED8)
+                        train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFB91C1C)
+                        train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFF15803D)
+                        train.type.contains("Superfast", ignoreCase = true) -> Color(0xFF7C3AED)
+                        else -> Color(0xFF475569)
+                    }
                 }
 
                 Box(
                     modifier = Modifier
-                        .background(
-                            when {
-                                train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFFEFF6FF)
-                                train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFFEF2F2)
-                                train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFFF0FDF4)
-                                train.type.contains("Superfast", ignoreCase = true) -> Color(0xFFFAF5FF)
-                                else -> Color(0xFFF8FAFC)
-                            },
-                            RoundedCornerShape(7.dp)
-                        )
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                        .background(typeBg, RoundedCornerShape(7.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        train.type, fontWeight = FontWeight.Bold, fontSize = 10.sp,
-                        color = when {
-                            train.type.contains("Vande Bharat", ignoreCase = true) -> Color(0xFF1D4ED8)
-                            train.type.contains("Rajdhani", ignoreCase = true) -> Color(0xFFB91C1C)
-                            train.type.contains("Shatabdi", ignoreCase = true) -> Color(0xFF15803D)
-                            train.type.contains("Superfast", ignoreCase = true) -> Color(0xFF7C3AED)
-                            else -> Color(0xFF475569)
-                        }
+                        train.type,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        color = typeTextColor
                     )
                 }
             }
 
             // Date-specific run badge
+            val runBadgeBg = if (isDark) {
+                if (runsOnSelectedDate) Color(0xFF065F46).copy(alpha = 0.40f) else Color(0xFF991B1B).copy(alpha = 0.35f)
+            } else {
+                if (runsOnSelectedDate) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
+            }
+            val runBadgeColor = if (isDark) {
+                if (runsOnSelectedDate) Color(0xFF34D399) else Color(0xFFF87171)
+            } else {
+                if (runsOnSelectedDate) RailGreenOnTime else Color(0xFFDC2626)
+            }
+
             Box(
                 modifier = Modifier
                     .padding(top = 6.dp)
-                    .background(
-                        if (runsOnSelectedDate) Color(0xFFDCFCE7) else Color(0xFFFEE2E2),
-                        RoundedCornerShape(5.dp)
-                    )
+                    .background(runBadgeBg, RoundedCornerShape(5.dp))
                     .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
                     if (runsOnSelectedDate) "✓ Runs on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}"
                     else "✕ Doesn't run on ${selectedDate.dayOfWeek}, ${selectedDate.dayNumber} ${selectedDate.monthName}",
-                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    color = if (runsOnSelectedDate) RailGreenOnTime else Color(0xFFDC2626)
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = runBadgeColor
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             // Timings
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
                     Text(train.departureTime, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                     Text(train.origin.substringBefore(" ("), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1260,7 +1386,6 @@ fun TrainCardItem(
                 ) {
                     val letters = listOf("S","M","T","W","T","F","S")
                     val runsList = if (train.runsOnDays.size == 7) train.runsOnDays else List(7) { true }
-                    val isDark = TrainTrackerState.isDarkMode
                     runsList.forEachIndexed { idx, runs ->
                         val isTravelDay = (idx == dayIndex)
                         Box(
@@ -1295,7 +1420,7 @@ fun TrainCardItem(
                     onClick = onTrackClick,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RailBluePrimary),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text("🚆 Track Live", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }

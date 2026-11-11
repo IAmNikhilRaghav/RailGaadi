@@ -46,10 +46,10 @@ import kotlin.math.roundToInt
 fun WeatherScreen() {
     val isDark = TrainTrackerState.isDarkMode
     val bg = if (isDark) DarkBackground else LightBackground
-    val surface = if (isDark) DarkSurface else LightSurface
+    val surface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.65f) else Color.White.copy(alpha = 0.88f)
     val textPrimary = if (isDark) DarkTextPrimary else LightTextPrimary
     val textSecondary = if (isDark) DarkTextSecondary else LightTextSecondary
-    val border = if (isDark) DarkBorder else LightBorder
+    val border = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
 
     val uriHandler = LocalUriHandler.current
     val weatherData = TrainTrackerState.weatherData

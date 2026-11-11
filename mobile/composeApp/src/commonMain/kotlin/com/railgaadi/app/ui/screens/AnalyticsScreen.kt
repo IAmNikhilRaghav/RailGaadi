@@ -66,6 +66,10 @@ fun AnalyticsScreen(
     // View switcher: Overview (WIMT vertical track) vs Description (Table timetable)
     var viewMode by remember { mutableStateOf(TimelineViewMode.WIMT) }
 
+    // Glassmorphic translucent styling
+    val cardSurface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.65f) else Color.White.copy(alpha = 0.88f)
+    val cardBorder = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+
     // Search dialog state to change or pick any train
     var showTrainSearchModal by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -185,8 +189,8 @@ fun AnalyticsScreen(
 
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
-                        border = BorderStroke(1.dp, if (isDark) DarkBorder else RailBluePrimary.copy(alpha = 0.25f)),
+                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        border = BorderStroke(1.dp, cardBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -260,9 +264,9 @@ fun AnalyticsScreen(
 
                             recent.take(3).forEach { train ->
                                 Card(
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
-                                    border = BorderStroke(1.dp, if (isDark) DarkBorder else LightBorder),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                                    border = BorderStroke(1.dp, cardBorder),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
@@ -338,7 +342,8 @@ fun AnalyticsScreen(
                 item {
                     Card(
                         shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
-                        colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
+                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        border = BorderStroke(1.dp, cardBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
