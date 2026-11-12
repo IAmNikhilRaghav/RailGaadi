@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
@@ -46,6 +47,8 @@ import com.railgaadi.app.ui.components.CoachPositionVisualizer
 import com.railgaadi.app.ui.components.LiveAutoRefreshPill
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.VectorCoachIcon
+import com.railgaadi.app.ui.components.DestinationAlarmModal
+import com.railgaadi.app.ui.components.AlarmRingingDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -624,6 +627,118 @@ fun AnalyticsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text("${liveStatus?.speedKmh ?: 0} km/h", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary, maxLines = 1)
+                                }
+                            }
+
+                            // ── Phase 4: Destination Station Wake-Up Alarm Capsule ──
+                            val activeAlarm = TrainTrackerState.activeAlarm
+                            val isAlarmArmed = activeAlarm?.isArmed == true
+
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isAlarmArmed) {
+                                        RailGreenOnTime.copy(alpha = if (isDark) 0.16f else 0.10f)
+                                    } else {
+                                        if (isDark) Color(0xFF1E293B).copy(alpha = 0.50f) else Color(0xFFF8FAFC)
+                                    }
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isAlarmArmed) RailGreenOnTime.copy(alpha = 0.45f)
+                                    else (if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f))
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { TrainTrackerState.openAlarmSetup() }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(
+                                                    if (isAlarmArmed) RailGreenOnTime.copy(alpha = 0.20f)
+                                                    else RailBluePrimary.copy(alpha = 0.12f),
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(if (isAlarmArmed) "🔔" else "⏰", fontSize = 16.sp)
+                                        }
+
+                                        Column {
+                                            if (isAlarmArmed) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Alarm: ${activeAlarm.stationName}",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isDark) DarkTextPrimary else LightTextPrimary,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(RailGreenOnTime.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    ) {
+                                                        Text("ARMED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                                    }
+                                                }
+                                                val distInfo = activeAlarm.distanceRemainingKm?.let { "$it km away" } ?: "${activeAlarm.triggerDistanceKm.toInt()} km before"
+                                                Text(
+                                                    text = "Rings $distInfo • Geofence active",
+                                                    fontSize = 11.sp,
+                                                    color = if (isDark) DarkTextSecondary else LightTextSecondary
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Destination Wake-Up Alarm",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                                )
+                                                Text(
+                                                    text = "GPS alerts wake you up before your station",
+                                                    fontSize = 11.sp,
+                                                    color = if (isDark) DarkTextSecondary else LightTextSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (isAlarmArmed) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(RailRedDelayed.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                                .clickable { TrainTrackerState.disarmAlarm() }
+                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        ) {
+                                            Text("✕ Off", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailRedDelayed)
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        ) {
+                                            Text("Set →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1483,6 +1598,18 @@ fun AnalyticsScreen(
                 }
             )
         }
+
+        // Phase 4: Destination Alarm Configuration BottomSheet
+        if (TrainTrackerState.showAlarmSetupModal) {
+            DestinationAlarmModal(
+                onDismiss = { TrainTrackerState.closeAlarmSetup() }
+            )
+        }
+
+        // Phase 4: Full-Screen Wake-Up Alarm Ringing Dialog
+        if (TrainTrackerState.isAlarmRinging) {
+            AlarmRingingDialog()
+        }
     }
 }
 
@@ -1631,6 +1758,27 @@ private fun WimtStationTrackRow(
                         fontWeight = FontWeight.Bold,
                         color = RailRedDelayed
                     )
+                }
+
+                // Subtle Alarm bell icon for upcoming stations
+                if (!isPassed) {
+                    val isStationArmed = TrainTrackerState.activeAlarm?.let {
+                        it.isArmed && (it.stationCode.equals(station.code, ignoreCase = true) || it.stationName.contains(station.name, ignoreCase = true))
+                    } ?: false
+
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clickable {
+                                TrainTrackerState.openAlarmSetup(station)
+                            }
+                    ) {
+                        Text(
+                            text = if (isStationArmed) "🔔" else "⏰",
+                            fontSize = 12.sp,
+                            modifier = Modifier.alpha(if (isStationArmed) 1f else 0.45f)
+                        )
+                    }
                 }
             }
             // pass-through: left column stays empty
@@ -1837,6 +1985,27 @@ private fun WimtStationTrackRow(
                         fontWeight = FontWeight.Bold,
                         color = RailRedDelayed
                     )
+                }
+
+                // Subtle Alarm bell icon for upcoming stations
+                if (!isPassed) {
+                    val isStationArmed = TrainTrackerState.activeAlarm?.let {
+                        it.isArmed && (it.stationCode.equals(station.code, ignoreCase = true) || it.stationName.contains(station.name, ignoreCase = true))
+                    } ?: false
+
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clickable {
+                                TrainTrackerState.openAlarmSetup(station)
+                            }
+                    ) {
+                        Text(
+                            text = if (isStationArmed) "🔔" else "⏰",
+                            fontSize = 12.sp,
+                            modifier = Modifier.alpha(if (isStationArmed) 1f else 0.45f)
+                        )
+                    }
                 }
             }
             // pass-through: right column stays empty

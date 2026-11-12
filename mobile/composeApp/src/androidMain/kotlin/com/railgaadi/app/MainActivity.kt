@@ -6,12 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
+import com.railgaadi.app.util.PlatformAlarm
 import com.railgaadi.app.util.PlatformSpeech
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PlatformSpeech.init(this)
+        PlatformAlarm.init(this)
         setContent {
             App()
         }

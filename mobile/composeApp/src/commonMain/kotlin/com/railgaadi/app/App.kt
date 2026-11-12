@@ -457,6 +457,11 @@ fun App() {
                     }
                 }
             }
+
+            // ── Phase 4: Full-Screen Destination Wake-Up Alarm Ringing Dialog ──
+            if (TrainTrackerState.isAlarmRinging) {
+                com.railgaadi.app.ui.components.AlarmRingingDialog()
+            }
         }
     }
 }
