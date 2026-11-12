@@ -3,11 +3,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "functions": {
+    "api/v1/[...path].ts": {
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
-    {
-      "source": "/api/railradar/:path*",
-      "destination": "https://railradar.in/api/v1/:path*"
-    },
     {
       "source": "/((?!api/|data/|assets/|favicon.ico|manifest.json|sw.js|.*\\..*).*)",
       "destination": "/index.html"
@@ -15,10 +16,10 @@
   ],
   "headers": [
     {
-      "source": "/api/railradar/(.*)",
+      "source": "/api/v1/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, s-maxage=15, stale-while-revalidate=60" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" }
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" }
       ]
     },
     {
