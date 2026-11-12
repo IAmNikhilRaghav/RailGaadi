@@ -323,6 +323,7 @@ fun LiveMapScreen() {
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
+                val isDark = TrainTrackerState.isDarkMode
                 if (!isSearchActive) {
                     // Sleek Floating Capsule (Takes only 48dp, 80% map visible!)
                     val hasActiveTrain = TrainTrackerState.activeTrain.number.isNotBlank()
@@ -409,17 +410,34 @@ fun LiveMapScreen() {
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 if (hasActiveTrain) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Text(
-                                            text = activeTrain.number,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = RailBluePrimary
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = activeTrain.number,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = RailBluePrimary
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                                                .clickable {
+                                                    TrainTrackerState.clearActiveTrain()
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("✕", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
 
@@ -454,7 +472,13 @@ fun LiveMapScreen() {
                                 Text("🔍", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                                 TextField(
                                     value = TrainTrackerState.searchQuery,
-                                    onValueChange = { TrainTrackerState.onQueryChanged(it) },
+                                    onValueChange = {
+                                        if (it.isEmpty()) {
+                                            TrainTrackerState.clearActiveTrain()
+                                        } else {
+                                            TrainTrackerState.onQueryChanged(it)
+                                        }
+                                    },
                                     placeholder = {
                                         Text(
                                             I18n.t("search_placeholder"),
@@ -472,8 +496,8 @@ fun LiveMapScreen() {
                                     modifier = Modifier.weight(1f)
                                 )
 
-                                if (TrainTrackerState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { TrainTrackerState.onQueryChanged("") }) {
+                                if (TrainTrackerState.searchQuery.isNotEmpty() || TrainTrackerState.activeTrain.number.isNotBlank()) {
+                                    IconButton(onClick = { TrainTrackerState.clearActiveTrain() }) {
                                         Text("✕", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                                     }
                                 }
@@ -482,6 +506,9 @@ fun LiveMapScreen() {
                                     onClick = {
                                         isSearchActive = false
                                         TrainTrackerState.closeSearchDropdown()
+                                        if (TrainTrackerState.searchQuery.isBlank()) {
+                                            TrainTrackerState.clearActiveTrain()
+                                        }
                                     }
                                 ) {
                                     Text("Done", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)

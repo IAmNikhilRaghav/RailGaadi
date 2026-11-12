@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,9 +28,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,15 +84,34 @@ fun CoachPositionVisualizer(
         }
     }
 
-    // Scroll directly to a searched coach code (e.g. "B4", "E1", "S2")
-    fun scrollToCoachCode(query: String) {
+    // Scroll directly to a searched coach code (e.g. "B4", "E1", "S2") OR seat number (e.g. "45", "12")
+    fun scrollToCoachOrSeat(query: String) {
         val clean = query.trim().uppercase()
         if (clean.isBlank()) return
+
+        // 1. Direct coach code match (e.g. "B4", "S2", "GS1", "C2")
         val matchIndex = rake.coaches.indexOfFirst { it.coachCode.equals(clean, ignoreCase = true) }
         if (matchIndex >= 0) {
             highlightedCoachIndex = matchIndex
             coroutineScope.launch {
                 lazyListState.animateScrollToItem((matchIndex - 1).coerceAtLeast(0))
+            }
+            return
+        }
+
+        // 2. Numeric seat / berth search (e.g. "42", "72", "15")
+        val seatNum = clean.toIntOrNull()
+        if (seatNum != null && seatNum in 1..80) {
+            val candidateIndex = rake.coaches.indexOfFirst {
+                !it.isLocomotive && it.coachClass != CoachClass.PANTRY_CAR &&
+                it.coachClass != CoachClass.LUGGAGE_BRAKE_VAN &&
+                seatNum <= it.totalSeats
+            }
+            if (candidateIndex >= 0) {
+                highlightedCoachIndex = candidateIndex
+                coroutineScope.launch {
+                    lazyListState.animateScrollToItem((candidateIndex - 1).coerceAtLeast(0))
+                }
             }
         }
     }
@@ -113,63 +135,71 @@ fun CoachPositionVisualizer(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // 1. Title on left, Coaches count & Engine pill on right
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        text = "Train Composition",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isDark) DarkTextPrimary else LightTextPrimary
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                .border(0.5.dp, RailBluePrimary.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
-                                text = "Train Composition",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                text = "${rake.totalCoaches} Coaches",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RailBluePrimary
                             )
-                            Box(
-                                modifier = Modifier
-                                    .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 7.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "${rake.totalCoaches} Coaches",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RailBluePrimary
-                                )
-                            }
                         }
-                        Text(
-                            text = "${rake.trainNumber} • ${rake.trainName}",
-                            fontSize = 12.sp,
-                            color = if (isDark) DarkTextSecondary else LightTextSecondary,
-                            maxLines = 1
-                        )
-                    }
 
-                    // Engine type pill
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) Color(0xFF1E3A8A).copy(alpha = 0.15f)
-                                else Color(0xFFDC2626).copy(alpha = 0.12f),
-                                RoundedCornerShape(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) Color(0xFF1E3A8A).copy(alpha = 0.15f)
+                                    else Color(0xFFDC2626).copy(alpha = 0.12f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    0.5.dp,
+                                    if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) RailBluePrimary.copy(alpha = 0.3f)
+                                    else Color(0xFFDC2626).copy(alpha = 0.25f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) "⚡ EMU 160" else "⚡ ${rake.engineType.split(" ").firstOrNull() ?: "WAP-7"}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) RailBluePrimary else Color(0xFFDC2626)
                             )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) "⚡ EMU 160" else "⚡ WAP-7",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (rake.trainType.contains("Vande Bharat", ignoreCase = true)) RailBluePrimary else Color(0xFFDC2626)
-                        )
+                        }
                     }
                 }
 
-                // Locomotive and direction metadata row
+                // 2. Train Number & Name
+                Text(
+                    text = "${rake.trainNumber} • ${rake.trainName}",
+                    fontSize = 12.sp,
+                    color = if (isDark) DarkTextSecondary else LightTextSecondary,
+                    maxLines = 1
+                )
+
+                // 3. Locomotive & Direction
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -191,51 +221,83 @@ fun CoachPositionVisualizer(
             }
         }
 
-        // ── 2. QUICK COACH SEARCH & CATEGORY FILTER ──────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // ── 2. QUICK COACH OR SEAT SEARCH BAR (iOS Glass Capsule) ─────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (isDark) Color(0xFF1E293B).copy(alpha = 0.75f) else Color.White.copy(alpha = 0.90f),
+                    RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (searchQuery.isNotBlank()) RailBluePrimary
+                           else if (isDark) Color.White.copy(alpha = 0.12f)
+                           else Color.Black.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            // Search Input Field for Quick Coach Jump
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    if (it.isNotBlank()) scrollToCoachCode(it)
-                },
-                placeholder = {
-                    Text("Jump to coach (e.g. B4, E1, S3)", fontSize = 12.sp, color = Color.Gray)
-                },
-                leadingIcon = { Text("🔎", fontSize = 13.sp) },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "🔍",
+                    fontSize = 13.sp,
+                    color = if (searchQuery.isNotBlank()) RailBluePrimary else Color.Gray
+                )
+
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (searchQuery.isEmpty()) {
                         Text(
-                            "✕",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
-                            modifier = Modifier
-                                .clickable {
-                                    searchQuery = ""
-                                    highlightedCoachIndex = null
-                                }
-                                .padding(8.dp)
+                            text = "Search coach or seat (e.g. B4, S1, 42)",
+                            fontSize = 12.5.sp,
+                            color = if (isDark) DarkTextSecondary.copy(alpha = 0.7f) else LightTextSecondary.copy(alpha = 0.7f)
                         )
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = cardBg,
-                    unfocusedContainerColor = cardBg,
-                    focusedBorderColor = RailBluePrimary,
-                    unfocusedBorderColor = cardBorder
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp)
-            )
+
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = {
+                            searchQuery = it
+                            if (it.isNotBlank()) scrollToCoachOrSeat(it)
+                            else highlightedCoachIndex = null
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isDark) DarkTextPrimary else LightTextPrimary
+                        ),
+                        cursorBrush = SolidColor(RailBluePrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (searchQuery.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                            .clickable {
+                                searchQuery = ""
+                                highlightedCoachIndex = null
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✕", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
 
         // Category filter chips: All, AC, Sleeper, General, Pantry
@@ -576,18 +638,76 @@ private fun CoachSeatMapSheetContent(
             AmenityPill("🚪 Emergency Exit", isDark)
         }
 
-        // Search Seat Number (e.g. "Find seat 43")
-        OutlinedTextField(
-            value = seatFilterQuery,
-            onValueChange = { seatFilterQuery = it },
-            placeholder = { Text("Find seat or berth (e.g. 24, 45)...", fontSize = 12.sp) },
-            leadingIcon = { Text("💺", fontSize = 14.sp) },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
+        // Search Seat Number (e.g. "Find seat 43") - iOS Glass Capsule
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-        )
+                .height(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (isDark) Color(0xFF1E293B).copy(alpha = 0.75f) else Color.White.copy(alpha = 0.90f),
+                    RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (seatFilterQuery.isNotBlank()) RailBluePrimary
+                           else if (isDark) Color.White.copy(alpha = 0.12f)
+                           else Color.Black.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "💺",
+                    fontSize = 14.sp
+                )
+
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (seatFilterQuery.isEmpty()) {
+                        Text(
+                            text = "Find seat or berth (e.g. 24, 45)...",
+                            fontSize = 12.5.sp,
+                            color = if (isDark) DarkTextSecondary.copy(alpha = 0.7f) else LightTextSecondary.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    BasicTextField(
+                        value = seatFilterQuery,
+                        onValueChange = { seatFilterQuery = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isDark) DarkTextPrimary else LightTextPrimary
+                        ),
+                        cursorBrush = SolidColor(RailBluePrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (seatFilterQuery.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                            .clickable { seatFilterQuery = "" },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✕", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
 
         // Berth Type Legend
         Row(

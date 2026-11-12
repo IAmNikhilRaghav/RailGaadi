@@ -164,6 +164,16 @@ object TrainTrackerState {
         }
     }
 
+    fun clearActiveTrain() {
+        activeTrain = Train("", "", "", "", "", "", "", 0, "")
+        liveStatus = null
+        searchQuery = ""
+        isSearchDropdownOpen = false
+        searchResults = emptyList()
+        selectedWeatherStationName = null
+        autoRefreshJob?.cancel()
+    }
+
     fun selectTrain(train: Train, boardingStationInput: String? = null) {
         if (train.number.isBlank()) return   // guard: no-op for empty placeholder train
         activeTrain = train

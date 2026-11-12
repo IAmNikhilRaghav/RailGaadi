@@ -670,3 +670,4 @@ object CoachDataService {
         return seats
     }
 }
+

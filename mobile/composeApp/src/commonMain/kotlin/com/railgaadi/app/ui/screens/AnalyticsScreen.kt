@@ -574,7 +574,8 @@ fun AnalyticsScreen(
                             // Summary Badges: Station Count, Delay, Distance
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Delay Status Pill
                                 val (statusText, statusBg, statusColor) = when {
@@ -585,30 +586,39 @@ fun AnalyticsScreen(
 
                                 Box(
                                     modifier = Modifier
+                                        .weight(1f)
                                         .background(statusBg, RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .border(0.5.dp, statusColor.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(statusText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                                    Text(statusText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = statusColor, maxLines = 1)
                                 }
 
                                 // Total Distance
                                 if (totalKm > 0) {
                                     Box(
                                         modifier = Modifier
+                                            .weight(1f)
                                             .background(if (isDark) DarkBackground else Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                            .border(0.5.dp, if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 6.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text("📏 $totalKm km total", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (isDark) DarkTextPrimary else LightTextPrimary)
+                                        Text("$totalKm km total", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (isDark) DarkTextPrimary else LightTextPrimary, maxLines = 1)
                                     }
                                 }
 
                                 // Current Speed
                                 Box(
                                     modifier = Modifier
+                                        .weight(1f)
                                         .background(if (isDark) DarkBackground else Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .border(0.5.dp, if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text("⚡ ${liveStatus?.speedKmh ?: 0} km/h", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                    Text("${liveStatus?.speedKmh ?: 0} km/h", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary, maxLines = 1)
                                 }
                             }
                         }
@@ -625,88 +635,93 @@ fun AnalyticsScreen(
                             .padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Header with Title & View Switcher
+                        // Full-Width iOS Segmented Control: Track | Timetable | Coach
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isDark) Color(0xFF1E293B).copy(alpha = 0.85f) else Color(0xFFF1F5F9),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Full Journey Timeline",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDark) DarkTextPrimary else LightTextPrimary
-                            )
-
-                            // Switcher: Overview (WIMT) vs Timetable (Table) vs Coach Position
-                            Row(
+                            // 1. TRACK TAB
+                            Box(
                                 modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(9.dp))
                                     .background(
-                                        if (isDark) DarkSurface else Color(0xFFE2E8F0),
-                                        RoundedCornerShape(8.dp)
+                                        if (viewMode == TimelineViewMode.WIMT) RailBluePrimary else Color.Transparent
                                     )
-                                    .padding(2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .clickable { viewMode = TimelineViewMode.WIMT },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { viewMode = TimelineViewMode.WIMT }
-                                        .background(
-                                            if (viewMode == TimelineViewMode.WIMT) RailBluePrimary else Color.Transparent
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "Track",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (viewMode == TimelineViewMode.WIMT) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
-                                    )
-                                }
+                                Text(
+                                    text = "Track",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (viewMode == TimelineViewMode.WIMT) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    color = if (viewMode == TimelineViewMode.WIMT) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
 
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { viewMode = TimelineViewMode.TABLE }
-                                        .background(
-                                            if (viewMode == TimelineViewMode.TABLE) RailBluePrimary else Color.Transparent
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "Timetable",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (viewMode == TimelineViewMode.TABLE) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
+                            // 2. TIMETABLE TAB
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(
+                                        if (viewMode == TimelineViewMode.TABLE) RailBluePrimary else Color.Transparent
                                     )
-                                }
+                                    .clickable { viewMode = TimelineViewMode.TABLE },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Timetable",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (viewMode == TimelineViewMode.TABLE) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    color = if (viewMode == TimelineViewMode.TABLE) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
 
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { viewMode = TimelineViewMode.COACH }
-                                        .background(
-                                            if (viewMode == TimelineViewMode.COACH) RailBluePrimary else Color.Transparent
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                            // 3. COACH TAB
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(
+                                        if (viewMode == TimelineViewMode.COACH) RailBluePrimary else Color.Transparent
+                                    )
+                                    .clickable { viewMode = TimelineViewMode.COACH },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        VectorCoachIcon(
-                                            isActive = viewMode == TimelineViewMode.COACH,
-                                            iconSize = 13.dp
-                                        )
-                                        Text(
-                                            text = "Coach",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (viewMode == TimelineViewMode.COACH) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
-                                        )
-                                    }
+                                    VectorCoachIcon(
+                                        isActive = viewMode == TimelineViewMode.COACH,
+                                        iconSize = 13.dp
+                                    )
+                                    Text(
+                                        text = "Coach",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (viewMode == TimelineViewMode.COACH) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                        color = if (viewMode == TimelineViewMode.COACH) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
                         }
@@ -1278,37 +1293,12 @@ fun AnalyticsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        text = "Speed Velocity Profile",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = if (isDark) DarkTextPrimary else LightTextPrimary
-                                    )
-                                    Text(
-                                        text = "Continuous speed telemetry & acceleration zones",
-                                        fontSize = 11.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = when {
-                                            currentSpeed >= 100 -> "🚀 High-Speed Express"
-                                            currentSpeed >= 60 -> "⚡ Normal Cruising"
-                                            currentSpeed > 0 -> "⚠️ Deceleration Zone"
-                                            else -> "🛑 Platform Halt"
-                                        },
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = RailBluePrimary
-                                    )
-                                }
+                                Text(
+                                    text = "Speed Velocity Profile",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                )
                             }
 
                             Row(
@@ -1318,19 +1308,16 @@ fun AnalyticsScreen(
                                 MetricBox(
                                     title = "Live Speed",
                                     value = "$currentSpeed km/h",
-                                    icon = "⚡",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
                                     title = "Top Speed",
                                     value = "$topSpeed km/h",
-                                    icon = "🚀",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
                                     title = "Avg Speed",
                                     value = "$avgSpeed km/h",
-                                    icon = "⏱️",
                                     modifier = Modifier.weight(1f)
                                 )
                             }

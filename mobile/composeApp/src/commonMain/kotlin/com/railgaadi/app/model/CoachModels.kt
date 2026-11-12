@@ -69,3 +69,4 @@ data class TrainRakeComposition(
     val direction: String = "Engine at Front",
     val coaches: List<CoachPosition>
 )
+
