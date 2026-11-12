@@ -16,8 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,6 +103,8 @@ fun DestinationAlarmModal(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -357,86 +367,53 @@ fun DestinationAlarmModal(
                                 else (if (isDark) DarkBackground else Color(0xFFF8FAFC))
                             )
                             .border(
-                                1.dp,
-                                if (isManualDistance) RailBluePrimary else cardBorder,
-                                RoundedCornerShape(12.dp)
+                                width = if (isManualDistance) 1.5.dp else 1.dp,
+                                color = if (isManualDistance) RailBluePrimary else cardBorder,
+                                shape = RoundedCornerShape(12.dp)
                             )
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .clickable { isManualDistance = true }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("✏️", fontSize = 15.sp)
+                            Text("✏️", fontSize = 16.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Manual Distance",
-                                    fontSize = 12.sp,
+                                    text = "Custom Distance",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isManualDistance) RailBluePrimary else textPrimary
                                 )
                                 Text(
-                                    text = "Custom distance in kilometers",
-                                    fontSize = 10.sp,
+                                    text = "Enter any distance (1 - 999 km)",
+                                    fontSize = 11.sp,
                                     color = textSecondary
                                 )
                             }
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = manualDistanceInput,
-                                onValueChange = { raw ->
-                                    // Strictly deny any unexpected identifier or non-numeric character
-                                    val digitsOnly = raw.filter { it.isDigit() }
-                                    if (digitsOnly.length <= 3) {
-                                        manualDistanceInput = digitsOnly
-                                        isManualDistance = true
-                                        val parsed = digitsOnly.toDoubleOrNull()
-                                        if (parsed != null && parsed > 0) {
-                                            triggerDistanceKm = parsed
-                                        }
-                                    }
-                                },
-                                placeholder = {
-                                    Text(
-                                        text = if (isManualDistance && triggerDistanceKm > 0) "${triggerDistanceKm.toInt()}" else "e.g. 8",
-                                        fontSize = 12.sp,
-                                        color = textSecondary.copy(alpha = 0.6f)
-                                    )
-                                },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                textStyle = LocalTextStyle.current.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = if (isDark) DarkSurface else Color.White,
-                                    unfocusedContainerColor = if (isDark) DarkSurface else Color.White,
-                                    focusedBorderColor = RailBluePrimary,
-                                    unfocusedBorderColor = cardBorder
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .width(82.dp)
-                                    .height(46.dp)
-                            )
-                            Text(
-                                text = "km",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isManualDistance) RailBluePrimary else textSecondary
-                            )
-                        }
+                        MinimalNumberInput(
+                            value = manualDistanceInput,
+                            onValueChange = { digits ->
+                                manualDistanceInput = digits
+                                isManualDistance = true
+                                val parsed = digits.toDoubleOrNull()
+                                if (parsed != null && parsed > 0) {
+                                    triggerDistanceKm = parsed
+                                }
+                            },
+                            placeholder = "0",
+                            suffix = "km",
+                            isActive = isManualDistance,
+                            onActivate = { isManualDistance = true },
+                            isDark = isDark,
+                            cardBorder = cardBorder
+                        )
                     }
 
                     Text(
@@ -486,86 +463,53 @@ fun DestinationAlarmModal(
                                 else (if (isDark) DarkBackground else Color(0xFFF8FAFC))
                             )
                             .border(
-                                1.dp,
-                                if (isManualMinutes) RailBluePrimary else cardBorder,
-                                RoundedCornerShape(12.dp)
+                                width = if (isManualMinutes) 1.5.dp else 1.dp,
+                                color = if (isManualMinutes) RailBluePrimary else cardBorder,
+                                shape = RoundedCornerShape(12.dp)
                             )
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .clickable { isManualMinutes = true }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("⏱️", fontSize = 15.sp)
+                            Text("⏱️", fontSize = 16.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Manual Time",
-                                    fontSize = 12.sp,
+                                    text = "Custom Time",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isManualMinutes) RailBluePrimary else textPrimary
                                 )
                                 Text(
-                                    text = "Custom time in minutes before halt",
-                                    fontSize = 10.sp,
+                                    text = "Enter minutes before arrival",
+                                    fontSize = 11.sp,
                                     color = textSecondary
                                 )
                             }
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = manualMinutesInput,
-                                onValueChange = { raw ->
-                                    // Strictly deny any unexpected identifier or non-numeric character
-                                    val digitsOnly = raw.filter { it.isDigit() }
-                                    if (digitsOnly.length <= 3) {
-                                        manualMinutesInput = digitsOnly
-                                        isManualMinutes = true
-                                        val parsed = digitsOnly.toIntOrNull()
-                                        if (parsed != null && parsed > 0) {
-                                            triggerMinutesBefore = parsed
-                                        }
-                                    }
-                                },
-                                placeholder = {
-                                    Text(
-                                        text = if (isManualMinutes && triggerMinutesBefore > 0) "$triggerMinutesBefore" else "e.g. 25",
-                                        fontSize = 12.sp,
-                                        color = textSecondary.copy(alpha = 0.6f)
-                                    )
-                                },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                textStyle = LocalTextStyle.current.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = if (isDark) DarkSurface else Color.White,
-                                    unfocusedContainerColor = if (isDark) DarkSurface else Color.White,
-                                    focusedBorderColor = RailBluePrimary,
-                                    unfocusedBorderColor = cardBorder
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .width(82.dp)
-                                    .height(46.dp)
-                            )
-                            Text(
-                                text = "min",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isManualMinutes) RailBluePrimary else textSecondary
-                            )
-                        }
+                        MinimalNumberInput(
+                            value = manualMinutesInput,
+                            onValueChange = { digits ->
+                                manualMinutesInput = digits
+                                isManualMinutes = true
+                                val parsed = digits.toIntOrNull()
+                                if (parsed != null && parsed > 0) {
+                                    triggerMinutesBefore = parsed
+                                }
+                            },
+                            placeholder = "0",
+                            suffix = "min",
+                            isActive = isManualMinutes,
+                            onActivate = { isManualMinutes = true },
+                            isDark = isDark,
+                            cardBorder = cardBorder
+                        )
                     }
 
                     Text(
@@ -739,5 +683,85 @@ fun DestinationAlarmModal(
                 Spacer(modifier = Modifier.height(6.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun MinimalNumberInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    suffix: String,
+    isActive: Boolean,
+    onActivate: () -> Unit,
+    isDark: Boolean,
+    cardBorder: Color,
+    modifier: Modifier = Modifier
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isDark) DarkSurface else Color.White)
+            .border(
+                width = if (isActive) 1.5.dp else 1.dp,
+                color = if (isActive) RailBluePrimary else cardBorder,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable { onActivate() }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = { raw ->
+                onActivate()
+                val digits = raw.filter { it.isDigit() }
+                if (digits.length <= 3) {
+                    onValueChange(digits)
+                }
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = { keyboardController?.hide() }
+            ),
+            textStyle = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isDark) DarkTextPrimary else LightTextPrimary,
+                textAlign = TextAlign.Center
+            ),
+            cursorBrush = SolidColor(RailBluePrimary),
+            modifier = Modifier.width(46.dp),
+            decorationBox = { innerTextField ->
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isDark) DarkTextSecondary.copy(alpha = 0.5f) else LightTextSecondary.copy(alpha = 0.5f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = suffix,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isActive) RailBluePrimary else (if (isDark) DarkTextSecondary else LightTextSecondary)
+        )
     }
 }
