@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.railgaadi.app.model.AlarmTone
@@ -89,6 +90,7 @@ fun DestinationAlarmModal(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -100,29 +102,43 @@ fun DestinationAlarmModal(
                     ) {
                         Text("⏰", fontSize = 19.sp)
                     }
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Destination Wake-Up Alarm",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = textPrimary
+                            color = textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "GPS geofence alerts you even in sleep mode",
                             fontSize = 12.sp,
-                            color = textSecondary
+                            color = textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
                 if (existingAlarm?.isArmed == true) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
+                            .wrapContentWidth()
                             .background(RailGreenOnTime.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
                             .border(1.dp, RailGreenOnTime.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("● ARMED", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                        Text(
+                            text = "● ARMED",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = RailGreenOnTime,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }
@@ -155,30 +171,38 @@ fun DestinationAlarmModal(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text("🚉", fontSize = 20.sp)
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = selectedStation.name,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = textPrimary
+                                    color = textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "Code: ${selectedStation.code} • Platform ${selectedStation.platform.ifBlank { "—" }}",
                                     fontSize = 12.sp,
-                                    color = textSecondary
+                                    color = textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Text(
                             text = if (isStationPickerOpen) "▲ Change" else "▼ Change",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = RailBluePrimary
+                            color = RailBluePrimary,
+                            maxLines = 1
                         )
                     }
                 }
@@ -389,15 +413,17 @@ fun DestinationAlarmModal(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("🗣️", fontSize = 16.sp)
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Station Voice Announcement", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                             Text("IR-style speaker announcement", fontSize = 11.sp, color = textSecondary)
                         }
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Switch(
                         checked = voiceAnnouncement,
                         onCheckedChange = { voiceAnnouncement = it },
@@ -411,15 +437,17 @@ fun DestinationAlarmModal(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("📳", fontSize = 16.sp)
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Continuous Vibration", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                             Text("Haptic pulses while phone is in pocket", fontSize = 11.sp, color = textSecondary)
                         }
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Switch(
                         checked = vibrate,
                         onCheckedChange = { vibrate = it },
