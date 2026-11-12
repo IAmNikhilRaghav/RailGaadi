@@ -11,6 +11,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -304,46 +306,89 @@ fun WeatherScreen() {
                             ) {
                                 Text(
                                     "${w.temperature.roundToInt()}°C",
-                                    fontSize = 42.sp,
+                                    fontSize = 44.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = textPrimary
+                                    color = textPrimary,
+                                    letterSpacing = (-1).sp
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(12.dp))
                                 Column(
                                     verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    modifier = Modifier.padding(top = 6.dp)
                                 ) {
-                                    Text(w.condition, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
+                                    Text(w.condition, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
                                     Text("Feels like ${w.apparentTemperature.roundToInt()}°C", fontSize = 11.sp, color = textSecondary)
                                 }
-                            }
-
-                            HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceAround
-                            ) {
-                                WeatherMetricChip("💧", "Humidity", "${w.humidityPercent}%", textPrimary, textSecondary)
-                                WeatherMetricChip("💨", "Wind", "${w.windKmh.roundToInt()} km/h", textPrimary, textSecondary)
-                                WeatherMetricChip("👁️", "Visibility", "${w.visibilityKm.formatDecimals(1)} km", textPrimary, textSecondary)
-                                // Rain probability comes from hourly block; cloud cover from current
-                                WeatherMetricChip("🌧️", "Rain", "${w.rainProbability}%", textPrimary, textSecondary)
                             }
                         }
 
                         Text(
                             if (w.lastUpdatedTime.isNotBlank())
-                                "Source: Open-Meteo (ECMWF) · Updated ${w.lastUpdatedTime}"
+                                "Source: Open-Meteo (ECMWF) · Observed ${w.lastUpdatedTime}"
                             else
-                                "Source: Open-Meteo (ECMWF) · Updated live",
+                                "Source: Open-Meteo (ECMWF) · Observed live",
                             fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                         )
                     }
                 }
             }
 
-            // ── Live AQI Card ────────────────────────────────────
+            // ── Apple Weather 2x2 Metrics Grid (Wind, Humidity, Visibility, Precipitation) ──
+            if (w.weatherFetchOk) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            AppleWeatherMetricTile(
+                                icon = "💨",
+                                title = "Wind",
+                                value = "${w.windKmh.roundToInt()} km/h",
+                                subtitle = if (w.windGustsKmh > w.windKmh + 2.0) "Gusts up to ${w.windGustsKmh.roundToInt()} km/h." else "Gentle ambient airflow.",
+                                extra = "${w.windDirectionCardinal} · ${w.windDirectionDeg}°",
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AppleWeatherMetricTile(
+                                icon = "💧",
+                                title = "Humidity",
+                                value = "${w.humidityPercent}%",
+                                subtitle = w.humiditySummary,
+                                extra = "Dew Point: ${w.dewPointC.roundToInt()}°C",
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            AppleWeatherMetricTile(
+                                icon = "👁️",
+                                title = "Visibility",
+                                value = "${w.visibilityKm.formatDecimals(1)} km",
+                                subtitle = w.visibilitySummary,
+                                extra = if (w.isFogAdvisory) "⚠️ Low Visibility" else "Clear View",
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AppleWeatherMetricTile(
+                                icon = "🌧️",
+                                title = "Precipitation",
+                                value = "${w.precipitationMm} mm",
+                                subtitle = w.precipitationSummary,
+                                extra = "${w.rainProbability}% chance",
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Live AQI Card (Apple Weather Style with CPCB NAQI) ──────────────────────────
             item {
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -360,7 +405,33 @@ fun WeatherScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("💨 Air Quality Index", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("🍃", fontSize = 14.sp)
+                                Text(
+                                    "AIR QUALITY",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = textSecondary,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(RailBluePrimary.copy(alpha = 0.10f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "CPCB NAQI",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = RailBluePrimary
+                                )
+                            }
                         }
 
                         if (!w.aqiFetchOk || w.aqiValue == null) {
@@ -383,42 +454,63 @@ fun WeatherScreen() {
                                 }
                             }
                         } else {
-                            // Big AQI number
+                            // Big AQI number + Category
                             Row(
                                 verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Text(
                                     "${w.aqiValue}",
-                                    fontSize = 48.sp,
+                                    fontSize = 50.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(w.aqiCategory.colorHex)
+                                    color = Color(w.aqiCategory.colorHex),
+                                    letterSpacing = (-1).sp
                                 )
                                 Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                    Text(w.aqiStandard, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
                                     Text(
                                         "${w.aqiCategory.emoji} ${w.aqiCategory.label}",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
                                         color = Color(w.aqiCategory.colorHex)
+                                    )
+                                    Text(
+                                        "National Air Quality Index (India)",
+                                        fontSize = 10.sp,
+                                        color = textSecondary
                                     )
                                 }
                             }
 
-                            // AQI scale bar (CPCB 6-tier: 0-50, 51-100, 101-200, 201-300, 301-400, 401-500)
+                            // Apple Weather-style CPCB Scale Bar
                             AqiScaleBar(w.aqiValue ?: 0, isDark)
+
+                            // Apple-style CPCB health advisory statement
+                            Text(
+                                text = w.cpcbHealthAdvice,
+                                fontSize = 11.sp,
+                                color = textPrimary,
+                                lineHeight = 15.sp
+                            )
 
                             HorizontalDivider(color = border.copy(alpha = 0.5f), thickness = 0.5.dp)
 
                             // Pollutant breakdown
+                            Text(
+                                text = "POLLUTANT CONCENTRATIONS (CPCB)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textSecondary,
+                                letterSpacing = 0.5.sp
+                            )
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceAround
                             ) {
-                                if (w.pm25 != null) PollutantChip("PM2.5", "${w.pm25.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
-                                if (w.pm10 != null) PollutantChip("PM10", "${w.pm10.formatDecimals(0)} µg/m³", textPrimary, textSecondary)
-                                if (w.no2 != null) PollutantChip("NO₂", "${w.no2.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
-                                if (w.so2 != null) PollutantChip("SO₂", "${w.so2.formatDecimals(1)} µg/m³", textPrimary, textSecondary)
+                                if (w.pm25 != null) PollutantChip("PM2.5", "${w.pm25.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "PM2.5", textPrimary = textPrimary, textSecondary = textSecondary)
+                                if (w.pm10 != null) PollutantChip("PM10", "${w.pm10.formatDecimals(0)} µg/m³", isDominant = w.dominantPollutant == "PM10", textPrimary = textPrimary, textSecondary = textSecondary)
+                                if (w.no2 != null) PollutantChip("NO₂", "${w.no2.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "NO₂", textPrimary = textPrimary, textSecondary = textSecondary)
+                                if (w.so2 != null) PollutantChip("SO₂", "${w.so2.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "SO₂", textPrimary = textPrimary, textSecondary = textSecondary)
                             }
 
                             if (w.co != null || w.o3 != null || !w.dominantPollutant.isNullOrBlank()) {
@@ -427,15 +519,15 @@ fun WeatherScreen() {
                                     horizontalArrangement = Arrangement.SpaceAround,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (w.co != null) PollutantChip("CO (8h)", "${w.co.formatDecimals(2)} mg/m³", textPrimary, textSecondary)
-                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${w.o3.formatDecimals(0)} µg/m³", textPrimary, textSecondary)
+                                    if (w.co != null) PollutantChip("CO (8h)", "${w.co.formatDecimals(2)} mg/m³", isDominant = w.dominantPollutant == "CO", textPrimary = textPrimary, textSecondary = textSecondary)
+                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${w.o3.formatDecimals(0)} µg/m³", isDominant = w.dominantPollutant == "O₃", textPrimary = textPrimary, textSecondary = textSecondary)
                                     if (!w.dominantPollutant.isNullOrBlank()) {
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
-                                            Text(w.dominantPollutant, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
-                                            Text("Dominant", fontSize = 9.sp, color = textSecondary)
+                                            Text(w.dominantPollutant ?: "", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                            Text("Primary", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
                                         }
                                     }
                                 }
@@ -443,7 +535,7 @@ fun WeatherScreen() {
 
                             // Source + monitoring station transparency row
                             Text(
-                                "Source: CPCB NAQI Standard · Copernicus CAMS via Open-Meteo",
+                                "Standard: Central Pollution Control Board (CPCB) NAQI · Copernicus CAMS via ECMWF",
                                 fontSize = 9.sp, color = textSecondary.copy(alpha = 0.6f)
                             )
 
@@ -558,10 +650,87 @@ fun WeatherScreen() {
 // ── Supporting Composables ────────────────────────────────────────
 
 @Composable
-private fun WeatherMetricChip(
+private fun AppleWeatherMetricTile(
     icon: String,
+    title: String,
+    value: String,
+    subtitle: String,
+    extra: String? = null,
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val bg = if (isDark) Color(0xFF1E293B).copy(alpha = 0.55f) else Color(0xFFF1F5F9).copy(alpha = 0.70f)
+    val border = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+    val textPrimary = if (isDark) DarkTextPrimary else LightTextPrimary
+    val textSecondary = if (isDark) DarkTextSecondary else LightTextSecondary
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = bg),
+        border = BorderStroke(1.dp, border),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Header: Icon + Small uppercase title
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(icon, fontSize = 13.sp)
+                Text(
+                    text = title.uppercase(),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSecondary
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Main value
+            Text(
+                text = value,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary,
+                letterSpacing = (-0.5).sp
+            )
+
+            if (!extra.isNullOrBlank()) {
+                Text(
+                    text = extra,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = RailBluePrimary
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Apple descriptive subtitle
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                color = textSecondary,
+                lineHeight = 13.sp,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun PollutantChip(
     label: String,
     value: String,
+    isDominant: Boolean = false,
     textPrimary: Color,
     textSecondary: Color
 ) {
@@ -569,20 +738,21 @@ private fun WeatherMetricChip(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(icon, fontSize = 18.sp)
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-        Text(label, fontSize = 9.sp, color = textSecondary)
-    }
-}
-
-@Composable
-private fun PollutantChip(label: String, value: String, textPrimary: Color, textSecondary: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-        Text(label, fontSize = 9.sp, color = textSecondary)
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isDominant) RailBluePrimary else textPrimary
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(label, fontSize = 9.sp, color = textSecondary)
+            if (isDominant) {
+                Text("★", fontSize = 8.sp, color = RailBluePrimary)
+            }
+        }
     }
 }
 
@@ -605,50 +775,59 @@ private fun AqiBadge(category: AqiCategory) {
 
 @Composable
 private fun AqiScaleBar(aqi: Int, isDark: Boolean) {
-    val segments = listOf(
-        50  to Color(0xFF16A34A),   // 0-50   Good          → Green
-        100 to Color(0xFF84CC16),  // 51-100 Satisfactory  → Parrot Green
-        200 to Color(0xFFEAB308),  // 101-200 Moderate     → Yellow
-        300 to Color(0xFFF97316),  // 201-300 Poor         → Orange
-        400 to Color(0xFFEF4444),  // 301-400 Very Poor    → Red
-        500 to Color(0xFF7F1D1D)   // 401-500 Severe       → Maroon
-    )
     val maxAqi = 500
     val clampedAqi = aqi.coerceIn(0, maxAqi)
+    val indicatorFraction = clampedAqi.toFloat() / maxAqi
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .height(18.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            segments.forEachIndexed { i, (limit, color) ->
-                val prevLimit = if (i == 0) 0 else segments[i - 1].first
-                val segWeight = (limit - prevLimit).toFloat() / maxAqi
-                Box(
-                    modifier = Modifier
-                        .weight(segWeight)
-                        .fillMaxHeight()
-                        .background(color)
-                )
-            }
-        }
-        // Indicator dot
-        val indicatorFraction = clampedAqi.toFloat() / maxAqi
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.weight(indicatorFraction.coerceAtLeast(0.01f)))
+            val totalWidth = maxWidth
+
+            // 1. Apple-style continuous multi-color gradient track
             Box(
                 modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (isDark) DarkTextPrimary else LightTextPrimary)
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF16A34A), // Good (0-50)
+                                Color(0xFF84CC16), // Satisfactory (51-100)
+                                Color(0xFFEAB308), // Moderate (101-200)
+                                Color(0xFFF97316), // Poor (201-300)
+                                Color(0xFFEF4444), // Very Poor (301-400)
+                                Color(0xFF7F1D1D)  // Severe (401-500)
+                            )
+                        )
+                    )
             )
-            Spacer(modifier = Modifier.weight((1f - indicatorFraction).coerceAtLeast(0.01f)))
+
+            // 2. Apple-style circular indicator thumb with ring
+            val thumbOffset = (totalWidth - 14.dp) * indicatorFraction
+            Box(
+                modifier = Modifier
+                    .offset(x = thumbOffset)
+                    .size(14.dp)
+                    .background(Color.White, CircleShape)
+                    .border(2.5.dp, Color(0xFF1E293B), CircleShape)
+            )
         }
+
+        // Breakpoint labels
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("0", "50", "100", "200", "300", "400", "500").forEach { label ->
-                Text(label, fontSize = 8.sp, color = if (isDark) DarkTextSecondary else LightTextSecondary)
+                Text(
+                    text = label,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isDark) DarkTextSecondary else LightTextSecondary
+                )
             }
         }
     }

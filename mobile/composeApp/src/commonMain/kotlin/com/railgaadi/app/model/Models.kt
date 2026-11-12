@@ -87,6 +87,10 @@ data class StationWeatherData(
     val condition: String = "Clear Sky",
     val conditionIcon: String = "☀️",
     val windKmh: Double = 12.0,
+    val windDirectionDeg: Int = 0,
+    val windGustsKmh: Double = 0.0,
+    val dewPointC: Double = 15.0,
+    val precipitationMm: Double = 0.0,
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
     val rainProbability: Int = 0,       // from hourly precipitation_probability (not current)
@@ -114,7 +118,7 @@ data class StationWeatherData(
     // CPCB NAQI: use max(sub-index) — cpcbAqi is preferred over usAqi
     val aqiValue: Int? get() = cpcbAqi ?: usAqi
 
-    // Official Indian CPCB / CAQM 6-tier classification
+    // Official Indian CPCB / CAQM 6-tier classification (same standard used by Apple Weather in India)
     val aqiCategory: AqiCategory get() = when {
         aqiValue == null    -> AqiCategory.UNKNOWN
         aqiValue!! <= 50    -> AqiCategory.GOOD          // 0-50   Green
@@ -126,6 +130,41 @@ data class StationWeatherData(
     }
     val isFogAdvisory: Boolean get() = visibilityKm < 1.5 || condition.contains("Fog", ignoreCase = true)
     val isSmogAdvisory: Boolean get() = (aqiValue ?: 0) > 200
+
+    val windDirectionCardinal: String get() {
+        val directions = listOf("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+        val idx = (((windDirectionDeg % 360) + 11.25) / 22.5).toInt() % 16
+        return directions[idx]
+    }
+    val windSummary: String get() {
+        val gusts = if (windGustsKmh > windKmh + 2.0) " · Gusts ${windGustsKmh.toInt()} km/h" else ""
+        return "$windDirectionCardinal ($windDirectionDeg°) · ${windKmh.toInt()} km/h$gusts"
+    }
+    val humiditySummary: String get() {
+        return "The dew point is ${dewPointC.toInt()}°C right now."
+    }
+    val visibilitySummary: String get() = when {
+        visibilityKm >= 10.0 -> "Perfectly clear view."
+        visibilityKm >= 6.0  -> "Good visibility · Slight haze."
+        visibilityKm >= 3.0  -> "Haze is affecting visibility."
+        visibilityKm >= 1.0  -> "Moderate fog or smog."
+        else                 -> "Dense fog · Severe visibility hazard."
+    }
+    val precipitationSummary: String get() = when {
+        precipitationMm > 0.0 -> "$precipitationMm mm falling now · $rainProbability% chance"
+        rainProbability > 50  -> "$rainProbability% chance of rain expected today"
+        rainProbability > 20  -> "$rainProbability% slight chance of showers"
+        else                  -> "0 mm in last 24h · None expected"
+    }
+    val cpcbHealthAdvice: String get() = when (aqiCategory) {
+        AqiCategory.GOOD         -> "Air quality is Good. Minimal health impact; ideal for all outdoor travel."
+        AqiCategory.SATISFACTORY -> "Air quality is Satisfactory. Minor breathing discomfort to sensitive individuals."
+        AqiCategory.MODERATE     -> "Air quality is Moderate. May cause breathing discomfort to people with asthma or heart ailments."
+        AqiCategory.POOR         -> "Air quality is Poor. Breathing discomfort likely on prolonged exposure; limit outdoor exertion."
+        AqiCategory.VERY_POOR    -> "Air quality is Very Poor. Respiratory illness possible on prolonged exposure; N95 mask recommended."
+        AqiCategory.SEVERE       -> "Air quality is Severe! Serious health impact on healthy people. Stay indoors where possible."
+        AqiCategory.UNKNOWN      -> "Air quality data currently unavailable for this corridor."
+    }
 }
 
 // Official Indian CPCB / CAQM 6-tier AQI classification

@@ -40,9 +40,12 @@ data class OpenMeteoCurrent(
     @SerialName("temperature_2m") val temperature: Double = 28.0,
     @SerialName("apparent_temperature") val apparentTemperature: Double = 28.0,
     @SerialName("relative_humidity_2m") val humidity: Int = 60,
+    @SerialName("dew_point_2m") val dewPoint: Double? = null,
     @SerialName("precipitation") val precipitation: Double = 0.0,
     @SerialName("weather_code") val weatherCode: Int = 1,
     @SerialName("wind_speed_10m") val windSpeed: Double = 12.0,
+    @SerialName("wind_direction_10m") val windDirection: Int = 0,
+    @SerialName("wind_gusts_10m") val windGusts: Double = 0.0,
     @SerialName("visibility") val visibilityMeters: Double = 10000.0,
     @SerialName("cloud_cover") val cloudCover: Int = 0,
     @SerialName("time") val time: String? = null
@@ -98,6 +101,10 @@ data class StationWeather(
     val condition: String,
     val icon: String,
     val windKmh: Double,
+    val windDirectionDeg: Int = 0,
+    val windGustsKmh: Double = 0.0,
+    val dewPointC: Double = 15.0,
+    val precipitationMm: Double = 0.0,
     val humidityPercent: Int = 60,
     val visibilityKm: Double = 10.0,
     val rainProbability: Int = 0,      // from hourly[0] precipitation_probability
@@ -113,68 +120,69 @@ data class StationWeather(
 object CpcbAqiCalculator {
     private data class Breakpoint(val cLo: Double, val cHi: Double, val iLo: Int, val iHi: Int)
 
-    // CPCB official breakpoints (Indian Standard IS 5182 / NAQI 2014)
+    // CPCB official breakpoints (Indian Standard IS 5182 / NAQI 2014) - Contiguous scale
     private val PM25_BREAKPOINTS = listOf(
         Breakpoint(0.0, 30.0, 0, 50),
-        Breakpoint(30.1, 60.0, 51, 100),
-        Breakpoint(60.1, 90.0, 101, 200),
-        Breakpoint(90.1, 120.0, 201, 300),
-        Breakpoint(120.1, 250.0, 301, 400),
-        Breakpoint(250.1, 380.0, 401, 500)
+        Breakpoint(30.0, 60.0, 51, 100),
+        Breakpoint(60.0, 90.0, 101, 200),
+        Breakpoint(90.0, 120.0, 201, 300),
+        Breakpoint(120.0, 250.0, 301, 400),
+        Breakpoint(250.0, 380.0, 401, 500)
     )
 
     private val PM10_BREAKPOINTS = listOf(
         Breakpoint(0.0, 50.0, 0, 50),
-        Breakpoint(50.1, 100.0, 51, 100),
-        Breakpoint(100.1, 250.0, 101, 200),
-        Breakpoint(250.1, 350.0, 201, 300),
-        Breakpoint(350.1, 430.0, 301, 400),
-        Breakpoint(430.1, 500.0, 401, 500)
+        Breakpoint(50.0, 100.0, 51, 100),
+        Breakpoint(100.0, 250.0, 101, 200),
+        Breakpoint(250.0, 350.0, 201, 300),
+        Breakpoint(350.0, 430.0, 301, 400),
+        Breakpoint(430.0, 500.0, 401, 500)
     )
 
     private val NO2_BREAKPOINTS = listOf(
         Breakpoint(0.0, 40.0, 0, 50),
-        Breakpoint(40.1, 80.0, 51, 100),
-        Breakpoint(80.1, 180.0, 101, 200),
-        Breakpoint(180.1, 280.0, 201, 300),
-        Breakpoint(280.1, 400.0, 301, 400),
-        Breakpoint(400.1, 500.0, 401, 500)
+        Breakpoint(40.0, 80.0, 51, 100),
+        Breakpoint(80.0, 180.0, 101, 200),
+        Breakpoint(180.0, 280.0, 201, 300),
+        Breakpoint(280.0, 400.0, 301, 400),
+        Breakpoint(400.0, 500.0, 401, 500)
     )
 
     private val SO2_BREAKPOINTS = listOf(
         Breakpoint(0.0, 40.0, 0, 50),
-        Breakpoint(40.1, 80.0, 51, 100),
-        Breakpoint(80.1, 380.0, 101, 200),
-        Breakpoint(380.1, 800.0, 201, 300),
-        Breakpoint(800.1, 1600.0, 301, 400),
-        Breakpoint(1600.1, 2000.0, 401, 500)
+        Breakpoint(40.0, 80.0, 51, 100),
+        Breakpoint(80.0, 380.0, 101, 200),
+        Breakpoint(380.0, 800.0, 201, 300),
+        Breakpoint(800.0, 1600.0, 301, 400),
+        Breakpoint(1600.0, 2000.0, 401, 500)
     )
 
     // CO: CPCB standard in mg/m³ (8-hour averaging period)
     private val CO_BREAKPOINTS = listOf(
         Breakpoint(0.0, 1.0, 0, 50),
-        Breakpoint(1.01, 2.0, 51, 100),
-        Breakpoint(2.01, 10.0, 101, 200),
-        Breakpoint(10.01, 17.0, 201, 300),
-        Breakpoint(17.01, 34.0, 301, 400),
-        Breakpoint(34.01, 50.0, 401, 500)
+        Breakpoint(1.0, 2.0, 51, 100),
+        Breakpoint(2.0, 10.0, 101, 200),
+        Breakpoint(10.0, 17.0, 201, 300),
+        Breakpoint(17.0, 34.0, 301, 400),
+        Breakpoint(34.0, 50.0, 401, 500)
     )
 
     // O3: CPCB standard in µg/m³ (8-hour averaging period)
     private val O3_BREAKPOINTS = listOf(
         Breakpoint(0.0, 50.0, 0, 50),
-        Breakpoint(50.1, 100.0, 51, 100),
-        Breakpoint(100.1, 168.0, 101, 200),
-        Breakpoint(168.1, 208.0, 201, 300),
-        Breakpoint(208.1, 748.0, 301, 400),
-        Breakpoint(748.1, 1000.0, 401, 500)
+        Breakpoint(50.0, 100.0, 51, 100),
+        Breakpoint(100.0, 168.0, 101, 200),
+        Breakpoint(168.0, 208.0, 201, 300),
+        Breakpoint(208.0, 748.0, 301, 400),
+        Breakpoint(748.0, 1000.0, 401, 500)
     )
 
     private fun calcSubindex(conc: Double, breakpoints: List<Breakpoint>): Int {
         if (conc <= 0.0) return 0
         for (bp in breakpoints) {
-            if (conc in bp.cLo..bp.cHi) {
-                return (bp.iLo + (bp.iHi - bp.iLo) * (conc - bp.cLo) / (bp.cHi - bp.cLo)).toInt()
+            if (conc >= bp.cLo && conc <= bp.cHi) {
+                val ratio = (conc - bp.cLo) / (bp.cHi - bp.cLo)
+                return (bp.iLo + (bp.iHi - bp.iLo) * ratio).toInt().coerceIn(1, 500)
             }
         }
         return if (conc > breakpoints.last().cHi) 500 else 0
@@ -406,6 +414,10 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 condition                = weather.condition,
                 conditionIcon            = weather.icon,
                 windKmh                  = weather.windKmh,
+                windDirectionDeg         = weather.windDirectionDeg,
+                windGustsKmh             = weather.windGustsKmh,
+                dewPointC                = weather.dewPointC,
+                precipitationMm          = weather.precipitationMm,
                 humidityPercent          = weather.humidityPercent,
                 visibilityKm             = weather.visibilityKm,
                 rainProbability          = weather.rainProbability,
@@ -420,7 +432,7 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
                 co                       = if (hasPollutantData) cpcbResult?.coMg else null,
                 o3                       = if (hasPollutantData) aqi.o3 else null,
                 dominantPollutant        = cpcbResult?.dominantPollutant,
-                aqiStandard              = "Live AQI (CPCB)",
+                aqiStandard              = "CPCB NAQI (India)",
                 lastUpdatedTime          = lastUpdatedTime,
                 monitoringStation        = monitoringStation,
                 statePollutionBoard      = proximity.station.board,
@@ -448,9 +460,7 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val response: OpenMeteoForecastResponse = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
-                // Note: time is auto-included by Open-Meteo in current JSON — do NOT request 'time' as a variable
-                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,visibility,cloud_cover")
-                // hourly: take first value = current-hour precipitation_probability
+                parameter("current", "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility,cloud_cover")
                 parameter("hourly", "precipitation_probability")
                 parameter("forecast_hours", 1)
                 parameter("timezone", "Asia/Kolkata")
@@ -460,19 +470,32 @@ class WeatherService(private val client: HttpClient = createHttpClient()) {
             val (cond, icon) = weatherCodeToText(cur?.weatherCode ?: 1)
             val precipProb = response.hourly?.precipitationProbability?.firstOrNull() ?: 0
 
+            val temp = cur?.temperature ?: 28.0
+            val rh = (cur?.humidity ?: 60).coerceIn(1, 100)
+            val calculatedDewPoint = cur?.dewPoint ?: run {
+                val a = 17.625
+                val b = 243.04
+                val alpha = kotlin.math.ln(rh / 100.0) + (a * temp) / (b + temp)
+                (b * alpha) / (a - alpha)
+            }
+
             StationWeather(
-                stationName        = stationName,
-                temperature        = cur?.temperature ?: 28.0,
-                apparentTemperature = cur?.apparentTemperature ?: cur?.temperature ?: 28.0,
-                condition          = cond,
-                icon               = icon,
-                windKmh            = cur?.windSpeed ?: 12.0,
-                humidityPercent    = cur?.humidity ?: 60,
-                visibilityKm       = (cur?.visibilityMeters ?: 10000.0) / 1000.0,
-                rainProbability    = precipProb,
-                cloudCoverPercent  = cur?.cloudCover ?: 0,
-                rawTime            = cur?.time,
-                fetchOk            = true
+                stationName         = stationName,
+                temperature         = temp,
+                apparentTemperature = cur?.apparentTemperature ?: temp,
+                condition           = cond,
+                icon                = icon,
+                windKmh             = cur?.windSpeed ?: 12.0,
+                windDirectionDeg    = cur?.windDirection ?: 0,
+                windGustsKmh        = cur?.windGusts ?: (cur?.windSpeed ?: 12.0),
+                dewPointC           = calculatedDewPoint,
+                precipitationMm     = cur?.precipitation ?: 0.0,
+                humidityPercent     = rh,
+                visibilityKm        = (cur?.visibilityMeters ?: 10000.0) / 1000.0,
+                rainProbability     = precipProb,
+                cloudCoverPercent   = cur?.cloudCover ?: 0,
+                rawTime             = cur?.time,
+                fetchOk             = true
             )
         } catch (_: Exception) {
             StationWeather(
