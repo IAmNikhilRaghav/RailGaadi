@@ -204,7 +204,7 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
          * To update: change PROXY_BASE_URL to your Vercel deployment URL.
          * Format: https://<your-project>.vercel.app/api/v1
          */
-        const val PROXY_BASE_URL = "https://railgaadi.vercel.app/api/v1"
+        const val PROXY_BASE_URL = "https://rail-gaadi-nikhil-0dfa.vercel.app/api/v1"
 
         /**
          * Fallback: direct upstream URL used only when proxy is unreachable.
