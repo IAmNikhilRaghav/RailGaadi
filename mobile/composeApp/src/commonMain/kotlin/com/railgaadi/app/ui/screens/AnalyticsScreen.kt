@@ -42,13 +42,15 @@ import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.ui.components.CoachPositionVisualizer
 import com.railgaadi.app.ui.components.LiveAutoRefreshPill
 import com.railgaadi.app.ui.components.MetricBox
+import com.railgaadi.app.ui.components.VectorCoachIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class TimelineViewMode {
-    WIMT, TABLE
+    WIMT, TABLE, COACH
 }
 
 @Composable
@@ -636,7 +638,7 @@ fun AnalyticsScreen(
                                 color = if (isDark) DarkTextPrimary else LightTextPrimary
                             )
 
-                            // Switcher: Overview (WIMT) vs Description (Table)
+                            // Switcher: Overview (WIMT) vs Timetable (Table) vs Coach Position
                             Row(
                                 modifier = Modifier
                                     .background(
@@ -644,7 +646,8 @@ fun AnalyticsScreen(
                                         RoundedCornerShape(8.dp)
                                     )
                                     .padding(2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -653,10 +656,10 @@ fun AnalyticsScreen(
                                         .background(
                                             if (viewMode == TimelineViewMode.WIMT) RailBluePrimary else Color.Transparent
                                         )
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Overview",
+                                        text = "Track",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (viewMode == TimelineViewMode.WIMT) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
@@ -670,23 +673,50 @@ fun AnalyticsScreen(
                                         .background(
                                             if (viewMode == TimelineViewMode.TABLE) RailBluePrimary else Color.Transparent
                                         )
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "Table",
+                                        text = "Timetable",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (viewMode == TimelineViewMode.TABLE) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
                                     )
                                 }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { viewMode = TimelineViewMode.COACH }
+                                        .background(
+                                            if (viewMode == TimelineViewMode.COACH) RailBluePrimary else Color.Transparent
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        VectorCoachIcon(
+                                            isActive = viewMode == TimelineViewMode.COACH,
+                                            iconSize = 13.dp
+                                        )
+                                        Text(
+                                            text = "Coach",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (viewMode == TimelineViewMode.COACH) Color.White else if (isDark) DarkTextSecondary else LightTextSecondary
+                                        )
+                                    }
+                                }
                             }
                         }
 
                         // =============================================
-                        // VIEW 1: WHERE IS MY TRAIN (WIMT) VERTICAL TRACK
+                        // VIEWS: TRACK (WIMT), TABLE (TIMETABLE), COACH POSITION
                         // =============================================
-                        if (viewMode == TimelineViewMode.WIMT) {
-                            Card(
+                        when (viewMode) {
+                            TimelineViewMode.WIMT -> {
+                                Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1072,11 +1102,12 @@ fun AnalyticsScreen(
                                     }
                                 }
                             }
-                        } else {
-                            // =============================================
-                            // VIEW 2: TABLE VIEW TIMETABLE
-                            // =============================================
-                            Card(
+                            }
+                            TimelineViewMode.TABLE -> {
+                                // =============================================
+                                // VIEW 2: TABLE VIEW TIMETABLE
+                                // =============================================
+                                Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1201,6 +1232,16 @@ fun AnalyticsScreen(
                                         }
                                     }
                                 }
+                            }
+                            }
+                            TimelineViewMode.COACH -> {
+                                // =============================================
+                                // VIEW 3: INDIAN RAILWAYS COACH POSITION & RAKE
+                                // =============================================
+                                CoachPositionVisualizer(
+                                    train = activeTrain,
+                                    isDark = isDark
+                                )
                             }
                         }
                     }

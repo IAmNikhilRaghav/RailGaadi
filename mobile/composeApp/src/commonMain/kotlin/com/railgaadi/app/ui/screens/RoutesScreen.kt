@@ -1379,38 +1379,51 @@ fun TrainCardItem(
 
             // Running days + Track button
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                // Day circles — centered in their space
+                // Day circles — centered in their space with Apple glass styling
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val letters = listOf("S","M","T","W","T","F","S")
+                    val letters = listOf("S", "M", "T", "W", "T", "F", "S")
                     val runsList = if (train.runsOnDays.size == 7) train.runsOnDays else List(7) { true }
                     runsList.forEachIndexed { idx, runs ->
                         val isTravelDay = (idx == dayIndex)
+                        val circleBg = when {
+                            isTravelDay && runs -> RailBluePrimary
+                            runs -> RailBluePrimary.copy(alpha = 0.85f)
+                            isTravelDay && !runs -> Color(0xFFEF4444).copy(alpha = 0.16f)
+                            else -> if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
+                        }
+                        val circleBorderColor = when {
+                            isTravelDay && runs -> Color(0xFF38BDF8)
+                            isTravelDay && !runs -> Color(0xFFEF4444).copy(alpha = 0.70f)
+                            else -> if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.06f)
+                        }
+                        val textColor = when {
+                            runs -> Color.White
+                            isTravelDay && !runs -> Color(0xFFEF4444)
+                            else -> if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                        }
+
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
-                                .background(
-                                    color = when {
-                                        isTravelDay && runs -> RailBluePrimary
-                                        runs -> RailBluePrimary.copy(alpha = 0.75f)
-                                        else -> if (isDark) Color(0xFF2D3748) else Color(0xFFE2E8F0)
-                                    },
+                                .size(25.dp)
+                                .clip(CircleShape)
+                                .background(circleBg, CircleShape)
+                                .border(
+                                    width = if (isTravelDay) 1.5.dp else 0.5.dp,
+                                    color = circleBorderColor,
                                     shape = CircleShape
-                                )
-                                .then(
-                                    if (isTravelDay) Modifier.border(2.dp, Color(0xFF10B981), CircleShape)
-                                    else Modifier
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                letters[idx],
-                                fontSize = 9.5.sp,
-                                fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                color = if (runs) Color.White else if (isDark) Color(0xFF8E8E93) else Color(0xFF94A3B8),
-                                textAlign = TextAlign.Center
+                                text = letters[idx],
+                                fontSize = 10.sp,
+                                fontWeight = if (isTravelDay) FontWeight.ExtraBold else FontWeight.Bold,
+                                color = textColor,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 10.sp
                             )
                         }
                     }
