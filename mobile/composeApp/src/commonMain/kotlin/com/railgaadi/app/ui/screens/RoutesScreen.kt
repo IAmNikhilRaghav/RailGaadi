@@ -2,13 +2,16 @@ package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -26,12 +29,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.StationInfo
@@ -673,103 +680,17 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         }
                     }
 
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column {
-                            recentTrains.take(3).forEachIndexed { index, train ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onTrackTrain(train, train.origin)
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    // Left: Train Number Badge + Train Name & Route
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .height(28.dp)
-                                                .background(
-                                                    RailBluePrimary.copy(alpha = 0.10f),
-                                                    RoundedCornerShape(8.dp)
-                                                )
-                                                .border(1.dp, RailBluePrimary.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
-                                                .padding(horizontal = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = train.number,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontFamily = FontFamily.Monospace,
-                                                color = RailBluePrimary
-                                            )
-                                        }
-
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            Text(
-                                                text = train.name,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = "${train.origin.substringBefore(" (")} ➔ ${train.destination.substringBefore(" (")}",
-                                                fontSize = 11.sp,
-                                                color = Color.Gray,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(10.dp))
-
-                                    // Right: Cross mark '✕' - perfectly centered vector icon inside circle
-                                    val crossColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), CircleShape)
-                                            .clickable {
-                                                TrainTrackerState.removeRecentTrain(train.number)
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Canvas(modifier = Modifier.size(9.dp)) {
-                                            val stroke = 1.6f
-                                            drawLine(crossColor, Offset(0f, 0f), Offset(size.width, size.height), strokeWidth = stroke, cap = StrokeCap.Round)
-                                            drawLine(crossColor, Offset(0f, size.height), Offset(size.width, 0f), strokeWidth = stroke, cap = StrokeCap.Round)
-                                        }
-                                    }
-                                }
-
-                                if (index < recentTrains.take(3).size - 1) {
-                                    HorizontalDivider(
-                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                                        thickness = 0.5.dp
-                                    )
-                                }
-                            }
+                        recentTrains.take(3).forEach { train ->
+                            SwipeToDeleteRecentTrainItem(
+                                train = train,
+                                isDark = isDark,
+                                onTrackTrain = { onTrackTrain(train, train.origin) },
+                                onDelete = { TrainTrackerState.removeRecentTrain(train.number) }
+                            )
                         }
                     }
                 }
@@ -1437,6 +1358,151 @@ fun TrainCardItem(
                 ) {
                     Text("🚆 Track Live", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun SwipeToDeleteRecentTrainItem(
+    train: Train,
+    isDark: Boolean,
+    onTrackTrain: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var offsetX by remember { mutableStateOf(0f) }
+    val animatedOffsetX by animateFloatAsState(
+        targetValue = offsetX,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "swipe_offset"
+    )
+    val density = LocalDensity.current
+    val deleteThresholdPx = with(density) { 76.dp.toPx() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(14.dp))
+    ) {
+        // iOS-style Red Delete background revealed on right-to-left swipe
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(Color(0xFFEF4444))
+                .clickable { onDelete() }
+                .padding(end = 20.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("🗑️", fontSize = 16.sp)
+                Text(
+                    text = "Delete",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+
+        // Foreground card with swipe gesture
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(train.number) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (offsetX < -deleteThresholdPx * 1.8f) {
+                                onDelete()
+                            } else if (offsetX < -deleteThresholdPx / 2f) {
+                                offsetX = -deleteThresholdPx
+                            } else {
+                                offsetX = 0f
+                            }
+                        },
+                        onDragCancel = { offsetX = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            offsetX = (offsetX + dragAmount).coerceIn(-deleteThresholdPx * 2.2f, 0f)
+                        }
+                    )
+                }
+                .clickable {
+                    if (offsetX < -5f) {
+                        offsetX = 0f
+                    } else {
+                        onTrackTrain()
+                    }
+                },
+            shape = RoundedCornerShape(14.dp),
+            color = if (isDark) Color(0xFF1E293B) else Color.White,
+            border = BorderStroke(
+                1.dp,
+                if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+            ),
+            shadowElevation = 1.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(28.dp)
+                            .background(RailBluePrimary.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
+                            .border(1.dp, RailBluePrimary.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = train.number,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            color = RailBluePrimary
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = train.name,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) DarkTextPrimary else LightTextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${train.origin.substringBefore(" (")} ➔ ${train.destination.substringBefore(" (")}",
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Track →",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RailBluePrimary
+                )
             }
         }
     }

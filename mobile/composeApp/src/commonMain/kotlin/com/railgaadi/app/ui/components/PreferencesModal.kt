@@ -89,13 +89,13 @@ fun PreferencesDrawer(
                         .fillMaxSize()
                         .statusBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp)
                 ) {
-                    // Header: Preferences + Minimal Close Button
+                    // Header: Preferences + Minimal Close Button (exact vertical alignment with RailGaadi top bar)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp),
+                            .height(54.dp)
+                            .padding(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -125,9 +125,12 @@ fun PreferencesDrawer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // 1. Dark Theme
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 28.dp)
+                    ) {
+                        // 1. Dark Theme
                     CleanPreferenceTile(
                         icon = { VectorThemeIcon(isDarkMode) },
                         title = "Dark Theme",
@@ -283,6 +286,7 @@ fun PreferencesDrawer(
                     }
 
                     Spacer(modifier = Modifier.height(28.dp))
+                    }
                 }
             }
         }

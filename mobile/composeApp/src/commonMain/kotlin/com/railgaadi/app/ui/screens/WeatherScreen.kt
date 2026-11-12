@@ -277,22 +277,7 @@ fun WeatherScreen() {
                             verticalAlignment = Alignment.Top
                         ) {
                             Column {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("🌡️ Live Weather", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                    Text(
-                                        text = when {
-                                            TrainTrackerState.isAutoRefreshing -> "● UPDATING…"
-                                            w.lastUpdatedTime.isNotBlank()     -> "● Updated ${w.lastUpdatedTime}"
-                                            else                               -> "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s"
-                                        },
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
-                                    )
-                                }
+                                Text("🌡️ Weather", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                                 Text(w.stationName, fontSize = 11.sp, color = textSecondary)
                             }
                             Text(w.conditionIcon, fontSize = 36.sp)
@@ -375,25 +360,7 @@ fun WeatherScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("💨 Air Quality Index", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                                Text(
-                                    text = when {
-                                        TrainTrackerState.isAutoRefreshing -> "● UPDATING…"
-                                        w.lastUpdatedTime.isNotBlank()     -> "● Updated ${w.lastUpdatedTime}"
-                                        else                               -> "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s"
-                                    },
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
-                                )
-                            }
-                            if (w.aqiValue != null) {
-                                AqiBadge(w.aqiCategory)
-                            }
+                            Text("💨 Air Quality Index", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                         }
 
                         if (!w.aqiFetchOk || w.aqiValue == null) {

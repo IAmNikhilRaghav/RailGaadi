@@ -498,7 +498,12 @@ fun AnalyticsScreen(
                                         modifier = Modifier
                                             .size(38.dp)
                                             .background(
-                                                Brush.linearGradient(listOf(RailBluePrimary, RailBlueDark)),
+                                                if (isDark) RailBluePrimary.copy(alpha = 0.20f) else Color(0xFFE0F2FE),
+                                                CircleShape
+                                            )
+                                            .border(
+                                                1.dp,
+                                                RailBluePrimary.copy(alpha = 0.30f),
                                                 CircleShape
                                             ),
                                         contentAlignment = Alignment.Center
@@ -879,24 +884,24 @@ fun AnalyticsScreen(
                                                         .height(IntrinsicSize.Min),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    // LEFT: Live Speed & Telemetry Column
+                                                    // LEFT: Speed & Telemetry Column
                                                     Column(
                                                         modifier = Modifier.width(62.dp),
                                                         horizontalAlignment = Alignment.Start,
                                                         verticalArrangement = Arrangement.Center
                                                     ) {
-                                                        Text(
-                                                            text = "LIVE",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.ExtraBold,
-                                                            color = RailGreenOnTime
-                                                        )
                                                         val curSpeed = liveStatus?.speedKmh ?: 85
                                                         Text(
-                                                            text = "${curSpeed} km/h",
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.SemiBold,
+                                                            text = "${curSpeed}",
+                                                            fontSize = 15.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
                                                             color = RailBluePrimary
+                                                        )
+                                                        Text(
+                                                            text = "km/h",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = if (isDark) DarkTextSecondary else LightTextSecondary
                                                         )
                                                     }
 
@@ -950,7 +955,7 @@ fun AnalyticsScreen(
                                                                 Row(
                                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                                     verticalAlignment = Alignment.CenterVertically,
-                                                                    modifier = Modifier.weight(1f, fill = false)
+                                                                    modifier = Modifier.fillMaxWidth()
                                                                 ) {
                                                                     Text(
                                                                         text = "🚆 Crossing ${activePassThrough?.name ?: liveStatus?.currentStation ?: "Pass-through"}",
@@ -961,12 +966,6 @@ fun AnalyticsScreen(
                                                                         overflow = TextOverflow.Ellipsis
                                                                     )
                                                                 }
-                                                                Text(
-                                                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
-                                                                    fontSize = 9.sp,
-                                                                    fontWeight = FontWeight.ExtraBold,
-                                                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
-                                                                )
                                                             }
 
                                                             Row(
@@ -1789,12 +1788,6 @@ private fun WimtStationTrackRow(
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = RailBluePrimary
-                                )
-                                Text(
-                                    text = if (TrainTrackerState.isAutoRefreshing) "● UPDATING…" else "● LIVE · ${TrainTrackerState.autoRefreshCountdown}s",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (TrainTrackerState.isAutoRefreshing) RailBluePrimary else RailGreenOnTime
                                 )
                             }
                             Text(
