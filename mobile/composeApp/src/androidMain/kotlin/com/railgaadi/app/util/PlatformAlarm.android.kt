@@ -27,6 +27,9 @@ actual object PlatformAlarm {
 
     actual fun playAlarm(alarmTone: String) {
         val ctx = appContext ?: return
+        if (mediaPlayer?.isPlaying == true) {
+            return // Already playing continuously in loop
+        }
         stopAlarm()
         try {
             val alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)

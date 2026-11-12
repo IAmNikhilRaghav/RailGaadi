@@ -126,7 +126,11 @@ object TrainTrackerState {
         checkAlarmGeofence()
     }
 
+    private var alarmRingingJob: kotlinx.coroutines.Job? = null
+
     fun disarmAlarm() {
+        alarmRingingJob?.cancel()
+        alarmRingingJob = null
         activeAlarm = null
         isAlarmRinging = false
         com.railgaadi.app.util.PlatformAlarm.stopAlarm()
@@ -140,19 +144,45 @@ object TrainTrackerState {
         isAlarmRinging = true
         activeAlarm = alarm.copy(isRinging = true)
 
-        com.railgaadi.app.util.PlatformAlarm.playAlarm(alarm.tone.id)
-        if (alarm.vibrate) {
-            com.railgaadi.app.util.PlatformAlarm.vibrate()
-        }
-        if (alarm.voiceAnnouncement) {
-            val dist = alarm.distanceRemainingKm?.toInt()?.let { "$it kilometers" } ?: "${alarm.triggerDistanceKm.toInt()} kilometers"
-            com.railgaadi.app.util.PlatformSpeech.speak(
-                "Attention passenger. Your destination station ${alarm.stationName} is approaching in $dist. Please wake up and prepare to deboard."
-            )
+        alarmRingingJob?.cancel()
+        alarmRingingJob = scope.launch {
+            // Initial alert
+            com.railgaadi.app.util.PlatformAlarm.playAlarm(alarm.tone.id)
+            if (alarm.vibrate) {
+                com.railgaadi.app.util.PlatformAlarm.vibrate()
+            }
+            if (alarm.voiceAnnouncement) {
+                val dist = alarm.distanceRemainingKm?.toInt()?.let { "$it kilometers" } ?: "${alarm.triggerDistanceKm.toInt()} kilometers"
+                com.railgaadi.app.util.PlatformSpeech.speak(
+                    "Attention passenger. Your destination station ${alarm.stationName} is approaching in $dist. Please wake up and prepare to deboard."
+                )
+            }
+
+            // Continuous nonstop loop until dismissed or disarmed by user
+            var loopIndex = 0
+            while (isAlarmRinging && activeAlarm?.isRinging == true) {
+                delay(2500)
+                loopIndex++
+                if (!isAlarmRinging || activeAlarm?.isRinging != true) break
+
+                com.railgaadi.app.util.PlatformAlarm.playAlarm(alarm.tone.id)
+                if (alarm.vibrate) {
+                    com.railgaadi.app.util.PlatformAlarm.vibrate()
+                }
+
+                // Periodic vocal wake-up call every 20 seconds
+                if (alarm.voiceAnnouncement && loopIndex % 8 == 0) {
+                    com.railgaadi.app.util.PlatformSpeech.speak(
+                        "Attention passenger. Approaching destination station ${alarm.stationName}. Please wake up."
+                    )
+                }
+            }
         }
     }
 
     fun dismissAlarm() {
+        alarmRingingJob?.cancel()
+        alarmRingingJob = null
         isAlarmRinging = false
         activeAlarm = activeAlarm?.copy(isArmed = false, isRinging = false)
         com.railgaadi.app.util.PlatformAlarm.stopAlarm()
@@ -161,6 +191,8 @@ object TrainTrackerState {
     }
 
     fun snoozeAlarm(minutes: Int = 5) {
+        alarmRingingJob?.cancel()
+        alarmRingingJob = null
         isAlarmRinging = false
         activeAlarm = activeAlarm?.copy(isRinging = false, isSnoozed = true)
         com.railgaadi.app.util.PlatformAlarm.stopAlarm()

@@ -16,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,9 +54,23 @@ fun DestinationAlarmModal(
     var triggerDistanceKm by remember {
         mutableStateOf(existingAlarm?.triggerDistanceKm ?: 10.0)
     }
+    var isManualDistance by remember {
+        mutableStateOf(existingAlarm?.triggerDistanceKm?.let { it !in listOf(5.0, 10.0, 15.0, 20.0, 25.0) } ?: false)
+    }
+    var manualDistanceInput by remember {
+        mutableStateOf(if (isManualDistance) triggerDistanceKm.toInt().toString() else "")
+    }
+
     var triggerMinutesBefore by remember {
         mutableStateOf(existingAlarm?.triggerMinutesBefore ?: 15)
     }
+    var isManualMinutes by remember {
+        mutableStateOf(existingAlarm?.triggerMinutesBefore?.let { it !in listOf(10, 15, 20, 30) } ?: false)
+    }
+    var manualMinutesInput by remember {
+        mutableStateOf(if (isManualMinutes) triggerMinutesBefore.toString() else "")
+    }
+
     var voiceAnnouncement by remember {
         mutableStateOf(existingAlarm?.voiceAnnouncement ?: true)
     }
@@ -298,7 +314,7 @@ fun DestinationAlarmModal(
                     }
                 }
 
-                // Options Chips
+                // Options Chips & Manual Entry Mode
                 if (triggerUnit == AlarmTriggerUnit.KILOMETERS) {
                     val distances = listOf(5.0, 10.0, 15.0, 20.0, 25.0)
                     Row(
@@ -306,14 +322,18 @@ fun DestinationAlarmModal(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         distances.forEach { dist ->
-                            val isSel = triggerDistanceKm == dist
+                            val isSel = !isManualDistance && triggerDistanceKm == dist
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isSel) RailBluePrimary else (if (isDark) DarkBackground else Color(0xFFF1F5F9)))
                                     .border(1.dp, if (isSel) RailBluePrimary else cardBorder, RoundedCornerShape(10.dp))
-                                    .clickable { triggerDistanceKm = dist }
+                                    .clickable {
+                                        isManualDistance = false
+                                        triggerDistanceKm = dist
+                                        manualDistanceInput = ""
+                                    }
                                     .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -326,6 +346,99 @@ fun DestinationAlarmModal(
                             }
                         }
                     }
+
+                    // Manual Distance Entry Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isManualDistance) RailBluePrimary.copy(alpha = 0.08f)
+                                else (if (isDark) DarkBackground else Color(0xFFF8FAFC))
+                            )
+                            .border(
+                                1.dp,
+                                if (isManualDistance) RailBluePrimary else cardBorder,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("✏️", fontSize = 15.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Manual Distance",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isManualDistance) RailBluePrimary else textPrimary
+                                )
+                                Text(
+                                    text = "Custom distance in kilometers",
+                                    fontSize = 10.sp,
+                                    color = textSecondary
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = manualDistanceInput,
+                                onValueChange = { raw ->
+                                    // Strictly deny any unexpected identifier or non-numeric character
+                                    val digitsOnly = raw.filter { it.isDigit() }
+                                    if (digitsOnly.length <= 3) {
+                                        manualDistanceInput = digitsOnly
+                                        isManualDistance = true
+                                        val parsed = digitsOnly.toDoubleOrNull()
+                                        if (parsed != null && parsed > 0) {
+                                            triggerDistanceKm = parsed
+                                        }
+                                    }
+                                },
+                                placeholder = {
+                                    Text(
+                                        text = if (isManualDistance && triggerDistanceKm > 0) "${triggerDistanceKm.toInt()}" else "e.g. 8",
+                                        fontSize = 12.sp,
+                                        color = textSecondary.copy(alpha = 0.6f)
+                                    )
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = if (isDark) DarkSurface else Color.White,
+                                    unfocusedContainerColor = if (isDark) DarkSurface else Color.White,
+                                    focusedBorderColor = RailBluePrimary,
+                                    unfocusedBorderColor = cardBorder
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .width(82.dp)
+                                    .height(46.dp)
+                            )
+                            Text(
+                                text = "km",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isManualDistance) RailBluePrimary else textSecondary
+                            )
+                        }
+                    }
+
                     Text(
                         "Alarms automatically as soon as the train is ${triggerDistanceKm.toInt()} km away from ${selectedStation.name}",
                         fontSize = 11.sp,
@@ -338,14 +451,18 @@ fun DestinationAlarmModal(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         minutes.forEach { min ->
-                            val isSel = triggerMinutesBefore == min
+                            val isSel = !isManualMinutes && triggerMinutesBefore == min
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isSel) RailBluePrimary else (if (isDark) DarkBackground else Color(0xFFF1F5F9)))
                                     .border(1.dp, if (isSel) RailBluePrimary else cardBorder, RoundedCornerShape(10.dp))
-                                    .clickable { triggerMinutesBefore = min }
+                                    .clickable {
+                                        isManualMinutes = false
+                                        triggerMinutesBefore = min
+                                        manualMinutesInput = ""
+                                    }
                                     .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -358,6 +475,99 @@ fun DestinationAlarmModal(
                             }
                         }
                     }
+
+                    // Manual Time Entry Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isManualMinutes) RailBluePrimary.copy(alpha = 0.08f)
+                                else (if (isDark) DarkBackground else Color(0xFFF8FAFC))
+                            )
+                            .border(
+                                1.dp,
+                                if (isManualMinutes) RailBluePrimary else cardBorder,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⏱️", fontSize = 15.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Manual Time",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isManualMinutes) RailBluePrimary else textPrimary
+                                )
+                                Text(
+                                    text = "Custom time in minutes before halt",
+                                    fontSize = 10.sp,
+                                    color = textSecondary
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = manualMinutesInput,
+                                onValueChange = { raw ->
+                                    // Strictly deny any unexpected identifier or non-numeric character
+                                    val digitsOnly = raw.filter { it.isDigit() }
+                                    if (digitsOnly.length <= 3) {
+                                        manualMinutesInput = digitsOnly
+                                        isManualMinutes = true
+                                        val parsed = digitsOnly.toIntOrNull()
+                                        if (parsed != null && parsed > 0) {
+                                            triggerMinutesBefore = parsed
+                                        }
+                                    }
+                                },
+                                placeholder = {
+                                    Text(
+                                        text = if (isManualMinutes && triggerMinutesBefore > 0) "$triggerMinutesBefore" else "e.g. 25",
+                                        fontSize = 12.sp,
+                                        color = textSecondary.copy(alpha = 0.6f)
+                                    )
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = if (isDark) DarkSurface else Color.White,
+                                    unfocusedContainerColor = if (isDark) DarkSurface else Color.White,
+                                    focusedBorderColor = RailBluePrimary,
+                                    unfocusedBorderColor = cardBorder
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .width(82.dp)
+                                    .height(46.dp)
+                            )
+                            Text(
+                                text = "min",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isManualMinutes) RailBluePrimary else textSecondary
+                            )
+                        }
+                    }
+
                     Text(
                         "Alarms estimated $triggerMinutesBefore minutes before the train pulls into ${selectedStation.name}",
                         fontSize = 11.sp,
@@ -480,10 +690,20 @@ fun DestinationAlarmModal(
                 // Arm / Update Alarm Button
                 Button(
                     onClick = {
+                        val effectiveDistance = if (isManualDistance && manualDistanceInput.isNotBlank()) {
+                            manualDistanceInput.toDoubleOrNull()?.takeIf { it > 0 } ?: triggerDistanceKm
+                        } else {
+                            triggerDistanceKm
+                        }
+                        val effectiveMinutes = if (isManualMinutes && manualMinutesInput.isNotBlank()) {
+                            manualMinutesInput.toIntOrNull()?.takeIf { it > 0 } ?: triggerMinutesBefore
+                        } else {
+                            triggerMinutesBefore
+                        }
                         TrainTrackerState.armDestinationAlarm(
                             station = selectedStation,
-                            triggerDistanceKm = triggerDistanceKm,
-                            triggerMinutesBefore = triggerMinutesBefore,
+                            triggerDistanceKm = effectiveDistance,
+                            triggerMinutesBefore = effectiveMinutes,
                             triggerUnit = triggerUnit,
                             voiceAnnouncement = voiceAnnouncement,
                             vibrate = vibrate,
