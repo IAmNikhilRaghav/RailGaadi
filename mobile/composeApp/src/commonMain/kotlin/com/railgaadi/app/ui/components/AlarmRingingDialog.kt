@@ -4,9 +4,13 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +37,10 @@ import com.railgaadi.app.theme.*
 fun AlarmRingingDialog() {
     val alarm = TrainTrackerState.activeAlarm ?: return
     val isDark = TrainTrackerState.isDarkMode
+
+    var snoozeMinutes by remember { mutableStateOf(2) }
+    var isManualSnooze by remember { mutableStateOf(false) }
+    var manualSnoozeInput by remember { mutableStateOf("") }
 
     // Pulsing radar animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -220,21 +233,131 @@ fun AlarmRingingDialog() {
                         )
                     }
 
-                    // Snooze button
-                    OutlinedButton(
-                        onClick = { TrainTrackerState.snoozeAlarm(5) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f))
+                    // Snooze duration selector (min 2 minutes default)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            "⏰ Snooze 5 Minutes",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) DarkTextPrimary else LightTextPrimary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(2, 5, 10).forEach { mins ->
+                                val isSel = !isManualSnooze && snoozeMinutes == mins
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSel) RailBluePrimary else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
+                                        .border(
+                                            1.dp,
+                                            if (isSel) RailBluePrimary else (if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            isManualSnooze = false
+                                            snoozeMinutes = mins
+                                            manualSnoozeInput = ""
+                                        }
+                                        .padding(vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$mins min",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else (if (isDark) DarkTextPrimary else LightTextPrimary)
+                                    )
+                                }
+                            }
+
+                            // Manual custom minutes entry box
+                            Row(
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isManualSnooze) RailBluePrimary.copy(alpha = 0.10f) else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
+                                    .border(
+                                        1.dp,
+                                        if (isManualSnooze) RailBluePrimary else (if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { isManualSnooze = true }
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                BasicTextField(
+                                    value = manualSnoozeInput,
+                                    onValueChange = { raw ->
+                                        isManualSnooze = true
+                                        val digits = raw.filter { it.isDigit() }
+                                        if (digits.length <= 2) {
+                                            manualSnoozeInput = digits
+                                            val parsed = digits.toIntOrNull()
+                                            if (parsed != null) {
+                                                snoozeMinutes = parsed.coerceAtLeast(2)
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                    textStyle = TextStyle(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDark) DarkTextPrimary else LightTextPrimary,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    cursorBrush = SolidColor(RailBluePrimary),
+                                    modifier = Modifier.width(36.dp),
+                                    decorationBox = { inner ->
+                                        Box(contentAlignment = Alignment.Center) {
+                                            if (manualSnoozeInput.isEmpty()) {
+                                                Text(
+                                                    text = "Custom",
+                                                    fontSize = 11.sp,
+                                                    color = if (isDark) DarkTextSecondary.copy(alpha = 0.6f) else LightTextSecondary.copy(alpha = 0.6f)
+                                                )
+                                            }
+                                            inner()
+                                        }
+                                    }
+                                )
+                                if (manualSnoozeInput.isNotEmpty()) {
+                                    Text(
+                                        text = "m",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isManualSnooze) RailBluePrimary else (if (isDark) DarkTextSecondary else LightTextSecondary)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Snooze action button with dynamic minutes
+                        OutlinedButton(
+                            onClick = {
+                                val effectiveMinutes = if (isManualSnooze && manualSnoozeInput.isNotBlank()) {
+                                    manualSnoozeInput.toIntOrNull()?.coerceAtLeast(2) ?: snoozeMinutes
+                                } else {
+                                    snoozeMinutes
+                                }
+                                TrainTrackerState.snoozeAlarm(effectiveMinutes)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f))
+                        ) {
+                            Text(
+                                "⏰ Snooze for $snoozeMinutes Minutes",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) DarkTextPrimary else LightTextPrimary
+                            )
+                        }
                     }
                 }
             }

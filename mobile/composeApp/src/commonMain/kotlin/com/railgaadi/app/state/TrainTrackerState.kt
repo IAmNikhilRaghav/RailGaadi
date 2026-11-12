@@ -190,7 +190,8 @@ object TrainTrackerState {
         com.railgaadi.app.util.PlatformSpeech.stop()
     }
 
-    fun snoozeAlarm(minutes: Int = 5) {
+    fun snoozeAlarm(minutes: Int = 2) {
+        val validMinutes = minutes.coerceAtLeast(2)
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         isAlarmRinging = false
@@ -200,7 +201,7 @@ object TrainTrackerState {
         com.railgaadi.app.util.PlatformSpeech.stop()
 
         scope.launch {
-            delay(minutes * 60 * 1000L)
+            delay(validMinutes * 60 * 1000L)
             if (activeAlarm?.isArmed == true) {
                 triggerAlarm()
             }
