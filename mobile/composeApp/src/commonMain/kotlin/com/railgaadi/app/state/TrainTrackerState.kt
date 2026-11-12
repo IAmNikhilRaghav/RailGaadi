@@ -81,6 +81,51 @@ object TrainTrackerState {
     var targetAlarmStation by mutableStateOf<Station?>(null)
     var isAlarmRinging by mutableStateOf(false)
 
+    // ── Phase 5: Offline Satellite GPS Tracking Engine ───────────────────────
+    var isOfflineModeEnabled by mutableStateOf(false)
+    var isGpsTrackingActive by mutableStateOf(false)
+    var currentGpsLocation by mutableStateOf<com.railgaadi.app.util.GeoLocation?>(null)
+    var offlineGpsStatusText by mutableStateOf("Standby")
+
+    fun toggleOfflineGpsMode() {
+        if (isOfflineModeEnabled) {
+            disableOfflineGpsMode()
+        } else {
+            enableOfflineGpsMode()
+        }
+    }
+
+    fun enableOfflineGpsMode() {
+        isOfflineModeEnabled = true
+        isGpsTrackingActive = true
+        offlineGpsStatusText = "Connecting to Satellites..."
+        com.railgaadi.app.util.PlatformLocation.startLocationUpdates { loc ->
+            currentGpsLocation = loc
+            val speedText = if (loc.speedKmh > 5.0) "${loc.speedKmh.toInt()} km/h" else "±${loc.accuracyMeters.toInt().coerceAtLeast(1)}m"
+            offlineGpsStatusText = "🛰️ GPS ACTIVE • $speedText"
+
+            if (activeTrain.number.isNotBlank()) {
+                val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(
+                    train = activeTrain,
+                    gps = loc,
+                    existingStations = liveStatus?.stations
+                )
+                liveStatus = offlineLive
+                checkAlarmGeofence()
+            }
+        }
+    }
+
+    fun disableOfflineGpsMode() {
+        isOfflineModeEnabled = false
+        isGpsTrackingActive = false
+        offlineGpsStatusText = "Standby"
+        com.railgaadi.app.util.PlatformLocation.stopLocationUpdates()
+        if (activeTrain.number.isNotBlank()) {
+            triggerManualRefresh()
+        }
+    }
+
     fun openAlarmSetup(station: Station? = null) {
         val stn = station ?: liveStatus?.stations?.lastOrNull()
         targetAlarmStation = stn
@@ -342,14 +387,29 @@ object TrainTrackerState {
                     autoRefreshCountdown = 0
                     isAutoRefreshing = true
                     try {
-                        // Silent background live fetch (no blocking spinner)
-                        val updated = service.getLiveStatus(activeTrain.number)
-                        if (updated != null) {
-                            liveStatus = updated
-                            refreshWeather(silent = true)
-                            checkAlarmGeofence()
+                        if (!isOfflineModeEnabled) {
+                            val updated = service.getLiveStatus(activeTrain.number)
+                            if (updated != null) {
+                                liveStatus = updated
+                                if (updated.stations.isNotEmpty()) {
+                                    com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, updated.stations)
+                                }
+                                refreshWeather(silent = true)
+                                checkAlarmGeofence()
+                            }
                         }
                     } catch (_: Exception) {
+                        // Resilient offline fallback: calculate position via on-device GPS if internet drops
+                        val loc = currentGpsLocation ?: com.railgaadi.app.util.PlatformLocation.getLastLocation()
+                        if (loc != null && activeTrain.number.isNotBlank()) {
+                            val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(
+                                train = activeTrain,
+                                gps = loc,
+                                existingStations = liveStatus?.stations
+                            )
+                            liveStatus = offlineLive
+                            checkAlarmGeofence()
+                        }
                     } finally {
                         isAutoRefreshing = false
                         autoRefreshCountdown = intervalSeconds
@@ -415,7 +475,18 @@ object TrainTrackerState {
         selectedWeatherStationName = null
         scope.launch {
             isLoadingStatus = true
-            liveStatus = service.getLiveStatus(train.number)
+            try {
+                val status = service.getLiveStatus(train.number)
+                liveStatus = status
+                if (status.stations.isNotEmpty()) {
+                    com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(train.number, status.stations)
+                }
+            } catch (_: Exception) {
+                val loc = currentGpsLocation ?: com.railgaadi.app.util.PlatformLocation.getLastLocation()
+                if (loc != null) {
+                    liveStatus = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
+                }
+            }
             isLoadingStatus = false
             refreshWeather(silent = false)
             startAutoRefresh(AUTO_REFRESH_INTERVAL_SECONDS)

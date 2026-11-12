@@ -11,5 +11,10 @@ actual object PlatformDate {
             cal.get(Calendar.YEAR)
         )
     }
+
+    actual fun getCurrentTime(): Pair<Int, Int> {
+        val cal = Calendar.getInstance()
+        return Pair(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+    }
 }
 

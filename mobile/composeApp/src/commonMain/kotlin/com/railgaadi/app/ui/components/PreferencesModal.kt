@@ -149,6 +149,25 @@ fun PreferencesDrawer(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    // Offline GPS Satellite Mode (Phase 5)
+                    CleanPreferenceTile(
+                        icon = { VectorCompassIcon() },
+                        title = "Offline GPS Mode",
+                        subtitle = if (TrainTrackerState.isOfflineModeEnabled) "Active • Tracking via Satellites" else "Track inside trains with 0% internet",
+                        trailing = {
+                            Switch(
+                                checked = TrainTrackerState.isOfflineModeEnabled,
+                                onCheckedChange = { TrainTrackerState.toggleOfflineGpsMode() },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = RailBluePrimary
+                                )
+                            )
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     // 2. Trip Delay Alerts
                     CleanPreferenceTile(
                         icon = { VectorBellIcon() },
@@ -508,5 +527,28 @@ fun VectorMapStyleIcon(style: String, isSelected: Boolean) {
                 drawPath(path, color = activeColor, style = Stroke(width = 1.5f, cap = StrokeCap.Round))
             }
         }
+    }
+}
+
+@Composable
+fun VectorCompassIcon() {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(modifier = Modifier.size(20.dp)) {
+        drawCircle(color = color.copy(alpha = 0.4f), radius = size.width * 0.42f, style = Stroke(width = 1.2f))
+        val needle = Path().apply {
+            moveTo(center.x, size.height * 0.15f)
+            lineTo(size.width * 0.62f, center.y)
+            lineTo(center.x, size.height * 0.4f)
+            close()
+        }
+        drawPath(needle, color = Color(0xFFEF4444))
+        val south = Path().apply {
+            moveTo(center.x, size.height * 0.85f)
+            lineTo(size.width * 0.38f, center.y)
+            lineTo(center.x, size.height * 0.6f)
+            close()
+        }
+        drawPath(south, color = color.copy(alpha = 0.6f))
+        drawCircle(color = color, radius = 2f)
     }
 }

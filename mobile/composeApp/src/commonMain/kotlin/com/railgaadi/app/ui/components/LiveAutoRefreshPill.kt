@@ -21,8 +21,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.railgaadi.app.state.TrainTrackerState
 
 private val LiveGreen = Color(0xFF10B981)
+private val GpsBlue = Color(0xFF0284C7)
+private val GpsAmber = Color(0xFFD97706)
 
 @Composable
 fun LiveAutoRefreshPill(
@@ -31,6 +34,9 @@ fun LiveAutoRefreshPill(
     onForceRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isOfflineGps = TrainTrackerState.isOfflineModeEnabled || TrainTrackerState.isGpsTrackingActive
+    val gpsSpeed = TrainTrackerState.currentGpsLocation?.speedKmh?.toInt() ?: 0
+
     // Elegant pulsing animation for the live status dot
     val infiniteTransition = rememberInfiniteTransition(label = "live_pulse")
     val dotAlpha by infiniteTransition.animateFloat(
@@ -43,12 +49,25 @@ fun LiveAutoRefreshPill(
         label = "dot_alpha"
     )
 
+    val activeColor = if (isOfflineGps) GpsBlue else LiveGreen
+    val labelText = if (isOfflineGps) {
+        if (gpsSpeed > 5) "🛰️ GPS $gpsSpeed km/h" else "🛰️ GPS MODE"
+    } else {
+        "LIVE"
+    }
+
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(LiveGreen.copy(alpha = 0.12f))
-            .border(0.8.dp, LiveGreen.copy(alpha = 0.28f), CircleShape)
-            .clickable { onForceRefresh() }
+            .background(activeColor.copy(alpha = 0.12f))
+            .border(0.8.dp, activeColor.copy(alpha = 0.28f), CircleShape)
+            .clickable {
+                if (isOfflineGps) {
+                    TrainTrackerState.disableOfflineGpsMode()
+                } else {
+                    onForceRefresh()
+                }
+            }
             .padding(horizontal = 9.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -60,18 +79,16 @@ fun LiveAutoRefreshPill(
                 modifier = Modifier
                     .size(6.5.dp)
                     .clip(CircleShape)
-                    .background(LiveGreen)
+                    .background(activeColor)
                     .alpha(dotAlpha)
             )
             Text(
-                text = "LIVE",
+                text = labelText,
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = LiveGreen,
+                color = activeColor,
                 letterSpacing = 0.6.sp
             )
         }
     }
 }
-
-

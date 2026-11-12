@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
 import com.railgaadi.app.util.PlatformAlarm
+import com.railgaadi.app.util.PlatformLocation
 import com.railgaadi.app.util.PlatformSpeech
 
 class MainActivity : ComponentActivity() {
@@ -14,6 +15,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PlatformSpeech.init(this)
         PlatformAlarm.init(this)
+        PlatformLocation.init(this)
         setContent {
             App()
         }
