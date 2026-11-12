@@ -39,6 +39,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import com.railgaadi.app.i18n.I18n
 import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.StationInfo
@@ -46,6 +55,7 @@ import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.util.PlatformDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -84,7 +94,8 @@ data class RouteTravelDate(
         get() = "$dayOfWeekFull, $dayNumber $monthName $year"
 }
 
-fun generateTravelDates(startDate: Int = 7, startMonth: Int = 11, startYear: Int = 2026): List<RouteTravelDate> {
+fun generateTravelDates(): List<RouteTravelDate> {
+    val (todayDay, todayMonth, todayYear) = PlatformDate.getToday()
     val monthNames = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     // leap-year aware days per month
     fun daysInMonth(m: Int, y: Int): Int {
@@ -100,10 +111,23 @@ fun generateTravelDates(startDate: Int = 7, startMonth: Int = 11, startYear: Int
     val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
     val dayFullNames = listOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 
+    // Yesterday calculation:
+    var yDay = todayDay - 1
+    var yMonth = todayMonth
+    var yYear = todayYear
+    if (yDay < 1) {
+        yMonth -= 1
+        if (yMonth < 1) {
+            yMonth = 12
+            yYear -= 1
+        }
+        yDay = daysInMonth(yMonth, yYear)
+    }
+
     val list = mutableListOf<RouteTravelDate>()
-    var curDay = startDate
-    var curMonth = startMonth
-    var curYear = startYear
+    var curDay = yDay
+    var curMonth = yMonth
+    var curYear = yYear
 
     for (i in 0 until 120) {
         val dow = dayOfWeek(curDay, curMonth, curYear)
@@ -138,8 +162,15 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     val service = remember { RailRadarService() }
     val coroutineScope = rememberCoroutineScope()
 
-    var fromStationQuery by remember { mutableStateOf("") }
-    var toStationQuery by remember { mutableStateOf("") }
+    var fromTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var toTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    val fromStationQuery = fromTextFieldValue.text
+    val toStationQuery = toTextFieldValue.text
+
+    val fromFocusRequester = remember { FocusRequester() }
+    val toFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     var swapRotation by remember { mutableStateOf(0f) }
     val animatedSwapRotation by animateFloatAsState(
         targetValue = swapRotation,
@@ -150,9 +181,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var isFromDropdownOpen by remember { mutableStateOf(false) }
     var isToDropdownOpen by remember { mutableStateOf(false) }
 
-    // Travel Dates & Calendar
-    val travelDates = remember { generateTravelDates(7, 11, 2026) }
-    var selectedTravelDate by remember { mutableStateOf(travelDates.first { it.isToday }) }
+    // Travel Dates & Calendar — dynamically generated starting from real device date
+    val travelDates = remember { generateTravelDates() }
+    var selectedTravelDate by remember(travelDates) { mutableStateOf(travelDates.firstOrNull { it.isToday } ?: travelDates[0]) }
     var showCalendarDialog by remember { mutableStateOf(false) }
     // Show bottom sheet style: "Yesterday / Today / Tomorrow / Choose from Calendar"
     var showDateQuickPicker by remember { mutableStateOf(false) }
@@ -182,6 +213,29 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             searchResults = results
             hasSearchedOnce = true
             isSearching = false
+        }
+    }
+
+    fun selectFromStation(stationText: String) {
+        fromTextFieldValue = TextFieldValue(
+            text = stationText,
+            selection = TextRange(stationText.length)
+        )
+        isFromDropdownOpen = false
+        validationError = null
+        toFocusRequester.requestFocus()
+    }
+
+    fun selectToStation(stationText: String) {
+        toTextFieldValue = TextFieldValue(
+            text = stationText,
+            selection = TextRange(stationText.length)
+        )
+        isToDropdownOpen = false
+        validationError = null
+        keyboardController?.hide()
+        if (fromTextFieldValue.text.isNotBlank()) {
+            triggerSearch(fromTextFieldValue.text, stationText)
         }
     }
 
@@ -384,9 +438,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     // FROM input
                     Column {
                         OutlinedTextField(
-                            value = fromStationQuery,
+                            value = fromTextFieldValue,
                             onValueChange = {
-                                fromStationQuery = it
+                                fromTextFieldValue = it
                                 isFromDropdownOpen = true
                                 isToDropdownOpen = false
                                 validationError = null
@@ -394,16 +448,37 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             label = { Text("From", fontSize = 12.sp) },
                             placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
-                                if (fromStationQuery.isNotEmpty()) {
+                                if (fromTextFieldValue.text.isNotEmpty()) {
                                     IconButton(onClick = {
-                                        fromStationQuery = ""
+                                        fromTextFieldValue = TextFieldValue("", selection = TextRange(0))
                                         isFromDropdownOpen = false
                                     }) {
                                         Text("✕", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Next,
+                                capitalization = KeyboardCapitalization.Words
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = {
+                                    val bestStation = fromSuggestions.firstOrNull()
+                                    val stationText = if (bestStation != null) {
+                                        "${bestStation.name} (${bestStation.code})"
+                                    } else {
+                                        fromTextFieldValue.text.trim()
+                                    }
+                                    if (stationText.isNotBlank()) {
+                                        selectFromStation(stationText)
+                                    } else {
+                                        toFocusRequester.requestFocus()
+                                    }
+                                }
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(fromFocusRequester),
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
@@ -427,11 +502,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    fromStationQuery = "${stn.name} (${stn.code})"
-                                                    isFromDropdownOpen = false
-                                                    if (toStationQuery.isNotBlank()) {
-                                                        triggerSearch(fromStationQuery, toStationQuery)
-                                                    }
+                                                    selectFromStation("${stn.name} (${stn.code})")
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -476,13 +547,13 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 .border(1.dp, RailBluePrimary.copy(alpha = 0.30f), CircleShape)
                                 .clickable {
                                     swapRotation += 180f
-                                    val temp = fromStationQuery
-                                    fromStationQuery = toStationQuery
-                                    toStationQuery = temp
+                                    val temp = fromTextFieldValue
+                                    fromTextFieldValue = TextFieldValue(toTextFieldValue.text, selection = TextRange(toTextFieldValue.text.length))
+                                    toTextFieldValue = TextFieldValue(temp.text, selection = TextRange(temp.text.length))
                                     isFromDropdownOpen = false
                                     isToDropdownOpen = false
-                                    if (fromStationQuery.isNotBlank() && toStationQuery.isNotBlank()) {
-                                        triggerSearch(fromStationQuery, toStationQuery)
+                                    if (fromTextFieldValue.text.isNotBlank() && toTextFieldValue.text.isNotBlank()) {
+                                        triggerSearch(fromTextFieldValue.text, toTextFieldValue.text)
                                     }
                                 },
                             contentAlignment = Alignment.Center
@@ -500,9 +571,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     // TO input
                     Column {
                         OutlinedTextField(
-                            value = toStationQuery,
+                            value = toTextFieldValue,
                             onValueChange = {
-                                toStationQuery = it
+                                toTextFieldValue = it
                                 isToDropdownOpen = true
                                 isFromDropdownOpen = false
                                 validationError = null
@@ -510,16 +581,35 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             label = { Text("To", fontSize = 12.sp) },
                             placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
-                                if (toStationQuery.isNotEmpty()) {
+                                if (toTextFieldValue.text.isNotEmpty()) {
                                     IconButton(onClick = {
-                                        toStationQuery = ""
+                                        toTextFieldValue = TextFieldValue("", selection = TextRange(0))
                                         isToDropdownOpen = false
                                     }) {
                                         Text("✕", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Search,
+                                capitalization = KeyboardCapitalization.Words
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    val bestStation = toSuggestions.firstOrNull()
+                                    val stationText = if (bestStation != null) {
+                                        "${bestStation.name} (${bestStation.code})"
+                                    } else {
+                                        toTextFieldValue.text.trim()
+                                    }
+                                    if (stationText.isNotBlank()) {
+                                        selectToStation(stationText)
+                                    }
+                                }
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(toFocusRequester),
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
@@ -543,11 +633,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    toStationQuery = "${stn.name} (${stn.code})"
-                                                    isToDropdownOpen = false
-                                                    if (fromStationQuery.isNotBlank()) {
-                                                        triggerSearch(fromStationQuery, toStationQuery)
-                                                    }
+                                                    selectToStation("${stn.name} (${stn.code})")
                                                 }
                                                 .padding(horizontal = 12.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -924,7 +1010,8 @@ fun CalendarPickerBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val canGoBack = !(viewingMonth == 11 && viewingYear == 2026)
+                    val (todayDay, todayMonth, todayYear) = PlatformDate.getToday()
+                    val canGoBack = !(viewingYear < todayYear || (viewingYear == todayYear && viewingMonth <= todayMonth))
                     Text(
                         text = "‹",
                         fontSize = 24.sp,
@@ -938,7 +1025,8 @@ fun CalendarPickerBottomSheet(
                             .padding(horizontal = 6.dp)
                     )
 
-                    val canGoForward = !(viewingMonth == 2 && viewingYear == 2027)
+                    val maxDate = allDates.lastOrNull()
+                    val canGoForward = maxDate != null && (viewingYear < maxDate.year || (viewingYear == maxDate.year && viewingMonth < maxDate.monthNumber))
                     Text(
                         text = "›",
                         fontSize = 24.sp,
@@ -976,8 +1064,8 @@ fun CalendarPickerBottomSheet(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Calendar grid
+            val (todayDay, todayMonth, todayYear) = PlatformDate.getToday()
             val rows = (firstOffset + daysInViewingMonth + 6) / 7
-            val todayDay = 8; val todayMonth = 11; val todayYear = 2026
 
             Column(
                 modifier = Modifier
@@ -996,7 +1084,9 @@ fun CalendarPickerBottomSheet(
                             if (cellIndex < firstOffset || dayNum > daysInViewingMonth) {
                                 Box(modifier = Modifier.size(38.dp))
                             } else {
-                                val isPast = (viewingMonth == todayMonth && viewingYear == todayYear && dayNum < (todayDay - 1))
+                                val isPast = (viewingYear < todayYear) ||
+                                    (viewingYear == todayYear && viewingMonth < todayMonth) ||
+                                    (viewingYear == todayYear && viewingMonth == todayMonth && dayNum < (todayDay - 1))
                                 val isSelected = (currentSelected.dayNumber == dayNum && currentSelected.monthNumber == viewingMonth && currentSelected.year == viewingYear)
                                 val isToday = (dayNum == todayDay && viewingMonth == todayMonth && viewingYear == todayYear)
 
@@ -1018,8 +1108,24 @@ fun CalendarPickerBottomSheet(
                                         .clickable(enabled = !isPast) {
                                             val matched = allDates.find {
                                                 it.dayNumber == dayNum && it.monthNumber == viewingMonth && it.year == viewingYear
+                                            } ?: run {
+                                                val dOfWeek = (firstOffset + dayNum - 1) % 7
+                                                val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                                                val dayFullNames = listOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+                                                RouteTravelDate(
+                                                    dayNumber = dayNum,
+                                                    monthNumber = viewingMonth,
+                                                    monthName = monthFullNames[viewingMonth].take(3),
+                                                    year = viewingYear,
+                                                    dayOfWeek = dayNames[dOfWeek],
+                                                    dayOfWeekFull = dayFullNames[dOfWeek],
+                                                    dayOfWeekIndex = dOfWeek,
+                                                    isYesterday = (dayNum == todayDay - 1 && viewingMonth == todayMonth && viewingYear == todayYear),
+                                                    isToday = (dayNum == todayDay && viewingMonth == todayMonth && viewingYear == todayYear),
+                                                    isTomorrow = (dayNum == todayDay + 1 && viewingMonth == todayMonth && viewingYear == todayYear)
+                                                )
                                             }
-                                            if (matched != null) onDateSelected(matched)
+                                            onDateSelected(matched)
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {

@@ -6,3 +6,4 @@ expect object PlatformAlarm {
     fun vibrate(pattern: LongArray = longArrayOf(0, 500, 250, 500, 250, 500))
     fun stopVibrate()
 }
+

@@ -31,3 +31,4 @@ data class DestinationAlarm(
     val distanceRemainingKm: Double? = null,
     val minutesRemaining: Int? = null
 )
+

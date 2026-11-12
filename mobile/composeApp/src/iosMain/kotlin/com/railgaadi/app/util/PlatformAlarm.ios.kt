@@ -39,3 +39,4 @@ actual object PlatformAlarm {
         // iOS single vibrate pulse stops automatically
     }
 }
+
