@@ -691,17 +691,27 @@ fun AnalyticsScreen(
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .background(RailGreenOnTime.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
-                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                                                    ) {
-                                                        Text("ARMED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                                    if (activeAlarm.isSnoozed) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .background(RailAmberWarning.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                        ) {
+                                                            Text("SNOOZED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailAmberWarning)
+                                                        }
+                                                    } else {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .background(RailGreenOnTime.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
+                                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                        ) {
+                                                            Text("ARMED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                                        }
                                                     }
                                                 }
                                                 val distInfo = activeAlarm.distanceRemainingKm?.let { "$it km away" } ?: "${activeAlarm.triggerDistanceKm.toInt()} km before"
                                                 Text(
-                                                    text = "Rings $distInfo • Geofence active",
+                                                    text = if (activeAlarm.isSnoozed) "Alarm snoozed • Will re-alarm when timer ends" else "Rings $distInfo • Geofence active",
                                                     fontSize = 11.sp,
                                                     color = if (isDark) DarkTextSecondary else LightTextSecondary
                                                 )

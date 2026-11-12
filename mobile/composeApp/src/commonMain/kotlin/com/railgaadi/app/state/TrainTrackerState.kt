@@ -127,8 +127,11 @@ object TrainTrackerState {
     }
 
     private var alarmRingingJob: kotlinx.coroutines.Job? = null
+    private var snoozeJob: kotlinx.coroutines.Job? = null
 
     fun disarmAlarm() {
+        snoozeJob?.cancel()
+        snoozeJob = null
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         activeAlarm = null
@@ -181,10 +184,12 @@ object TrainTrackerState {
     }
 
     fun dismissAlarm() {
+        snoozeJob?.cancel()
+        snoozeJob = null
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         isAlarmRinging = false
-        activeAlarm = activeAlarm?.copy(isArmed = false, isRinging = false)
+        activeAlarm = activeAlarm?.copy(isArmed = false, isRinging = false, isSnoozed = false)
         com.railgaadi.app.util.PlatformAlarm.stopAlarm()
         com.railgaadi.app.util.PlatformAlarm.stopVibrate()
         com.railgaadi.app.util.PlatformSpeech.stop()
@@ -192,6 +197,7 @@ object TrainTrackerState {
 
     fun snoozeAlarm(minutes: Int = 2) {
         val validMinutes = minutes.coerceAtLeast(2)
+        snoozeJob?.cancel()
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         isAlarmRinging = false
@@ -200,9 +206,10 @@ object TrainTrackerState {
         com.railgaadi.app.util.PlatformAlarm.stopVibrate()
         com.railgaadi.app.util.PlatformSpeech.stop()
 
-        scope.launch {
+        snoozeJob = scope.launch {
             delay(validMinutes * 60 * 1000L)
             if (activeAlarm?.isArmed == true) {
+                activeAlarm = activeAlarm?.copy(isSnoozed = false)
                 triggerAlarm()
             }
         }
@@ -260,6 +267,9 @@ object TrainTrackerState {
             distanceRemainingKm = ((remainingKm * 10).toInt() / 10.0).coerceAtLeast(0.0),
             minutesRemaining = remainingMinutes
         )
+
+        // While snooze timer is active, do not trigger alarm from background geofence polling
+        if (alarm.isSnoozed) return
 
         val shouldTrigger = when (alarm.triggerUnit) {
             com.railgaadi.app.model.AlarmTriggerUnit.KILOMETERS -> remainingKm <= alarm.triggerDistanceKm
