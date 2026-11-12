@@ -771,12 +771,14 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         recentTrains.take(3).forEach { train ->
-                            SwipeToDeleteRecentTrainItem(
-                                train = train,
-                                isDark = isDark,
-                                onTrackTrain = { onTrackTrain(train, train.origin) },
-                                onDelete = { TrainTrackerState.removeRecentTrain(train.number) }
-                            )
+                            key(train.number) {
+                                SwipeToDeleteRecentTrainItem(
+                                    train = train,
+                                    isDark = isDark,
+                                    onTrackTrain = { onTrackTrain(train, train.origin) },
+                                    onDelete = { TrainTrackerState.removeRecentTrain(train.number) }
+                                )
+                            }
                         }
                     }
                 }
@@ -1476,11 +1478,15 @@ fun SwipeToDeleteRecentTrainItem(
     onTrackTrain: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var offsetX by remember { mutableStateOf(0f) }
+    var offsetX by remember(train.number) { mutableStateOf(0f) }
+    var lastDragDelta by remember(train.number) { mutableStateOf(0f) }
     val animatedOffsetX by animateFloatAsState(
         targetValue = offsetX,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "swipe_offset"
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "swipe_offset_${train.number}"
     )
     val density = LocalDensity.current
     val deleteThresholdPx = with(density) { 76.dp.toPx() }
@@ -1496,7 +1502,10 @@ fun SwipeToDeleteRecentTrainItem(
             modifier = Modifier
                 .matchParentSize()
                 .background(Color(0xFFEF4444))
-                .clickable { onDelete() }
+                .clickable {
+                    offsetX = 0f
+                    onDelete()
+                }
                 .padding(end = 20.dp),
             contentAlignment = Alignment.CenterEnd
         ) {
@@ -1522,23 +1531,34 @@ fun SwipeToDeleteRecentTrainItem(
                 .pointerInput(train.number) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            if (offsetX < -deleteThresholdPx * 1.8f) {
-                                onDelete()
-                            } else if (offsetX < -deleteThresholdPx / 2f) {
-                                offsetX = -deleteThresholdPx
-                            } else {
+                            if (offsetX < -deleteThresholdPx * 1.6f) {
+                                // Full swipe left -> delete
                                 offsetX = 0f
+                                onDelete()
+                            } else if (lastDragDelta > 1f || offsetX > -deleteThresholdPx * 0.5f) {
+                                // Dragged back right or closer to original position -> slide back to original tab
+                                offsetX = 0f
+                            } else {
+                                // Dragged left past threshold -> stay open showing Delete button
+                                offsetX = -deleteThresholdPx
                             }
+                            lastDragDelta = 0f
                         },
-                        onDragCancel = { offsetX = 0f },
+                        onDragCancel = {
+                            offsetX = 0f
+                            lastDragDelta = 0f
+                        },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
+                            lastDragDelta = dragAmount
+                            // Drag freely between full-open and closed (0f)
                             offsetX = (offsetX + dragAmount).coerceIn(-deleteThresholdPx * 2.2f, 0f)
                         }
                     )
                 }
                 .clickable {
                     if (offsetX < -5f) {
+                        // If swiped open, tapping card smoothly slides it back to original tab
                         offsetX = 0f
                     } else {
                         onTrackTrain()

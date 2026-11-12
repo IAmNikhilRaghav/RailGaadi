@@ -5,12 +5,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,26 +68,45 @@ fun AlarmRingingDialog() {
 
     Dialog(
         onDismissRequest = { /* Modal: require explicit dismiss or snooze */ },
-        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
     ) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFFFFFFFF)
-            ),
-            border = BorderStroke(1.5.dp, RailBluePrimary.copy(alpha = 0.40f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+        val keyboardController = LocalSoftwareKeyboardController.current
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
+                .fillMaxSize()
+                .imePadding()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    keyboardController?.hide()
+                }
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFFFFFFFF)
+                ),
+                border = BorderStroke(1.5.dp, RailBluePrimary.copy(alpha = 0.40f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .wrapContentHeight()
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                 // Pulsing Icon Target
                 Box(
                     modifier = Modifier.size(110.dp),
@@ -239,7 +261,9 @@ fun AlarmRingingDialog() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -248,19 +272,20 @@ fun AlarmRingingDialog() {
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(if (isSel) RailBluePrimary else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
                                         .border(
                                             1.dp,
                                             if (isSel) RailBluePrimary else (if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)),
-                                            RoundedCornerShape(8.dp)
+                                            RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
+                                            keyboardController?.hide()
                                             isManualSnooze = false
                                             snoozeMinutes = mins
                                             manualSnoozeInput = ""
-                                        }
-                                        .padding(vertical = 7.dp),
+                                        },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -272,24 +297,45 @@ fun AlarmRingingDialog() {
                                 }
                             }
 
-                            // Manual custom minutes entry box
+                            // Stepper / Custom Counter Box: [-] mins [+]
                             Row(
                                 modifier = Modifier
-                                    .weight(1.3f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isManualSnooze) RailBluePrimary.copy(alpha = 0.10f) else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
+                                    .weight(1.5f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isManualSnooze) RailBluePrimary.copy(alpha = 0.12f) else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
                                     .border(
                                         1.dp,
                                         if (isManualSnooze) RailBluePrimary else (if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { isManualSnooze = true }
-                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                        RoundedCornerShape(10.dp)
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                // Minus button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(32.dp)
+                                        .clickable {
+                                            keyboardController?.hide()
+                                            isManualSnooze = true
+                                            snoozeMinutes = (snoozeMinutes - 1).coerceAtLeast(2)
+                                            manualSnoozeInput = snoozeMinutes.toString()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "−",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isManualSnooze) RailBluePrimary else (if (isDark) DarkTextSecondary else LightTextSecondary)
+                                    )
+                                }
+
+                                // Editable text / display
                                 BasicTextField(
-                                    value = manualSnoozeInput,
+                                    value = if (isManualSnooze && manualSnoozeInput.isNotEmpty()) manualSnoozeInput else "$snoozeMinutes m",
                                     onValueChange = { raw ->
                                         isManualSnooze = true
                                         val digits = raw.filter { it.isDigit() }
@@ -303,31 +349,33 @@ fun AlarmRingingDialog() {
                                     },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
                                     textStyle = TextStyle(
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isDark) DarkTextPrimary else LightTextPrimary,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isManualSnooze) RailBluePrimary else (if (isDark) DarkTextPrimary else LightTextPrimary),
                                         textAlign = TextAlign.Center
                                     ),
                                     cursorBrush = SolidColor(RailBluePrimary),
-                                    modifier = Modifier.width(36.dp),
-                                    decorationBox = { inner ->
-                                        Box(contentAlignment = Alignment.Center) {
-                                            if (manualSnoozeInput.isEmpty()) {
-                                                Text(
-                                                    text = "Custom",
-                                                    fontSize = 11.sp,
-                                                    color = if (isDark) DarkTextSecondary.copy(alpha = 0.6f) else LightTextSecondary.copy(alpha = 0.6f)
-                                                )
-                                            }
-                                            inner()
-                                        }
-                                    }
+                                    modifier = Modifier.width(36.dp)
                                 )
-                                if (manualSnoozeInput.isNotEmpty()) {
+
+                                // Plus button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(32.dp)
+                                        .clickable {
+                                            keyboardController?.hide()
+                                            isManualSnooze = true
+                                            snoozeMinutes = (snoozeMinutes + 1).coerceAtMost(60)
+                                            manualSnoozeInput = snoozeMinutes.toString()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Text(
-                                        text = "m",
-                                        fontSize = 11.sp,
+                                        text = "+",
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isManualSnooze) RailBluePrimary else (if (isDark) DarkTextSecondary else LightTextSecondary)
                                     )
@@ -338,6 +386,7 @@ fun AlarmRingingDialog() {
                         // Snooze action button with dynamic minutes
                         OutlinedButton(
                             onClick = {
+                                keyboardController?.hide()
                                 val effectiveMinutes = if (isManualSnooze && manualSnoozeInput.isNotBlank()) {
                                     manualSnoozeInput.toIntOrNull()?.coerceAtLeast(2) ?: snoozeMinutes
                                 } else {
@@ -347,7 +396,7 @@ fun AlarmRingingDialog() {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(44.dp),
+                                .height(46.dp),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f))
                         ) {
@@ -363,5 +412,6 @@ fun AlarmRingingDialog() {
             }
         }
     }
+}
 }
 
