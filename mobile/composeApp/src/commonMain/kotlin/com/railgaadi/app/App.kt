@@ -124,38 +124,39 @@ fun App() {
         animationSpec = barAnimSpec,
         label = "bottomBarTranslation"
     )
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
     val topBarContentHeight by animateDpAsState(
-        targetValue = if (barsVisible) TOP_BAR_CONTENT_HEIGHT else 0.dp,
+        targetValue = if (barsVisible) (statusBarTop + TOP_BAR_CONTENT_HEIGHT) else 0.dp,
         animationSpec = barDpSpec,
         label = "topBarHeight"
     )
     val bottomBarContentHeight by animateDpAsState(
-        targetValue = if (barsVisible) BOTTOM_BAR_CONTENT_HEIGHT else 0.dp,
+        targetValue = if (barsVisible) (BOTTOM_BAR_CONTENT_HEIGHT + navBarBottom) else 0.dp,
         animationSpec = barDpSpec,
         label = "bottomBarHeight"
     )
 
-    // ── Theme-aware glass surface and separator ────────────────────────────
-    // Dark mode: deep slate background with almost invisible border
-    // Light mode: near-white frosted surface with very soft border
+    // ── Theme-aware glass surface ──────────────────────────────────────────
+    // Dark mode: deep slate background, 100% seamless without separators
+    // Light mode: near-white frosted surface
     val surfaceGlass = if (isDarkMode)
         Color(0xFF0A1628).copy(alpha = 0.95f)   // deep dark navy, more opaque
     else
         Color(0xFFF8FAFC).copy(alpha = 0.97f)   // pure near-white, fully opaque
 
-    // Separator: 0 alpha in dark mode so it's completely invisible
-    val separatorAlpha = if (isDarkMode) 0f else 0.08f
-    val separatorColor = Color.Black.copy(alpha = separatorAlpha)
-
     RailGaadiTheme(darkTheme = isDarkMode) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isDarkMode) DarkBackground else LightBackground)
+        ) {
 
-            // ── CONTENT — always covers full screen, padded so bars don't overlap ──
+            // ── CONTENT — dynamically expands to full screen on scroll ────
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
                     .padding(top = topBarContentHeight, bottom = bottomBarContentHeight)
                     .nestedScroll(scrollConnection)
             ) {
@@ -190,17 +191,8 @@ fun App() {
                             alpha = barsAlpha
                         }
                         .drawBehind {
-                            // Glass background
+                            // Frosted glass background — no separator lines to prevent bleed
                             drawRect(color = surfaceGlass)
-                            // Bottom separator — invisible in dark mode
-                            if (separatorAlpha > 0f) {
-                                drawLine(
-                                    color = separatorColor,
-                                    start = Offset(0f, size.height),
-                                    end = Offset(size.width, size.height),
-                                    strokeWidth = 0.8f
-                                )
-                            }
                         }
                 ) {
                     Column {
@@ -308,17 +300,8 @@ fun App() {
                             alpha = barsAlpha
                         }
                         .drawBehind {
-                            // Glass background
+                            // Frosted glass background — no separator lines to prevent bleed
                             drawRect(color = surfaceGlass)
-                            // Top separator — invisible in dark mode
-                            if (separatorAlpha > 0f) {
-                                drawLine(
-                                    color = separatorColor,
-                                    start = Offset(0f, 0f),
-                                    end = Offset(size.width, 0f),
-                                    strokeWidth = 0.8f
-                                )
-                            }
                         }
                 ) {
                     Column {
