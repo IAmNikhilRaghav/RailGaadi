@@ -12,13 +12,13 @@
   "categories": ["travel", "utilities"],
   "icons": [
     {
-      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=192&h=192&fit=crop&crop=center",
+      "src": "android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=512&h=512&fit=crop&crop=center",
+      "src": "android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
