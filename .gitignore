@@ -5,3 +5,5 @@ dist/
 .DS_Store
 *.log
 .vscode/
+.vercel
+RailGaadi-v1.0-beta.apk

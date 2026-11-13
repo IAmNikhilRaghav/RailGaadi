@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download RailGaadi — Official Android Beta</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="theme-color" content="#141B2A" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background: radial-gradient(circle at 50% 20%, #1E2535 0%, #0D1117 100%);
+      color: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      padding: 36px 24px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    .app-icon {
+      width: 110px;
+      height: 110px;
+      border-radius: 24px;
+      box-shadow: 0 10px 25px rgba(14, 165, 233, 0.35);
+      margin-bottom: 20px;
+      border: 1px solid rgba(14, 165, 233, 0.4);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+    .tagline {
+      font-size: 15px;
+      color: #94A3B8;
+      margin-bottom: 24px;
+      line-height: 1.4;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(14, 165, 233, 0.15);
+      color: #38BDF8;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 17px;
+      padding: 16px 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(14, 165, 233, 0.4);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-download:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(14, 165, 233, 0.55);
+    }
+    .btn-download:active {
+      transform: translateY(1px);
+    }
+    .meta {
+      font-size: 13px;
+      color: #64748B;
+      margin-top: 12px;
+      margin-bottom: 24px;
+    }
+    .steps {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 16px;
+      padding: 18px 16px;
+      text-align: left;
+      font-size: 13px;
+      color: #CBD5E1;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 20px;
+    }
+    .steps-title {
+      font-weight: 700;
+      color: #E2E8F0;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .steps ol {
+      padding-left: 20px;
+      line-height: 1.7;
+    }
+    .steps li b {
+      color: #38BDF8;
+    }
+    .web-link {
+      color: #94A3B8;
+      font-size: 13px;
+      text-decoration: none;
+      display: inline-block;
+      transition: color 0.15s;
+    }
+    .web-link:hover {
+      color: #38BDF8;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <img src="android-chrome-192x192.png" alt="RailGaadi Icon" class="app-icon" />
+    
+    <div>
+      <span class="badge">Official Beta v1.0</span>
+    </div>
+    
+    <h1>RailGaadi</h1>
+    <p class="tagline">Live Indian Railways Train Tracker, Destination Alarms & Running Status</p>
+
+    <a href="railgaadi.apk" download="RailGaadi-v1.0-beta.apk" class="btn-download">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Download for Android (.apk)
+    </a>
+
+    <div class="meta">
+      Size: 12 MB &bull; Android 8.0+ &bull; Native Build
+    </div>
+
+    <div class="steps">
+      <div class="steps-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        Quick Install Instructions:
+      </div>
+      <ol>
+        <li>Tap <b>Download for Android</b> above</li>
+        <li>When downloaded, tap <b>Open</b> or tap the notification</li>
+        <li>Tap <b>Install</b> (if prompted, turn on <i>"Allow from this source"</i>)</li>
+      </ol>
+    </div>
+
+    <a href="/" class="web-link">Using an iPhone? Open Web Version &rarr;</a>
+  </div>
+
+</body>
+</html>
