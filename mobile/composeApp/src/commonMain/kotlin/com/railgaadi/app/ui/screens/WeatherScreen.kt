@@ -505,29 +505,30 @@ fun WeatherScreen() {
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceAround
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                if (w.pm25 != null) PollutantChip("PM2.5", "${w.pm25.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "PM2.5", textPrimary = textPrimary, textSecondary = textSecondary)
-                                if (w.pm10 != null) PollutantChip("PM10", "${w.pm10.formatDecimals(0)} µg/m³", isDominant = w.dominantPollutant == "PM10", textPrimary = textPrimary, textSecondary = textSecondary)
-                                if (w.no2 != null) PollutantChip("NO₂", "${w.no2.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "NO₂", textPrimary = textPrimary, textSecondary = textSecondary)
-                                if (w.so2 != null) PollutantChip("SO₂", "${w.so2.formatDecimals(1)} µg/m³", isDominant = w.dominantPollutant == "SO₂", textPrimary = textPrimary, textSecondary = textSecondary)
+                                if (w.pm25 != null) PollutantChip("PM2.5", w.pm25.formatDecimals(1), unit = "µg/m³", isDominant = w.dominantPollutant == "PM2.5", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
+                                if (w.pm10 != null) PollutantChip("PM10", w.pm10.formatDecimals(0), unit = "µg/m³", isDominant = w.dominantPollutant == "PM10", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
+                                if (w.no2 != null) PollutantChip("NO₂", w.no2.formatDecimals(1), unit = "µg/m³", isDominant = w.dominantPollutant == "NO₂", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
+                                if (w.so2 != null) PollutantChip("SO₂", w.so2.formatDecimals(1), unit = "µg/m³", isDominant = w.dominantPollutant == "SO₂", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
                             }
 
                             if (w.co != null || w.o3 != null || !w.dominantPollutant.isNullOrBlank()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceAround,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (w.co != null) PollutantChip("CO (8h)", "${w.co.formatDecimals(2)} mg/m³", isDominant = w.dominantPollutant == "CO", textPrimary = textPrimary, textSecondary = textSecondary)
-                                    if (w.o3 != null) PollutantChip("O₃ (8h)", "${w.o3.formatDecimals(0)} µg/m³", isDominant = w.dominantPollutant == "O₃", textPrimary = textPrimary, textSecondary = textSecondary)
+                                    if (w.co != null) PollutantChip("CO (8h)", w.co.formatDecimals(2), unit = "mg/m³", isDominant = w.dominantPollutant == "CO", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
+                                    if (w.o3 != null) PollutantChip("O₃ (8h)", w.o3.formatDecimals(0), unit = "µg/m³", isDominant = w.dominantPollutant == "O₃", textPrimary = textPrimary, textSecondary = textSecondary, modifier = Modifier.weight(1f))
                                     if (!w.dominantPollutant.isNullOrBlank()) {
                                         Column(
+                                            modifier = Modifier.weight(1f),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
-                                            Text(w.dominantPollutant ?: "", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
-                                            Text("Primary", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                            Text(w.dominantPollutant ?: "", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary, maxLines = 1)
+                                            Text("Primary", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary, maxLines = 1)
                                         }
                                     }
                                 }
@@ -730,25 +731,41 @@ private fun AppleWeatherMetricTile(
 private fun PollutantChip(
     label: String,
     value: String,
+    unit: String = "µg/m³",
     isDominant: Boolean = false,
     textPrimary: Color,
-    textSecondary: Color
+    textSecondary: Color,
+    modifier: Modifier = Modifier
 ) {
     Column(
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isDominant) RailBluePrimary else textPrimary
-        )
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = value,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDominant) RailBluePrimary else textPrimary,
+                maxLines = 1
+            )
+            Text(
+                text = unit,
+                fontSize = 8.sp,
+                color = textSecondary.copy(alpha = 0.85f),
+                modifier = Modifier.padding(bottom = 1.dp),
+                maxLines = 1
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(label, fontSize = 9.sp, color = textSecondary)
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Medium, color = if (isDominant) RailBluePrimary else textSecondary, maxLines = 1)
             if (isDominant) {
                 Text("★", fontSize = 8.sp, color = RailBluePrimary)
             }

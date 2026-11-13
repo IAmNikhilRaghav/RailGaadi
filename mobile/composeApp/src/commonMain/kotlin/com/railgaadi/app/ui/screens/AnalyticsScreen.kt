@@ -677,11 +677,12 @@ fun AnalyticsScreen(
                                             Text(if (isAlarmArmed) "🔔" else "⏰", fontSize = 16.sp)
                                         }
 
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             if (isAlarmArmed) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    modifier = Modifier.fillMaxWidth()
                                                 ) {
                                                     Text(
                                                         text = "Alarm: ${activeAlarm.stationName}",
@@ -689,23 +690,38 @@ fun AnalyticsScreen(
                                                         fontWeight = FontWeight.Bold,
                                                         color = if (isDark) DarkTextPrimary else LightTextPrimary,
                                                         maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
                                                     )
                                                     if (activeAlarm.isSnoozed) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .background(RailAmberWarning.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
-                                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp)
                                                         ) {
-                                                            Text("SNOOZED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailAmberWarning)
+                                                            Text(
+                                                                "SNOOZED",
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = RailAmberWarning,
+                                                                maxLines = 1,
+                                                                softWrap = false
+                                                            )
                                                         }
                                                     } else {
                                                         Box(
                                                             modifier = Modifier
                                                                 .background(RailGreenOnTime.copy(alpha = 0.20f), RoundedCornerShape(6.dp))
-                                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp)
                                                         ) {
-                                                            Text("ARMED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = RailGreenOnTime)
+                                                            Text(
+                                                                "ARMED",
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = RailGreenOnTime,
+                                                                maxLines = 1,
+                                                                softWrap = false
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -713,7 +729,9 @@ fun AnalyticsScreen(
                                                 Text(
                                                     text = if (activeAlarm.isSnoozed) "Alarm snoozed • Will re-alarm when timer ends" else "Rings $distInfo • Geofence active",
                                                     fontSize = 11.sp,
-                                                    color = if (isDark) DarkTextSecondary else LightTextSecondary
+                                                    color = if (isDark) DarkTextSecondary else LightTextSecondary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             } else {
                                                 Text(
@@ -732,13 +750,21 @@ fun AnalyticsScreen(
                                     }
 
                                     if (isAlarmArmed) {
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Box(
                                             modifier = Modifier
                                                 .background(RailRedDelayed.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
                                                 .clickable { TrainTrackerState.disarmAlarm() }
                                                 .padding(horizontal = 8.dp, vertical = 5.dp)
                                         ) {
-                                            Text("✕ Off", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailRedDelayed)
+                                            Text(
+                                                text = "✕ Off",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = RailRedDelayed,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
                                     } else {
                                         Box(

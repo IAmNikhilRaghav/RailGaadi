@@ -1135,29 +1135,33 @@ fun LiveMapScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = if (isNavigationPaused) "Paused" else formatEtaDuration(navDurationMin),
-                                    fontSize = 28.sp,
+                                    fontSize = 24.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (isNavigationPaused) Color(0xFFB45309) else Color(0xFF044E42)
+                                    color = if (isNavigationPaused) Color(0xFFB45309) else Color(0xFF044E42),
+                                    maxLines = 1
                                 )
                                 Text(
                                     text = "$navDistanceKm • $navEtaTime",
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color.Gray
+                                    color = Color.Gray,
+                                    maxLines = 1
                                 )
                             }
 
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Voice mute toggle
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(36.dp)
                                         .background(Color(0xFFF1F5F9), CircleShape)
                                         .clickable {
                                             isMuted = !isMuted
@@ -1170,7 +1174,7 @@ fun LiveMapScreen() {
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(if (isMuted) "🔇" else "🔊", fontSize = 16.sp)
+                                    Text(if (isMuted) "🔇" else "🔊", fontSize = 15.sp)
                                 }
 
                                 // Navigation Pause / Resume Button
@@ -1180,13 +1184,15 @@ fun LiveMapScreen() {
                                         containerColor = if (isNavigationPaused) Color(0xFF044E42) else Color(0xFFF1F5F9),
                                         contentColor = if (isNavigationPaused) Color.White else Color(0xFF0F172A)
                                     ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         if (isNavigationPaused) "▶ Resume" else "⏸ Pause",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
 
@@ -1198,10 +1204,17 @@ fun LiveMapScreen() {
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE2E2)),
                                     border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
-                                    shape = RoundedCornerShape(12.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
-                                    Text("✕ Stop", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFDC2626))
+                                    Text(
+                                        "✕ Stop",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFDC2626),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
                             }
                         }
