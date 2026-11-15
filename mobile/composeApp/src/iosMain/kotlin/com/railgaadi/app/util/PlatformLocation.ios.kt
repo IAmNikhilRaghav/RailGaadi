@@ -54,7 +54,14 @@ actual object PlatformLocation {
             lm.delegate = delegate
 
             if (!hasPermission()) {
+                lm.requestAlwaysAuthorization()
                 lm.requestWhenInUseAuthorization()
+            }
+            try {
+                lm.allowsBackgroundLocationUpdates = true
+                lm.pausesLocationUpdatesAutomatically = false
+            } catch (e: Throwable) {
+                println("Background location property warning: ${e.message}")
             }
             lm.startUpdatingLocation()
             isListening = true

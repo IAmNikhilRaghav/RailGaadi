@@ -104,3 +104,4 @@ actual object PlatformLocation {
 
     actual fun getLastLocation(): GeoLocation? = lastLocation
 }
+

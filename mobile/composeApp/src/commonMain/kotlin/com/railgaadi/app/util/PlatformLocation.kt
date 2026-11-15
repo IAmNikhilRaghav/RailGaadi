@@ -15,3 +15,4 @@ expect object PlatformLocation {
     fun getLastLocation(): GeoLocation?
     fun hasPermission(): Boolean
 }
+

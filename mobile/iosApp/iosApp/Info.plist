@@ -28,6 +28,15 @@
     <dict/>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>RailGaadi requires location access to find nearby railway stations and track trains relative to your current location.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>RailGaadi requires continuous background location access to monitor your train's journey and sound wake-up alarms before your destination station even when the phone is locked.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>RailGaadi requires continuous background location access to monitor your train's journey and sound wake-up alarms before your destination station even when the phone is locked.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <string>audio</string>
+    </array>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

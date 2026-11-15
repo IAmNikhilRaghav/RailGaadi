@@ -9,7 +9,10 @@
   "background_color": "#141B2A",
   "theme_color": "#141B2A",
   "lang": "en-IN",
-  "categories": ["travel", "utilities"],
+  "categories": [
+    "travel",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "android-chrome-192x192.png",
@@ -30,7 +33,12 @@
       "short_name": "Track",
       "description": "Search and track a live Indian train",
       "url": "./#track",
-      "icons": [{ "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=96&h=96&fit=crop", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "https://images.unsplash.com/photo-1532103054090-a33923a7c120?w=96&h=96&fit=crop",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Station Board",

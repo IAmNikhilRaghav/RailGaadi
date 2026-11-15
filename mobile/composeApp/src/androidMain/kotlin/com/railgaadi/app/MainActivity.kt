@@ -9,10 +9,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.railgaadi.app.util.PlatformAlarm
 import com.railgaadi.app.util.PlatformLocation
 import com.railgaadi.app.util.PlatformSpeech
+import com.railgaadi.app.util.PlatformStorage
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PlatformStorage.init(this)
         PlatformSpeech.init(this)
         PlatformAlarm.init(this)
         PlatformLocation.init(this)
