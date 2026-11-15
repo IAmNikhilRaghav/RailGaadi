@@ -124,6 +124,79 @@ object TrainTrackerState {
     var offlineGpsStatusText by mutableStateOf("Standby")
     private var isGpsListening = false
 
+    // ── Phase 6: On-Board Passenger "Inside Train Mode" & Live Cockpit Telemetry ──
+    var isInsideTrain by mutableStateOf(false)
+    var inTrainLocationText by mutableStateOf("")
+    var inTrainNextHaltText by mutableStateOf("")
+    var inTrainEstArrivalMinutes by mutableStateOf(0)
+    var inTrainRemainingKm by mutableStateOf(0.0)
+
+    fun toggleInsideTrainMode(enabled: Boolean? = null) {
+        val target = enabled ?: !isInsideTrain
+        isInsideTrain = target
+        if (target) {
+            ensureGpsTracking()
+            currentGpsLocation?.let { updateInTrainCockpit(it) }
+        } else {
+            inTrainLocationText = ""
+            inTrainNextHaltText = ""
+            inTrainEstArrivalMinutes = 0
+            inTrainRemainingKm = 0.0
+            stopGpsTrackingIfIdle()
+        }
+    }
+
+    fun updateInTrainCockpit(loc: GeoLocation) {
+        if (!isInsideTrain || activeTrain.number.isBlank()) return
+        val status = liveStatus ?: return
+        val stations = status.stations
+        if (stations.isEmpty()) return
+
+        // 1. Calculate distance from passenger's physical GPS to each station
+        val distances = stations.mapIndexed { idx, stn ->
+            val (lat, lon) = if (stn.latitude != 0.0 && stn.longitude != 0.0) {
+                stn.latitude to stn.longitude
+            } else {
+                StationDataService.getCoordinates(stn.code)
+            }
+            Triple(idx, stn, calculateHaversineDistanceKm(loc.latitude, loc.longitude, lat, lon))
+        }
+
+        val closest = distances.minByOrNull { it.third } ?: return
+        val closestIdx = closest.first
+        val closestStation = closest.second
+        val distToClosest = closest.third
+
+        // 2. Identify upcoming halt
+        val nextIdx = if (closestIdx < stations.size - 1) {
+            val nextStn = stations[closestIdx + 1]
+            val (nextLat, nextLon) = if (nextStn.latitude != 0.0) nextStn.latitude to nextStn.longitude else StationDataService.getCoordinates(nextStn.code)
+            val dToNext = calculateHaversineDistanceKm(loc.latitude, loc.longitude, nextLat, nextLon)
+            val (closestLat, closestLon) = if (closestStation.latitude != 0.0) closestStation.latitude to closestStation.longitude else StationDataService.getCoordinates(closestStation.code)
+            val dClosestToNext = calculateHaversineDistanceKm(closestLat, closestLon, nextLat, nextLon)
+            if (dToNext < dClosestToNext) closestIdx + 1 else closestIdx
+        } else closestIdx
+
+        val upcomingStation = stations[nextIdx]
+        val (uLat, uLon) = if (upcomingStation.latitude != 0.0) upcomingStation.latitude to upcomingStation.longitude else StationDataService.getCoordinates(upcomingStation.code)
+        val remainingDist = calculateHaversineDistanceKm(loc.latitude, loc.longitude, uLat, uLon)
+        inTrainRemainingKm = ((remainingDist * 10).toInt() / 10.0).coerceAtLeast(0.0)
+
+        val speed = if (loc.speedKmh > 10.0) loc.speedKmh else (status.speedKmh.toDouble().takeIf { it > 10.0 } ?: 65.0)
+        inTrainEstArrivalMinutes = ((remainingDist / speed) * 60).toInt().coerceAtLeast(1)
+
+        // 3. Craft exact human-readable location description
+        inTrainLocationText = when {
+            distToClosest < 0.4 -> "At ${closestStation.name} (${closestStation.code}) Platform"
+            distToClosest < 1.5 -> "Departing / Approaching ${closestStation.name} (${closestStation.code})"
+            nextIdx > 0 && nextIdx > closestIdx -> "Between ${closestStation.name} & ${upcomingStation.name}"
+            nextIdx > 0 -> "Between ${stations[nextIdx - 1].name} & ${upcomingStation.name}"
+            else -> "Near ${closestStation.name} (${closestStation.code})"
+        }
+
+        inTrainNextHaltText = "${upcomingStation.name} (${upcomingStation.code}) • ${inTrainRemainingKm} km away"
+    }
+
     fun ensureGpsTracking() {
         if (isGpsListening) return
         try {
@@ -138,7 +211,7 @@ object TrainTrackerState {
     }
 
     fun stopGpsTrackingIfIdle() {
-        if (!isOfflineModeEnabled && activeAlarm?.isArmed != true) {
+        if (!isOfflineModeEnabled && activeAlarm?.isArmed != true && !isInsideTrain) {
             try {
                 PlatformLocation.stopLocationUpdates()
                 isGpsListening = false
@@ -159,6 +232,11 @@ object TrainTrackerState {
 
         // 2. Dynamically synchronize train status and station crossings along route
         syncLiveStatusWithGps(loc)
+
+        // 3. Update inside train cockpit telemetry if user is on board
+        if (isInsideTrain) {
+            updateInTrainCockpit(loc)
+        }
     }
 
     fun toggleOfflineGpsMode() {
@@ -648,6 +726,11 @@ object TrainTrackerState {
         searchResults = emptyList()
         selectedWeatherStationName = null
         autoRefreshJob?.cancel()
+        isInsideTrain = false
+        inTrainLocationText = ""
+        inTrainNextHaltText = ""
+        inTrainEstArrivalMinutes = 0
+        inTrainRemainingKm = 0.0
         stopGpsTrackingIfIdle()
     }
 

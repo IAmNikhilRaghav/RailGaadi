@@ -5,3 +5,4 @@ expect object PlatformStorage {
     fun getString(key: String): String?
     fun remove(key: String)
 }
+

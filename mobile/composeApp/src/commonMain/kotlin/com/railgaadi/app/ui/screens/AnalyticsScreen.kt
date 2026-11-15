@@ -49,6 +49,7 @@ import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.VectorCoachIcon
 import com.railgaadi.app.ui.components.DestinationAlarmModal
 import com.railgaadi.app.ui.components.AlarmRingingDialog
+import com.railgaadi.app.ui.components.InTrainCockpitBanner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -466,6 +467,16 @@ fun AnalyticsScreen(
                     }
                 }
             }
+
+                // -----------------------------------------------------
+                // 1.5. IN-TRAIN COCKPIT & SATELLITE TELEMETRY BANNER
+                // -----------------------------------------------------
+                item {
+                    InTrainCockpitBanner(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        onOpenAlarmModal = { TrainTrackerState.openAlarmSetup() }
+                    )
+                }
 
                 // -----------------------------------------------------
                 // 2. DYNAMIC NEXT HALT & JOURNEY PROGRESS BANNER

@@ -29,3 +29,4 @@ actual object PlatformStorage {
         } catch (_: Throwable) {}
     }
 }
+
