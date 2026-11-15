@@ -230,10 +230,7 @@ object TrainTrackerState {
         // 1. Immediately evaluate destination alarm geofence with physical GPS
         checkAlarmGeofence(loc)
 
-        // 2. Dynamically synchronize train status and station crossings along route
-        syncLiveStatusWithGps(loc)
-
-        // 3. Update inside train cockpit telemetry if user is on board
+        // 2. Update inside train cockpit telemetry if user is on board
         if (isInsideTrain) {
             updateInTrainCockpit(loc)
         }
@@ -514,59 +511,6 @@ object TrainTrackerState {
         }
     }
 
-    private fun computeGpsStationCrossing(
-        loc: GeoLocation,
-        stations: List<Station>
-    ): Triple<Station?, Station?, Float> {
-        if (stations.isEmpty()) return Triple(null, null, 0f)
-        val distances = stations.mapIndexed { idx, stn ->
-            val (lat, lon) = if (stn.latitude != 0.0 && stn.longitude != 0.0) {
-                stn.latitude to stn.longitude
-            } else {
-                StationDataService.getCoordinates(stn.code)
-            }
-            Triple(idx, stn, calculateHaversineDistanceKm(loc.latitude, loc.longitude, lat, lon))
-        }
-
-        val closest = distances.minByOrNull { it.third } ?: return Triple(null, null, 0f)
-        if (closest.third > 20.0) return Triple(null, null, 0f)
-
-        val closestIdx = closest.first
-        val nextIdx = if (closestIdx < stations.size - 1) {
-            val nextStn = stations[closestIdx + 1]
-            val (nextLat, nextLon) = if (nextStn.latitude != 0.0) nextStn.latitude to nextStn.longitude else StationDataService.getCoordinates(nextStn.code)
-            val dToNext = calculateHaversineDistanceKm(loc.latitude, loc.longitude, nextLat, nextLon)
-            val (closestLat, closestLon) = if (closest.second.latitude != 0.0) closest.second.latitude to closest.second.longitude else StationDataService.getCoordinates(closest.second.code)
-            val dClosestToNext = calculateHaversineDistanceKm(closestLat, closestLon, nextLat, nextLon)
-            if (dToNext < dClosestToNext) closestIdx + 1 else closestIdx
-        } else closestIdx
-
-        val passedIdx = (nextIdx - 1).coerceAtLeast(0)
-        val passedStation = stations[passedIdx]
-        val approachingStation = stations[nextIdx]
-        val progress = (nextIdx.toFloat() / (stations.size - 1).coerceAtLeast(1)).coerceIn(0f, 1f)
-
-        return Triple(passedStation, approachingStation, progress)
-    }
-
-    private fun syncLiveStatusWithGps(loc: GeoLocation) {
-        if (activeTrain.number.isBlank()) return
-        val current = liveStatus ?: return
-        val stations = current.stations
-        if (stations.isEmpty()) return
-
-        val (passedStation, approachingStation, progress) = computeGpsStationCrossing(loc, stations)
-        if (passedStation != null && approachingStation != null) {
-            val effectiveSpeed = if (loc.speedKmh > 5.0) loc.speedKmh.toInt() else current.speedKmh
-            liveStatus = current.copy(
-                currentStation = "${passedStation.name} (${passedStation.code})",
-                nextStation = "${approachingStation.name} (${approachingStation.code})",
-                progressPercent = progress,
-                speedKmh = effectiveSpeed
-            )
-        }
-    }
-
     private fun calculateHaversineDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         if (lat1 == 0.0 || lat2 == 0.0) return 999.0
         val r = 6371.0
@@ -642,20 +586,7 @@ object TrainTrackerState {
                     try {
                         if (!isOfflineModeEnabled) {
                             val updated = service.getLiveStatus(activeTrain.number)
-                            val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
-                            val effectiveStatus = if (loc != null && updated.stations.isNotEmpty()) {
-                                val (passedStn, apprStn, prog) = computeGpsStationCrossing(loc, updated.stations)
-                                if (passedStn != null && apprStn != null) {
-                                    updated.copy(
-                                        currentStation = "${passedStn.name} (${passedStn.code})",
-                                        nextStation = "${apprStn.name} (${apprStn.code})",
-                                        progressPercent = prog,
-                                        speedKmh = if (loc.speedKmh > 5.0) loc.speedKmh.toInt() else updated.speedKmh
-                                    )
-                                } else updated
-                            } else updated
-
-                            liveStatus = effectiveStatus
+                            liveStatus = updated
                             if (updated.stations.isNotEmpty()) {
                                 com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, updated.stations)
                             }
@@ -695,20 +626,7 @@ object TrainTrackerState {
             isAutoRefreshing = true
             try {
                 val updated = service.getLiveStatus(activeTrain.number)
-                val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
-                val effectiveStatus = if (loc != null && updated.stations.isNotEmpty()) {
-                    val (passedStn, apprStn, prog) = computeGpsStationCrossing(loc, updated.stations)
-                    if (passedStn != null && apprStn != null) {
-                        updated.copy(
-                            currentStation = "${passedStn.name} (${passedStn.code})",
-                            nextStation = "${apprStn.name} (${apprStn.code})",
-                            progressPercent = prog,
-                            speedKmh = if (loc.speedKmh > 5.0) loc.speedKmh.toInt() else updated.speedKmh
-                        )
-                    } else updated
-                } else updated
-
-                liveStatus = effectiveStatus
+                liveStatus = updated
                 refreshWeather(silent = true)
                 checkAlarmGeofence()
             } catch (_: Exception) {

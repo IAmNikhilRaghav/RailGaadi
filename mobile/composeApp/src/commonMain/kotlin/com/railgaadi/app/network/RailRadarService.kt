@@ -725,122 +725,17 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
     }
 
     private fun fallbackLiveStatus(trainNumber: String): LiveStatus {
-        return when (trainNumber) {
-            "22436" -> LiveStatus(
-                trainNumber = "22436",
-                trainName = "Vande Bharat Express",
-                status = "ON TIME",
-                delayMinutes = 0,
-                speedKmh = 130,
-                currentStation = "Kanpur Central (CNB)",
-                nextStation = "Prayagraj Jn (PRYJ)",
-                progressPercent = 0.52f,
-                stations = listOf(
-                    Station("NDLS", "New Delhi", 28.6423, 77.2200, scheduledDep = "06:00", scheduledArr = "—", platform = "16", haltMinutes = 0),
-                    Station("CNB", "Kanpur Central", 26.4542, 80.3510, scheduledDep = "10:10", scheduledArr = "10:08", platform = "5", haltMinutes = 2),
-                    Station("PRYJ", "Prayagraj Jn", 25.4462, 81.8288, scheduledDep = "12:10", scheduledArr = "12:08", platform = "6", haltMinutes = 2),
-                    Station("BSB", "Varanasi Jn", 25.3273, 82.9865, scheduledDep = "—", scheduledArr = "14:00", platform = "1", haltMinutes = 0)
-                )
-            )
-            "12952" -> LiveStatus(
-                trainNumber = "12952",
-                trainName = "Mumbai Tejas Rajdhani",
-                status = "ON TIME",
-                delayMinutes = 0,
-                speedKmh = 125,
-                currentStation = "Kota Junction (KOTA)",
-                nextStation = "Ratlam Junction (RTM)",
-                progressPercent = 0.45f,
-                stations = listOf(
-                    Station("NDLS", "New Delhi", 28.6423, 77.2200, scheduledDep = "16:55", scheduledArr = "—", platform = "3", haltMinutes = 0),
-                    Station("MTJ", "Mathura Jn", 27.4801, 77.6731, scheduledDep = "18:55", scheduledArr = "18:53", platform = "2", haltMinutes = 2),
-                    Station("KOTA", "Kota Jn", 25.2236, 75.8805, scheduledDep = "21:40", scheduledArr = "21:30", platform = "1", haltMinutes = 10),
-                    Station("RTM", "Ratlam Jn", 23.3404, 75.0508, scheduledDep = "00:40", scheduledArr = "00:35", platform = "4", haltMinutes = 5),
-                    Station("BRC", "Vadodara Jn", 22.3108, 73.1811, scheduledDep = "03:50", scheduledArr = "03:42", platform = "1", haltMinutes = 8),
-                    Station("ST", "Surat", 21.2066, 72.8408, scheduledDep = "05:18", scheduledArr = "05:13", platform = "2", haltMinutes = 5),
-                    Station("MMCT", "Mumbai Central", 18.9696, 72.8193, scheduledDep = "—", scheduledArr = "08:35", platform = "1", haltMinutes = 0)
-                )
-            )
-            "12002" -> LiveStatus(
-                trainNumber = "12002",
-                trainName = "New Delhi Bhopal Shatabdi",
-                status = "ON TIME",
-                delayMinutes = 0,
-                speedKmh = 120,
-                currentStation = "Agra Cantt (AGC)",
-                nextStation = "Gwalior Jn (GWL)",
-                progressPercent = 0.35f,
-                stations = listOf(
-                    Station("NDLS", "New Delhi", 28.6423, 77.2200, scheduledDep = "06:00", scheduledArr = "—", platform = "1", haltMinutes = 0),
-                    Station("MTJ", "Mathura Jn", 27.4801, 77.6731, scheduledDep = "07:20", scheduledArr = "07:19", platform = "1", haltMinutes = 1),
-                    Station("AGC", "Agra Cantt", 27.1580, 77.9902, scheduledDep = "07:55", scheduledArr = "07:50", platform = "1", haltMinutes = 5),
-                    Station("GWL", "Gwalior Jn", 26.2165, 78.1823, scheduledDep = "09:28", scheduledArr = "09:23", platform = "1", haltMinutes = 5),
-                    Station("VGLJ", "V Lakshmibai Jhansi", 25.4436, 78.5530, scheduledDep = "10:50", scheduledArr = "10:45", platform = "1", haltMinutes = 5),
-                    Station("BPL", "Bhopal Jn", 23.2669, 77.4131, scheduledDep = "14:05", scheduledArr = "14:02", platform = "1", haltMinutes = 3),
-                    Station("RKMP", "Rani Kamlapati", 23.2054, 77.4384, scheduledDep = "—", scheduledArr = "14:40", platform = "5", haltMinutes = 0)
-                )
-            )
-            "12403" -> LiveStatus(
-                trainNumber = "12403",
-                trainName = "Lalgarh SF Express",
-                status = "ON TIME",
-                delayMinutes = 5,
-                speedKmh = 105,
-                currentStation = "Mathura Jn (MTJ)",
-                nextStation = "Bharatpur Jn (BTE)",
-                progressPercent = 0.40f,
-                stations = listOf(
-                    Station("PRYJ", "Prayagraj Jn", 25.4462, 81.8288, scheduledDep = "23:05", scheduledArr = "—", platform = "1", haltMinutes = 0),
-                    Station("CNB", "Kanpur Central", 26.4542, 80.3510, scheduledDep = "01:35", scheduledArr = "01:30", platform = "1", haltMinutes = 5),
-                    Station("ALJN", "Aligarh Jn", 27.8974, 78.0880, scheduledDep = "05:15", scheduledArr = "05:10", platform = "3", haltMinutes = 5),
-                    Station("MTJ", "Mathura Jn", 27.4801, 77.6731, scheduledDep = "07:00", scheduledArr = "06:55", platform = "2", haltMinutes = 5),
-                    Station("BTE", "Bharatpur Jn", 27.2152, 77.4930, scheduledDep = "07:35", scheduledArr = "07:33", platform = "3", haltMinutes = 2),
-                    Station("BKI", "Bandikui Jn", 27.0393, 76.5667, scheduledDep = "08:50", scheduledArr = "08:48", platform = "1", haltMinutes = 2),
-                    Station("DO", "Dausa Jn", 26.8920, 76.3380, scheduledDep = "09:20", scheduledArr = "09:18", platform = "2", haltMinutes = 2),
-                    Station("JP", "Jaipur Jn", 26.9202, 75.7869, scheduledDep = "12:20", scheduledArr = "12:10", platform = "4", haltMinutes = 10),
-                    Station("SIKR", "Sikar Jn", 27.6160, 75.1430, scheduledDep = "14:40", scheduledArr = "14:35", platform = "2", haltMinutes = 5),
-                    Station("BKN", "Bikaner Jn", 28.0141, 73.3166, scheduledDep = "19:45", scheduledArr = "19:35", platform = "1", haltMinutes = 10),
-                    Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "—", scheduledArr = "20:25", platform = "2", haltMinutes = 0)
-                )
-            )
-            "20490" -> LiveStatus(
-                trainNumber = "20490",
-                trainName = "Barmer SF Express",
-                status = "ON TIME",
-                delayMinutes = 0,
-                speedKmh = 110,
-                currentStation = "Mathura Jn (MTJ)",
-                nextStation = "Bharatpur Jn (BTE)",
-                progressPercent = 0.15f,
-                stations = listOf(
-                    Station("MTJ", "Mathura Jn", 27.4801, 77.6731, scheduledDep = "15:45", scheduledArr = "—", platform = "1", haltMinutes = 0),
-                    Station("BTE", "Bharatpur Jn", 27.2152, 77.4930, scheduledDep = "16:20", scheduledArr = "16:18", platform = "1", haltMinutes = 2),
-                    Station("BKI", "Bandikui Jn", 27.0393, 76.5667, scheduledDep = "17:40", scheduledArr = "17:38", platform = "2", haltMinutes = 2),
-                    Station("DO", "Dausa Jn", 26.8920, 76.3380, scheduledDep = "18:10", scheduledArr = "18:08", platform = "1", haltMinutes = 2),
-                    Station("JP", "Jaipur Jn", 26.9202, 75.7869, scheduledDep = "20:45", scheduledArr = "20:35", platform = "1", haltMinutes = 10),
-                    Station("AII", "Ajmer Jn", 26.4566, 74.6375, scheduledDep = "23:15", scheduledArr = "23:05", platform = "3", haltMinutes = 10),
-                    Station("JU", "Jodhpur Jn", 26.2838, 73.0232, scheduledDep = "03:40", scheduledArr = "03:25", platform = "2", haltMinutes = 15),
-                    Station("BME", "Barmer", 25.7445, 71.3971, scheduledDep = "—", scheduledArr = "06:30", platform = "1", haltMinutes = 0)
-                )
-            )
-            else -> LiveStatus(
-                trainNumber = trainNumber,
-                trainName = "Express #$trainNumber",
-                status = "ON TIME",
-                delayMinutes = 0,
-                speedKmh = 95,
-                currentStation = "Mathura Jn (MTJ)",
-                nextStation = "Jaipur Jn (JP)",
-                progressPercent = 0.35f,
-                stations = listOf(
-                    Station("MTJ", "Mathura Jn", 27.4801, 77.6731, scheduledDep = "07:00", scheduledArr = "—", platform = "2", haltMinutes = 0),
-                    Station("BTE", "Bharatpur Jn", 27.2152, 77.4930, scheduledDep = "07:35", scheduledArr = "07:33", platform = "3", haltMinutes = 2),
-                    Station("BKI", "Bandikui Jn", 27.0393, 76.5667, scheduledDep = "08:50", scheduledArr = "08:48", platform = "1", haltMinutes = 2),
-                    Station("DO", "Dausa Jn", 26.8920, 76.3380, scheduledDep = "09:20", scheduledArr = "09:18", platform = "2", haltMinutes = 2),
-                    Station("JP", "Jaipur Jn", 26.9202, 75.7869, scheduledDep = "—", scheduledArr = "12:20", platform = "4", haltMinutes = 0)
-                )
-            )
-        }
+        return LiveStatus(
+            trainNumber = trainNumber,
+            trainName = "Train #$trainNumber",
+            status = "LIVE TRACKING",
+            delayMinutes = 0,
+            speedKmh = 0,
+            currentStation = "",
+            nextStation = "",
+            progressPercent = 0.0f,
+            stations = emptyList()
+        )
     }
 
     private fun fallbackBetweenTrains(fromCode: String, toCode: String): List<Train> {
