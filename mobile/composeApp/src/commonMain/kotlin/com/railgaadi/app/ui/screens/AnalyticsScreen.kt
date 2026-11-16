@@ -1660,36 +1660,14 @@ fun AnalyticsScreen(
 }
 
 /**
- * Concentric pulsing sonar rings + train badge
+ * Concentric pulsing sonar rings + train badge anchored rock-solid to the track
  */
 @Composable
 private fun LiveTrainPulseNode(
     modifier: Modifier = Modifier,
     isRunning: Boolean = true
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "trainMotion")
-
-    // Slow, soothing continuous vertical glide along the track bar
-    val glideOffsetY by infiniteTransition.animateFloat(
-        initialValue = if (isRunning) -6f else 0f,
-        targetValue = if (isRunning) 6f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glideOffsetY"
-    )
-
-    // Subtle train wheel motion / rocking tilt
-    val trackTiltDeg by infiniteTransition.animateFloat(
-        initialValue = if (isRunning) -2f else 0f,
-        targetValue = if (isRunning) 2f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "trackTilt"
-    )
+    val infiniteTransition = rememberInfiniteTransition(label = "trainPulse")
 
     val outerRingScale by infiniteTransition.animateFloat(
         initialValue = 0.85f,
@@ -1701,7 +1679,7 @@ private fun LiveTrainPulseNode(
         label = "outerScale"
     )
     val outerRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
+        initialValue = 0.45f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = tween(1500, easing = FastOutSlowInEasing),
@@ -1712,7 +1690,7 @@ private fun LiveTrainPulseNode(
 
     val innerRingScale by infiniteTransition.animateFloat(
         initialValue = 0.9f,
-        targetValue = 1.2f,
+        targetValue = 1.18f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
@@ -1720,7 +1698,7 @@ private fun LiveTrainPulseNode(
         label = "innerScale"
     )
     val innerRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.45f,
+        initialValue = 0.35f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
@@ -1729,41 +1707,30 @@ private fun LiveTrainPulseNode(
         label = "innerAlpha"
     )
 
-    val badgeScale by infiniteTransition.animateFloat(
-        initialValue = 0.96f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "badgeScale"
-    )
-
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier
-            .size(36.dp)
-            .offset(y = glideOffsetY.dp)
-            .rotate(trackTiltDeg)
+        modifier = modifier.size(32.dp)
     ) {
+        // Outermost radar pulse ring
         Box(
             modifier = Modifier
-                .size(30.dp)
+                .size(28.dp)
                 .scale(outerRingScale)
                 .clip(CircleShape)
                 .background(RailBluePrimary.copy(alpha = outerRingAlpha))
         )
+        // Inner radar pulse ring
         Box(
             modifier = Modifier
-                .size(24.dp)
+                .size(22.dp)
                 .scale(innerRingScale)
                 .clip(CircleShape)
                 .background(RailBluePrimary.copy(alpha = innerRingAlpha))
         )
+        // Stationary train badge anchored rock-solid to the track
         Box(
             modifier = Modifier
-                .size(24.dp)
-                .scale(badgeScale)
+                .size(22.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.verticalGradient(

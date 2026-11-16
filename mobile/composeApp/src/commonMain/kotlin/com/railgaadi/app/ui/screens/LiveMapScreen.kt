@@ -47,7 +47,6 @@ import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
-import com.railgaadi.app.ui.components.InTrainCockpitBanner
 import com.railgaadi.app.util.PlatformSpeech
 
 // Pan-India Real-time Navigation Telemetry Calculator
@@ -1053,14 +1052,7 @@ fun LiveMapScreen() {
 
                         // Expanded Content: Telemetry Metrics, Progress Bar, and Action Button
                         if (isBottomSheetExpanded && hasActiveTrain) {
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // On-Board Passenger "Inside Train Mode" Cockpit
-                            InTrainCockpitBanner(
-                                onOpenAlarmModal = { TrainTrackerState.openAlarmSetup() }
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
                             // Metrics
                             Row(
