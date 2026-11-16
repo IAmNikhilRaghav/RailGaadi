@@ -16,5 +16,9 @@ actual object PlatformDate {
         val cal = Calendar.getInstance()
         return Pair(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
     }
+
+    actual fun nowMillis(): Long {
+        return System.currentTimeMillis()
+    }
 }
 

@@ -561,6 +561,64 @@ object TrainTrackerState {
         isSearchDropdownOpen = false
     }
 
+    // ── Phase 7: Real-Time Continuous Odometer & Dead Reckoning Engine ──────
+    var liveDistanceOffsetKm by mutableStateOf(0.0)
+    var lastLiveStatusUpdateTimeMs by mutableStateOf(0L)
+    private var deadReckoningJob: Job? = null
+
+    fun startDeadReckoningEngine() {
+        deadReckoningJob?.cancel()
+        deadReckoningJob = scope.launch {
+            while (true) {
+                delay(1000) // 1-second continuous live odometer tick
+                val status = liveStatus ?: continue
+                if (status.stations.isEmpty() || activeTrain.number.isBlank()) continue
+
+                val speed = status.speedKmh
+                if (isInsideTrain && currentGpsLocation != null) {
+                    // Physical on-train satellite tracking
+                    updateInTrainCockpit(currentGpsLocation!!)
+                } else if (speed > 5 && lastLiveStatusUpdateTimeMs > 0L) {
+                    // Real-time dead-reckoning distance interpolation between server updates
+                    val elapsedSeconds = (com.railgaadi.app.util.PlatformDate.nowMillis() - lastLiveStatusUpdateTimeMs) / 1000.0
+                    val addedKm = speed.toDouble() * (elapsedSeconds / 3600.0)
+                    liveDistanceOffsetKm = addedKm
+                }
+            }
+        }
+    }
+
+    fun getLiveRemainingKmToStation(station: Station, baseStation: Station? = null): Double? {
+        val status = liveStatus ?: return null
+        val stations = status.stations
+        if (stations.isEmpty()) return null
+
+        // 1. If passenger is inside the train with GPS active: Use physical satellite distance!
+        if (isInsideTrain && currentGpsLocation != null) {
+            val loc = currentGpsLocation!!
+            val (stnLat, stnLon) = if (station.latitude != 0.0 && station.longitude != 0.0) {
+                station.latitude to station.longitude
+            } else {
+                StationDataService.getCoordinates(station.code)
+            }
+            if (stnLat != 0.0 && stnLon != 0.0) {
+                val dist = calculateHaversineDistanceKm(loc.latitude, loc.longitude, stnLat, stnLon)
+                return ((dist * 10).toInt() / 10.0).coerceAtLeast(0.0)
+            }
+        }
+
+        // 2. Continuous dead reckoning interpolation
+        val curStn = baseStation ?: stations.find {
+            it.name.contains(status.currentStation, ignoreCase = true) ||
+            (it.code.isNotBlank() && status.currentStation.contains(it.code, ignoreCase = true))
+        } ?: stations.firstOrNull() ?: return null
+
+        if (station.distanceKm <= curStn.distanceKm) return null
+
+        val rawRemaining = (station.distanceKm - curStn.distanceKm) - liveDistanceOffsetKm
+        return ((rawRemaining * 10).toInt() / 10.0).coerceAtLeast(0.1)
+    }
+
     // Live Auto-Refresh Polling Engine (Seamless 3-second live updates in background)
     const val AUTO_REFRESH_INTERVAL_SECONDS = 3
     var autoRefreshCountdown by mutableStateOf(AUTO_REFRESH_INTERVAL_SECONDS)
@@ -587,6 +645,8 @@ object TrainTrackerState {
                         if (!isOfflineModeEnabled) {
                             val updated = service.getLiveStatus(activeTrain.number)
                             liveStatus = updated
+                            lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+                            liveDistanceOffsetKm = 0.0
                             if (updated.stations.isNotEmpty()) {
                                 com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, updated.stations)
                             }
@@ -627,6 +687,8 @@ object TrainTrackerState {
             try {
                 val updated = service.getLiveStatus(activeTrain.number)
                 liveStatus = updated
+                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+                liveDistanceOffsetKm = 0.0
                 refreshWeather(silent = true)
                 checkAlarmGeofence()
             } catch (_: Exception) {
@@ -644,6 +706,10 @@ object TrainTrackerState {
         searchResults = emptyList()
         selectedWeatherStationName = null
         autoRefreshJob?.cancel()
+        deadReckoningJob?.cancel()
+        deadReckoningJob = null
+        liveDistanceOffsetKm = 0.0
+        lastLiveStatusUpdateTimeMs = 0L
         isInsideTrain = false
         inTrainLocationText = ""
         inTrainNextHaltText = ""
@@ -680,6 +746,9 @@ object TrainTrackerState {
             try {
                 val status = service.getLiveStatus(train.number)
                 liveStatus = status
+                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+                liveDistanceOffsetKm = 0.0
+                startDeadReckoningEngine()
                 if (status.stations.isNotEmpty()) {
                     com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(train.number, status.stations)
                 }
@@ -687,6 +756,8 @@ object TrainTrackerState {
                 val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
                 if (loc != null) {
                     liveStatus = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
+                    lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+                    startDeadReckoningEngine()
                 }
             }
             isLoadingStatus = false

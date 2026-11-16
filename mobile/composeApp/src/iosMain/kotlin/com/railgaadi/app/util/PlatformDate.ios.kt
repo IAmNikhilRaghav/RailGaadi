@@ -7,6 +7,7 @@ import platform.Foundation.NSCalendarUnitMinute
 import platform.Foundation.NSCalendarUnitMonth
 import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSDate
+import platform.Foundation.timeIntervalSince1970
 
 actual object PlatformDate {
     actual fun getToday(): Triple<Int, Int, Int> {
@@ -31,6 +32,10 @@ actual object PlatformDate {
             fromDate = date
         )
         return Pair(components.hour.toInt(), components.minute.toInt())
+    }
+
+    actual fun nowMillis(): Long {
+        return (NSDate().timeIntervalSince1970 * 1000).toLong()
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -128,10 +129,8 @@ fun AnalyticsScreen(
     val nextStnIdx = if (curIdx + 1 < stations.size) curIdx + 1 else null
     val nextStation = nextStnIdx?.let { stations.getOrNull(it) }
 
-    val kmToNext = remember(curStation, nextStation) {
-        if (curStation != null && nextStation != null && nextStation.distanceKm > curStation.distanceKm) {
-            ((nextStation.distanceKm - curStation.distanceKm) * 10).toInt() / 10.0
-        } else null
+    val kmToNext = nextStation?.let {
+        TrainTrackerState.getLiveRemainingKmToStation(it, curStation)
     }
 
     val progressPercent = remember(liveStatus?.progressPercent, curIdx, stations.size) {
@@ -1664,33 +1663,58 @@ fun AnalyticsScreen(
  * Concentric pulsing sonar rings + train badge
  */
 @Composable
-private fun LiveTrainPulseNode(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "trainPulse")
+private fun LiveTrainPulseNode(
+    modifier: Modifier = Modifier,
+    isRunning: Boolean = true
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "trainMotion")
+
+    // Slow, soothing continuous vertical glide along the track bar
+    val glideOffsetY by infiniteTransition.animateFloat(
+        initialValue = if (isRunning) -6f else 0f,
+        targetValue = if (isRunning) 6f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glideOffsetY"
+    )
+
+    // Subtle train wheel motion / rocking tilt
+    val trackTiltDeg by infiniteTransition.animateFloat(
+        initialValue = if (isRunning) -2f else 0f,
+        targetValue = if (isRunning) 2f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "trackTilt"
+    )
 
     val outerRingScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 2.0f,
+        initialValue = 0.85f,
+        targetValue = 1.35f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
+            animation = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "outerScale"
     )
     val outerRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.55f,
+        initialValue = 0.5f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
+            animation = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "outerAlpha"
     )
 
     val innerRingScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.55f,
+        initialValue = 0.9f,
+        targetValue = 1.2f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "innerScale"
@@ -1699,17 +1723,17 @@ private fun LiveTrainPulseNode(modifier: Modifier = Modifier) {
         initialValue = 0.45f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "innerAlpha"
     )
 
     val badgeScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.12f,
+        initialValue = 0.96f,
+        targetValue = 1.06f,
         animationSpec = infiniteRepeatable(
-            animation = tween(700, easing = FastOutSlowInEasing),
+            animation = tween(800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "badgeScale"
@@ -1717,7 +1741,10 @@ private fun LiveTrainPulseNode(modifier: Modifier = Modifier) {
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.size(36.dp)
+        modifier = modifier
+            .size(36.dp)
+            .offset(y = glideOffsetY.dp)
+            .rotate(trackTiltDeg)
     ) {
         Box(
             modifier = Modifier
@@ -1738,7 +1765,11 @@ private fun LiveTrainPulseNode(modifier: Modifier = Modifier) {
                 .size(24.dp)
                 .scale(badgeScale)
                 .clip(CircleShape)
-                .background(RailBluePrimary)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8))
+                    )
+                )
                 .border(2.dp, Color.White, CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -1770,8 +1801,8 @@ private fun WimtStationTrackRow(
     val trackFutureColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
     val passThroughColor = RailBluePrimary.copy(alpha = 0.28f) // light translucent for non-halt nodes
 
-    val kmRemaining = if (isUpcoming && station.distanceKm > curTrainDistKm) {
-        ((station.distanceKm - curTrainDistKm) * 10).toInt() / 10.0
+    val kmRemaining = if (isUpcoming) {
+        TrainTrackerState.getLiveRemainingKmToStation(station)
     } else null
 
     Row(

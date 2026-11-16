@@ -5,5 +5,7 @@ expect object PlatformDate {
     fun getToday(): Triple<Int, Int, Int>
     /** Returns Pair(hour 0..23, minute 0..59) for current time */
     fun getCurrentTime(): Pair<Int, Int>
+    /** Returns current epoch timestamp in milliseconds */
+    fun nowMillis(): Long
 }
 
