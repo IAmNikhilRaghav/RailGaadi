@@ -84,7 +84,10 @@ data class RailRadarTrainDetails(
     val type: String? = null,
     val source: RailRadarCodeName? = null,
     val destination: RailRadarCodeName? = null,
-    val runDays: List<String>? = null
+    val runDays: List<String>? = null,
+    val avgSpeed: Double? = null,
+    val maxSpeed: Double? = null,
+    val distance: Double? = null
 )
 
 @Serializable
@@ -125,7 +128,8 @@ data class RailRadarLiveStatusData(
     val previousHalt: RailRadarHaltInfo? = null,
     val nextHalt: RailRadarHaltInfo? = null,
     val route: List<RailRadarRouteStop>? = null,
-    val geometry: RailRadarGeometryWrapper? = null
+    val geometry: RailRadarGeometryWrapper? = null,
+    val train: RailRadarTrainDetails? = null
 )
 
 @Serializable
@@ -139,6 +143,8 @@ data class RailRadarCurrentLocation(
     val stationCode: String? = null,
     val stationName: String? = null,
     val speed: Double? = null,
+    val speedKmh: Double? = null,
+    val status: String? = null,
     val delayMinutes: Int? = null,
     val coordinates: RailRadarCoordinates? = null
 )
@@ -687,17 +693,105 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     }
                 }
 
-                // Calculate real train progress along route
-                val curStationName = data.currentLocation?.stationName
-                    ?: data.previousHalt?.stationName
-                    ?: stations.firstOrNull()?.name ?: ""
-                val nextStationName = data.nextHalt?.stationName
-                    ?: stations.getOrNull(1)?.name ?: ""
-
-                val curIdx = stations.indexOfFirst {
-                    it.name.contains(curStationName, ignoreCase = true) ||
-                    (data.currentLocation?.stationCode != null && it.code.equals(data.currentLocation.stationCode, ignoreCase = true))
+                // ── Determine ACTUAL current train position from route stop statuses ──
+                // The route stops have a "status" field: "at-station", "departed" for passed stations,
+                // "upcoming" for future ones. The boundary is the real-time train position.
+                // This is far more accurate than currentLocation which is often stale.
+                val atStationIdx = allStops.indexOfFirst {
+                    val st = (it.status ?: "").lowercase()
+                    st == "at-station" || st == "halted" || st == "arrived"
                 }
+                val lastDepartedIdx = allStops.indexOfLast {
+                    val st = (it.status ?: "").lowercase()
+                    st == "departed" || st == "left" || st == "passed"
+                }
+                val firstUpcomingIdx = allStops.indexOfFirst {
+                    val st = (it.status ?: "").lowercase()
+                    st == "upcoming" || st == "scheduled" || st == "expected"
+                }
+
+                val currentStatus = data.currentLocation?.status ?: ""
+                val isAtStation = atStationIdx >= 0 ||
+                    currentStatus.contains("at-station", ignoreCase = true) ||
+                    currentStatus.contains("halted", ignoreCase = true)
+
+                // Determine real current station name & index:
+                val curStationName: String
+                val curStationCode: String
+                val curIdx: Int
+
+                if (atStationIdx >= 0) {
+                    // Train is confirmed halted at a station
+                    val haltStop = allStops[atStationIdx]
+                    curStationName = haltStop.stationName ?: ""
+                    curStationCode = haltStop.stationCode ?: ""
+                    curIdx = atStationIdx
+                } else if (lastDepartedIdx >= 0) {
+                    val lastDep = allStops[lastDepartedIdx]
+                    val clStation = data.currentLocation?.stationName ?: ""
+                    val clCode = data.currentLocation?.stationCode ?: ""
+
+                    // If currentLocation points to a station further along than lastDeparted, use it
+                    val clIdx = if (clCode.isNotBlank()) {
+                        allStops.indexOfFirst { it.stationCode.equals(clCode, ignoreCase = true) }
+                    } else if (clStation.isNotBlank()) {
+                        allStops.indexOfFirst { it.stationName?.contains(clStation, ignoreCase = true) == true }
+                    } else -1
+
+                    if (clIdx >= lastDepartedIdx) {
+                        curStationName = clStation.ifBlank { lastDep.stationName ?: "" }
+                        curStationCode = if (clIdx >= 0) (allStops[clIdx].stationCode ?: "") else (lastDep.stationCode ?: "")
+                        curIdx = if (clIdx >= 0) clIdx else lastDepartedIdx
+                    } else {
+                        curStationName = lastDep.stationName ?: ""
+                        curStationCode = lastDep.stationCode ?: ""
+                        curIdx = lastDepartedIdx
+                    }
+                } else {
+                    // No departed stops yet — use currentLocation or first station
+                    curStationName = data.currentLocation?.stationName
+                        ?: data.previousHalt?.stationName
+                        ?: stations.firstOrNull()?.name ?: ""
+                    curStationCode = data.currentLocation?.stationCode ?: ""
+                    curIdx = stations.indexOfFirst {
+                        it.name.contains(curStationName, ignoreCase = true) ||
+                        (curStationCode.isNotBlank() && it.code.equals(curStationCode, ignoreCase = true))
+                    }.takeIf { it >= 0 } ?: 0
+                }
+
+                val nextStationName = if (atStationIdx >= 0) {
+                    val nextHalt = allStops.drop(atStationIdx + 1).firstOrNull { it.isHalt == true }
+                    nextHalt?.stationName ?: allStops.getOrNull(atStationIdx + 1)?.stationName
+                        ?: data.nextHalt?.stationName ?: ""
+                } else if (firstUpcomingIdx >= 0) {
+                    // Find the next halt (not just any pass-through)
+                    val nextHalt = allStops.drop(firstUpcomingIdx).firstOrNull { it.isHalt == true }
+                    nextHalt?.stationName ?: allStops.getOrNull(firstUpcomingIdx)?.stationName
+                        ?: data.nextHalt?.stationName ?: ""
+                } else {
+                    data.nextHalt?.stationName ?: stations.getOrNull(curIdx + 1)?.name ?: ""
+                }
+
+                // ── Compute REAL speed from route segment data ──
+                // The API almost never populates currentLocation.speed, but each route
+                // stop has speedToNextStationKmph which is the real sectional speed.
+                val apiSpeed = (data.currentLocation?.speed ?: data.currentLocation?.speedKmh)?.takeIf { it > 0 }
+                val segmentSpeed: Double? = if (lastDepartedIdx >= 0) {
+                    allStops[lastDepartedIdx].speedToNextStationKmph?.takeIf { it > 0 }
+                } else null
+
+                val resolvedSpeed = when {
+                    isAtStation -> 0  // Actually halted at a station
+                    apiSpeed != null -> apiSpeed.toInt()
+                    segmentSpeed != null -> segmentSpeed.toInt()
+                    // If train has departed all stations so far and not yet arrived, it's moving
+                    lastDepartedIdx >= 0 && firstUpcomingIdx >= 0 -> {
+                        val avgSpeed = data.train?.avgSpeed
+                        avgSpeed?.toInt() ?: 65
+                    }
+                    else -> 0
+                }
+
                 val progress = if (stations.size > 1 && curIdx >= 0) {
                     (curIdx.toFloat() / (stations.size - 1)).coerceIn(0.05f, 0.95f)
                 } else {
@@ -709,8 +803,7 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     trainName = data.trainName ?: "Train #$cleanNumber",
                     status = statusStr,
                     delayMinutes = delay,
-                    // Use API speed directly; default 0 (not 85) so dead-reckoning pauses at halts
-                    speedKmh = (data.currentLocation?.speed ?: 0.0).toInt(),
+                    speedKmh = resolvedSpeed,
                     currentStation = curStationName,
                     nextStation = nextStationName,
                     progressPercent = progress,
