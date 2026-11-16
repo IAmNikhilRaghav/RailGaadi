@@ -41,6 +41,7 @@ object TrainTrackerState {
 
     private const val KEY_RECENT_TRAINS = "saved_recent_trains"
     private const val KEY_ACTIVE_ALARM = "saved_active_alarm"
+    private const val KEY_ODOMETER = "saved_odometer"
 
     var searchQuery by mutableStateOf("")
     var isSearchDropdownOpen by mutableStateOf(false)
@@ -577,6 +578,61 @@ object TrainTrackerState {
     private val remainingKmCache = mutableMapOf<String, Double>()
     private var deadReckoningJob: Job? = null
 
+    // ── Odometer persistence: survives app quit/reopen for same train ──────────
+    @kotlinx.serialization.Serializable
+    private data class OdometerSnapshot(
+        val trainNumber: String,
+        val confirmedStationName: String,
+        val distanceOffsetKm: Double,
+        val remainingKmCache: Map<String, Double>,
+        val snapshotTimeMs: Long
+    )
+
+    private fun saveOdometerSnapshot() {
+        val num = activeTrain.number
+        if (num.isBlank()) return
+        try {
+            val snap = OdometerSnapshot(
+                trainNumber = num,
+                confirmedStationName = lastConfirmedStationName,
+                distanceOffsetKm = liveDistanceOffsetKm,
+                remainingKmCache = remainingKmCache.toMap(),
+                snapshotTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+            )
+            PlatformStorage.saveString(KEY_ODOMETER, json.encodeToString(snap))
+        } catch (_: Throwable) {}
+    }
+
+    /**
+     * Restores the odometer from storage for the same train, projecting forward the
+     * distance the train has likely covered while the app was closed, based on the
+     * last known speed from the API.  Returns true if a valid snapshot was loaded.
+     */
+    private fun restoreOdometerSnapshot(trainNumber: String): Boolean {
+        return try {
+            val raw = PlatformStorage.getString(KEY_ODOMETER) ?: return false
+            val snap = json.decodeFromString<OdometerSnapshot>(raw)
+            if (snap.trainNumber != trainNumber) return false
+
+            // How long was the app closed?
+            val nowMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+            val gapSeconds = ((nowMs - snap.snapshotTimeMs) / 1000.0).coerceIn(0.0, 7200.0) // cap at 2h
+
+            // Project forward with last known live speed (or conservative 60 km/h if unavailable)
+            val speedKmh = liveStatus?.speedKmh?.takeIf { it > 0 }?.toDouble() ?: 60.0
+            val projectedExtraKm = speedKmh * (gapSeconds / 3600.0)
+
+            lastConfirmedStationName = snap.confirmedStationName
+            liveDistanceOffsetKm = (snap.distanceOffsetKm + projectedExtraKm)
+            remainingKmCache.clear()
+            remainingKmCache.putAll(snap.remainingKmCache.mapValues { (_, v) ->
+                // Reduce every cached remaining-distance by the same projected travel
+                (v - projectedExtraKm).coerceAtLeast(0.1)
+            })
+            true
+        } catch (_: Throwable) { false }
+    }
+
     /**
      * Resilient pan-India station name resolver that strips prefixes like "Crossing",
      * "Before", "Near", "At", "Departed" and matches station codes or clean names.
@@ -623,45 +679,65 @@ object TrainTrackerState {
             val oldIdx = findStationIndex(lastConfirmedStationName, stations)
 
             if (newIdx > oldIdx || lastConfirmedStationName.isBlank()) {
-                // Train officially progressed to a new station along the route
+                // Train officially progressed to a new station along the route —
+                // reset dead-reckoning offset from this new confirmed anchor point
                 lastConfirmedStationName = newStn
                 liveDistanceOffsetKm = 0.0
-                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+
+                // Also evict remaining-km cache entries for stations now behind the train,
+                // so the UI doesn't show stale distances for already-passed stations
+                val passedStations = stations.take(newIdx + 1).map { it.code }
+                passedStations.forEach { code ->
+                    remainingKmCache.keys.removeAll { it.contains("_${code}_") }
+                }
             }
         }
 
         if (stations.isNotEmpty()) {
             com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, stations)
         }
+
+        // Persist odometer so app-reopen resumes from correct position
+        saveOdometerSnapshot()
         checkAlarmGeofence()
     }
 
     fun startDeadReckoningEngine() {
         deadReckoningJob?.cancel()
         deadReckoningJob = scope.launch {
+            var saveTickCounter = 0
             while (true) {
-                delay(1000) // 1-second continuous live odometer tick
+                delay(1000) // 1-second tick
                 val status = liveStatus ?: continue
                 val stations = status.stations
                 if (stations.isEmpty() || activeTrain.number.isBlank()) continue
 
                 val speed = status.speedKmh
                 if (isInsideTrain && currentGpsLocation != null) {
-                    // Physical on-train satellite tracking
+                    // Physical on-train GPS tracking — no dead reckoning needed
                     updateInTrainCockpit(currentGpsLocation!!)
-                } else if (speed > 5) {
-                    // Train travels speed / 3600 km every second
+                } else if (speed > 0) {
+                    // Dead reckoning: add distance covered this second
                     val addedKm = speed.toDouble() / 3600.0
 
-                    // Cap dead reckoning offset so it never overshoots the next station
+                    // Cap offset so it never overshoots into the next station
                     val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { status.currentStation }, stations)
                     if (curIdx >= 0 && curIdx + 1 < stations.size) {
-                        val maxAllowedOffset = (stations[curIdx + 1].distanceKm - stations[curIdx].distanceKm - 0.1).coerceAtLeast(0.0)
-                        liveDistanceOffsetKm = (liveDistanceOffsetKm + addedKm).coerceAtMost(maxAllowedOffset)
+                        val segLength = (stations[curIdx + 1].distanceKm - stations[curIdx].distanceKm).coerceAtLeast(1.0)
+                        val maxAllowed = (segLength - 0.1).coerceAtLeast(0.0)
+                        liveDistanceOffsetKm = (liveDistanceOffsetKm + addedKm).coerceAtMost(maxAllowed)
                     } else {
                         liveDistanceOffsetKm += addedKm
                     }
+
+                    // Persist odometer state to storage every 10 seconds
+                    saveTickCounter++
+                    if (saveTickCounter >= 10) {
+                        saveTickCounter = 0
+                        saveOdometerSnapshot()
+                    }
                 }
+                // If speed == 0 (train halted at station), do nothing — distance stays frozen
             }
         }
     }
@@ -805,21 +881,28 @@ object TrainTrackerState {
         inTrainNextHaltText = ""
         inTrainEstArrivalMinutes = 0
         inTrainRemainingKm = 0.0
+        try { PlatformStorage.remove(KEY_ODOMETER) } catch (_: Throwable) {}
         stopGpsTrackingIfIdle()
     }
 
     fun selectTrain(train: Train, boardingStationInput: String? = null) {
         if (train.number.isBlank()) return   // guard: no-op for empty placeholder train
+
+        val isSameTrain = (activeTrain.number == train.number && train.number.isNotBlank())
+
         activeTrain = train
         searchQuery = "${train.number} - ${train.name}"
         isSearchDropdownOpen = false
 
-        deadReckoningJob?.cancel()
-        deadReckoningJob = null
-        lastConfirmedStationName = ""
-        liveDistanceOffsetKm = 0.0
-        remainingKmCache.clear()
-        lastLiveStatusUpdateTimeMs = 0L
+        // If switching to a DIFFERENT train, fully reset the odometer
+        if (!isSameTrain) {
+            deadReckoningJob?.cancel()
+            deadReckoningJob = null
+            lastConfirmedStationName = ""
+            liveDistanceOffsetKm = 0.0
+            remainingKmCache.clear()
+        }
+        // If re-opening same train: odometer will be restored from storage after the first fetch
 
         if (!boardingStationInput.isNullOrBlank()) {
             val resolved = StationDataService.resolveStation(boardingStationInput)
@@ -842,11 +925,20 @@ object TrainTrackerState {
             isLoadingStatus = true
             try {
                 val status = service.getLiveStatus(train.number)
+                // Try to restore saved odometer for this train (app was re-opened)
+                // restoreOdometerSnapshot must run before onLiveStatusReceived so the
+                // confirmed-station comparison uses the saved anchor, not a blank slate
+                if (!isSameTrain || lastConfirmedStationName.isBlank()) {
+                    restoreOdometerSnapshot(train.number)
+                }
                 onLiveStatusReceived(status)
                 startDeadReckoningEngine()
             } catch (_: Exception) {
                 val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
                 if (loc != null) {
+                    if (!isSameTrain || lastConfirmedStationName.isBlank()) {
+                        restoreOdometerSnapshot(train.number)
+                    }
                     val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
                     onLiveStatusReceived(offlineLive)
                     startDeadReckoningEngine()

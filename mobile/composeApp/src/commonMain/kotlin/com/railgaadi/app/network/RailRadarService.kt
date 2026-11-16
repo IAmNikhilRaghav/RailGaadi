@@ -709,7 +709,8 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     trainName = data.trainName ?: "Train #$cleanNumber",
                     status = statusStr,
                     delayMinutes = delay,
-                    speedKmh = (data.currentLocation?.speed ?: 85.0).toInt(),
+                    // Use API speed directly; default 0 (not 85) so dead-reckoning pauses at halts
+                    speedKmh = (data.currentLocation?.speed ?: 0.0).toInt(),
                     currentStation = curStationName,
                     nextStation = nextStationName,
                     progressPercent = progress,
