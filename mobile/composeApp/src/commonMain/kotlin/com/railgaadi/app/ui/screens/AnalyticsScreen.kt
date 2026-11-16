@@ -342,7 +342,7 @@ fun AnalyticsScreen(
             // =========================================================
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 36.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // -----------------------------------------------------
@@ -472,16 +472,6 @@ fun AnalyticsScreen(
             }
 
                 // -----------------------------------------------------
-                // 1.5. IN-TRAIN COCKPIT & SATELLITE TELEMETRY BANNER
-                // -----------------------------------------------------
-                item {
-                    InTrainCockpitBanner(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        onOpenAlarmModal = { TrainTrackerState.openAlarmSetup() }
-                    )
-                }
-
-                // -----------------------------------------------------
                 // 2. DYNAMIC NEXT HALT & JOURNEY PROGRESS BANNER
                 // -----------------------------------------------------
                 item {
@@ -546,14 +536,15 @@ fun AnalyticsScreen(
                                     }
                                 }
 
-                                if (kmToNext != null) {
+                                if (kmToNext != null && kmToNext <= 8.5) {
+                                    val displayKm = kmToNext.toInt().coerceAtLeast(1)
                                     Box(
                                         modifier = Modifier
                                             .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = "$kmToNext km away",
+                                            text = "$displayKm km away",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = RailBluePrimary
@@ -629,18 +620,6 @@ fun AnalyticsScreen(
                                     ) {
                                         Text("$totalKm km total", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (isDark) DarkTextPrimary else LightTextPrimary, maxLines = 1)
                                     }
-                                }
-
-                                // Current Speed
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .background(if (isDark) DarkBackground else Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
-                                        .border(0.5.dp, if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("${liveStatus?.speedKmh ?: 0} km/h", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary, maxLines = 1)
                                 }
                             }
 
@@ -1057,25 +1036,23 @@ fun AnalyticsScreen(
                                                         .height(IntrinsicSize.Min),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    // LEFT: Speed & Telemetry Column
+                                                    // LEFT: Scheduled / Estimated Time Column (WIMT style — no speed shown)
                                                     Column(
                                                         modifier = Modifier.width(62.dp),
                                                         horizontalAlignment = Alignment.Start,
                                                         verticalArrangement = Arrangement.Center
                                                     ) {
-                                                        val curSpeed = liveStatus?.speedKmh ?: 85
-                                                        Text(
-                                                            text = "${curSpeed}",
-                                                            fontSize = 15.sp,
-                                                            fontWeight = FontWeight.ExtraBold,
-                                                            color = RailBluePrimary
-                                                        )
-                                                        Text(
-                                                            text = "km/h",
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = if (isDark) DarkTextSecondary else LightTextSecondary
-                                                        )
+                                                        val timeDisplay = nextStation?.scheduledArr?.takeIf { it.isNotBlank() }
+                                                            ?: curStation?.scheduledDep?.takeIf { it.isNotBlank() }
+                                                            ?: ""
+                                                        if (timeDisplay.isNotBlank()) {
+                                                            Text(
+                                                                text = timeDisplay,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (isDark) DarkTextPrimary else LightTextPrimary
+                                                            )
+                                                        }
                                                     }
 
                                                     // CENTER: Active Track Spine with Pulsing Train Node
@@ -1130,10 +1107,16 @@ fun AnalyticsScreen(
                                                                     verticalAlignment = Alignment.CenterVertically,
                                                                     modifier = Modifier.fillMaxWidth()
                                                                 ) {
+                                                                    val approachingHeader = if (kmToNext != null && kmToNext <= 8.5) {
+                                                                        val dist = kmToNext.toInt().coerceAtLeast(1)
+                                                                        "$dist km to ${nextStation?.name ?: "Upcoming Stop"}"
+                                                                    } else {
+                                                                        "Crossing ${activePassThrough?.name ?: liveStatus?.currentStation ?: "Pass-through"}"
+                                                                    }
                                                                     Text(
-                                                                        text = "🚆 Crossing ${activePassThrough?.name ?: liveStatus?.currentStation ?: "Pass-through"}",
+                                                                        text = "🚆 $approachingHeader",
                                                                         fontSize = 12.sp,
-                                                                        fontWeight = FontWeight.Bold,
+                                                                        fontWeight = FontWeight.ExtraBold,
                                                                         color = RailBluePrimary,
                                                                         maxLines = 1,
                                                                         overflow = TextOverflow.Ellipsis
@@ -1471,7 +1454,7 @@ fun AnalyticsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Speed Velocity Profile",
+                                    text = "Journey Route Profile",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
                                     color = if (isDark) DarkTextPrimary else LightTextPrimary
@@ -1483,18 +1466,18 @@ fun AnalyticsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 MetricBox(
-                                    title = "Live Speed",
-                                    value = "$currentSpeed km/h",
+                                    title = "Total Route",
+                                    value = "${totalKm.toInt()} km",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
-                                    title = "Top Speed",
-                                    value = "$topSpeed km/h",
+                                    title = "Halts",
+                                    value = "${stations.count { it.haltMinutes > 0 }} Stns",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
-                                    title = "Avg Speed",
-                                    value = "$avgSpeed km/h",
+                                    title = "Total Stops",
+                                    value = "${stations.size} Stns",
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -1662,11 +1645,171 @@ fun AnalyticsScreen(
             )
         }
 
+        // ── Phase 6 Master Hero: Persistent Floating In-Train Cockpit Dock (WIMT Style) ──
+        if (activeTrain.number.isNotBlank()) {
+            AnalyticsHeroInTrainDock(
+                activeTrain = activeTrain,
+                nextStation = nextStation,
+                kmToNext = kmToNext,
+                isDark = isDark,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            )
+        }
+
         // Phase 4: Destination Alarm Configuration BottomSheet
         if (TrainTrackerState.showAlarmSetupModal) {
             DestinationAlarmModal(
                 onDismiss = { TrainTrackerState.closeAlarmSetup() }
             )
+        }
+    }
+}
+
+/**
+ * Master Hero In-Train Persistent Floating Dock (Where Is My Train style)
+ * Fixed to the bottom of AnalyticsScreen so users never need to scroll to access it.
+ */
+@Composable
+private fun AnalyticsHeroInTrainDock(
+    activeTrain: Train,
+    nextStation: Station?,
+    kmToNext: Double?,
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val isInside = TrainTrackerState.isInsideTrain
+
+    // Infinite pulsing animation for live GPS beacon
+    val infiniteTransition = rememberInfiniteTransition(label = "inTrainPulse")
+    val beaconAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "beaconAlpha"
+    )
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isInside) {
+                if (isDark) Color(0xFF064E3B) else Color(0xFFDCFCE7)
+            } else {
+                if (isDark) Color(0xFF1E293B) else Color(0xFFFFFFFF)
+            }
+        ),
+        border = BorderStroke(
+            width = if (isInside) 1.5.dp else 1.dp,
+            color = if (isInside) Color(0xFF10B981)
+            else if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left Icon + Labels
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Avatar / Badge
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isInside) Color(0xFF10B981).copy(alpha = 0.20f)
+                                else if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (isInside) "🛰️" else "🚆", fontSize = 18.sp)
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isInside) "Inside ${activeTrain.number}" else "Are you inside this train?",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isInside) (if (isDark) Color(0xFF34D399) else Color(0xFF065F46))
+                                else if (isDark) DarkTextPrimary else LightTextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            if (isInside) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF10B981).copy(alpha = beaconAlpha))
+                                )
+                            }
+                        }
+
+                        // Dynamic subtitle: Live distance to upcoming stop or status
+                        val subText = if (isInside) {
+                            if (kmToNext != null && kmToNext <= 8.5) {
+                                val dist = kmToNext.toInt().coerceAtLeast(1)
+                                "📍 $dist km to ${nextStation?.name ?: "Upcoming Stop"} • Zero-lag GPS"
+                            } else {
+                                TrainTrackerState.inTrainLocationText.ifBlank { "🛰️ Live Satellite Telemetry Active" }
+                            }
+                        } else {
+                            if (kmToNext != null && kmToNext <= 8.5) {
+                                val dist = kmToNext.toInt().coerceAtLeast(1)
+                                "📍 $dist km to ${nextStation?.name ?: "Upcoming Stop"} • Tap toggle"
+                            } else {
+                                "Turn ON for zero-lag satellite GPS tracking"
+                            }
+                        }
+
+                        Text(
+                            text = subText,
+                            fontSize = 11.sp,
+                            fontWeight = if (kmToNext != null && kmToNext <= 8.5) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isInside) (if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857))
+                            else if (kmToNext != null && kmToNext <= 8.5) RailBluePrimary
+                            else if (isDark) DarkTextSecondary else LightTextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Right Switch Toggle (Pinned directly at bottom-right under thumb)
+                Switch(
+                    checked = isInside,
+                    onCheckedChange = { checked ->
+                        TrainTrackerState.toggleInsideTrainMode(checked)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF10B981),
+                        uncheckedThumbColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                        uncheckedTrackColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+                    )
+                )
+            }
         }
     }
 }
@@ -1995,25 +2138,19 @@ private fun WimtStationTrackRow(
                                     color = RailBluePrimary
                                 )
                             }
+                            val curDelayText = when {
+                                delayMinutes == 0 -> "Running on time"
+                                delayMinutes > 0 -> "Delayed by $delayMinutes mins"
+                                else -> "${-delayMinutes} mins early"
+                            }
                             Text(
-                                text = if (delayMinutes == 0) "Running on time • ${speedKmh} km/h"
-                                else "Delayed by $delayMinutes mins • ${speedKmh} km/h",
+                                text = curDelayText,
                                 fontSize = 10.sp,
-                                color = if (delayMinutes == 0) RailGreenOnTime else RailRedDelayed,
+                                color = if (delayMinutes <= 0) RailGreenOnTime else RailRedDelayed,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
-                }
-
-                // Upcoming distance remaining tag
-                if (isUpcoming && kmRemaining != null) {
-                    Text(
-                        text = "📍 $kmRemaining km remaining",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = RailBluePrimary
-                    )
                 }
             }
         }
