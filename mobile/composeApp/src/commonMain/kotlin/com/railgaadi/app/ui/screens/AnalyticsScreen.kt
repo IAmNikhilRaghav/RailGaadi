@@ -123,8 +123,15 @@ fun AnalyticsScreen(
     }
 
     val curStation = stations.getOrNull(curIdx)
-    val nextStnIdx = if (curIdx + 1 < stations.size) curIdx + 1 else null
-    val nextStation = nextStnIdx?.let { stations.getOrNull(it) }
+
+    // Find the NEXT scheduled HALT station (haltMinutes > 0), skipping pass-throughs
+    // This matches the "Next Station Halt:" label in the UI
+    val nextStation = run {
+        val candidates = stations.drop(curIdx + 1)
+        // Prefer a halt station; if none found fall back to any next station
+        candidates.firstOrNull { it.haltMinutes > 0 }
+            ?: candidates.firstOrNull()
+    }
 
     val kmToNext = nextStation?.let {
         TrainTrackerState.getLiveRemainingKmToStation(it, curStation)

@@ -676,19 +676,33 @@ object TrainTrackerState {
         val newStn = updated.currentStation.trim()
         if (newStn.isNotBlank() && stations.isNotEmpty()) {
             val newIdx = findStationIndex(newStn, stations)
-            val oldIdx = findStationIndex(lastConfirmedStationName, stations)
+                .takeIf { it >= 0 }
+                // Fallback: derive index from progressPercent if name doesn't match
+                ?: if (updated.progressPercent > 0f)
+                    ((stations.size - 1) * updated.progressPercent).toInt().coerceIn(0, stations.size - 1)
+                else -1
 
-            if (newIdx > oldIdx || lastConfirmedStationName.isBlank()) {
+            val oldIdx = findStationIndex(lastConfirmedStationName, stations)
+                .takeIf { it >= 0 } ?: -1
+
+            if (newIdx >= 0 && (newIdx > oldIdx || lastConfirmedStationName.isBlank())) {
                 // Train officially progressed to a new station along the route —
                 // reset dead-reckoning offset from this new confirmed anchor point
                 lastConfirmedStationName = newStn
                 liveDistanceOffsetKm = 0.0
 
-                // Also evict remaining-km cache entries for stations now behind the train,
-                // so the UI doesn't show stale distances for already-passed stations
+                // Evict remaining-km cache entries for stations now behind the train,
+                // so the UI doesn't show stale distances for already-passed stations.
+                // Also clear the current station's own entry so "0 km" shows correctly.
                 val passedStations = stations.take(newIdx + 1).map { it.code }
                 passedStations.forEach { code ->
-                    remainingKmCache.keys.removeAll { it.contains("_${code}_") }
+                    remainingKmCache.keys.removeAll { it.startsWith("${activeTrain.number}_${code}_") }
+                }
+                // Additionally wipe any cache entry for the current station itself,
+                // in case it was the previous "next station" with a stale distance.
+                stations.getOrNull(newIdx)?.let { stn ->
+                    val key = "${activeTrain.number}_${stn.code}_${stn.distanceKm.toInt()}"
+                    remainingKmCache.remove(key)
                 }
             }
         }
@@ -777,18 +791,24 @@ object TrainTrackerState {
 
         val curStn = stations.getOrNull(curIdx) ?: return null
 
-        // If the train has already passed or reached this station
+        // If the train has already passed or reached this station, clear stale cache and hide
         if (station.distanceKm <= curStn.distanceKm) {
+            remainingKmCache.remove(stationKey)
             return null
         }
 
         val baseDistanceDiff = station.distanceKm - curStn.distanceKm
-        val estimatedRemaining = baseDistanceDiff - liveDistanceOffsetKm
-        val rounded = ((estimatedRemaining * 10).toInt() / 10.0).coerceAtLeast(0.1)
+        val estimatedRemaining = (baseDistanceDiff - liveDistanceOffsetKm).coerceAtLeast(0.0)
+        val rounded = ((estimatedRemaining * 10).toInt() / 10.0)
 
         // Strictly non-increasing: remaining distance to any upcoming station can never increase
         val prev = remainingKmCache[stationKey]
         val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
+        // If we've estimated 0 or below, clear the cache so caller gets null and hides the chip
+        if (effective <= 0.0) {
+            remainingKmCache.remove(stationKey)
+            return null
+        }
         remainingKmCache[stationKey] = effective
         return effective
     }
