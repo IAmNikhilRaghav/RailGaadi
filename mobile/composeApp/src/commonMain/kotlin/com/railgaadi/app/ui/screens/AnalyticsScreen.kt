@@ -113,10 +113,7 @@ fun AnalyticsScreen(
         if (stations.isEmpty()) 0
         else {
             val stnName = liveStatus?.currentStation ?: ""
-            val foundIdx = stations.indexOfFirst {
-                it.name.contains(stnName, ignoreCase = true) ||
-                (stnName.contains(it.code, ignoreCase = true) && it.code.isNotBlank())
-            }
+            val foundIdx = TrainTrackerState.findStationIndex(stnName, stations)
             if (foundIdx >= 0) foundIdx
             else {
                 val pct = liveStatus?.progressPercent ?: 0f

@@ -437,11 +437,17 @@ object TrainTrackerState {
         // 1. High-precision real device GPS geofence:
         // Calculate remaining physical distance to station coordinates directly
         if (loc != null && alarm.stationLat != 0.0 && alarm.stationLon != 0.0) {
-            val remainingKm = calculateHaversineDistanceKm(loc.latitude, loc.longitude, alarm.stationLat, alarm.stationLon)
+            val rawRemainingKm = calculateHaversineDistanceKm(loc.latitude, loc.longitude, alarm.stationLat, alarm.stationLon)
             val speed = if (loc.speedKmh > 10.0) loc.speedKmh else (liveStatus?.speedKmh?.toDouble()?.takeIf { it > 10.0 } ?: 65.0)
-            val remainingMinutes = ((remainingKm / speed) * 60).toInt().coerceAtLeast(1)
 
-            val roundedKm = ((remainingKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
+            // Strictly non-increasing alarm distance: GPS jitter cannot increase distance
+            val alarmKey = "alarm_${alarm.trainNumber}_${alarm.stationCode}"
+            val prev = remainingKmCache[alarmKey]
+            val effectiveKm = if (prev != null && prev > 0.0) minOf(prev, rawRemainingKm) else rawRemainingKm
+            remainingKmCache[alarmKey] = effectiveKm
+
+            val remainingMinutes = ((effectiveKm / speed) * 60).toInt().coerceAtLeast(1)
+            val roundedKm = ((effectiveKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
             val updated = alarm.copy(
                 distanceRemainingKm = roundedKm,
                 minutesRemaining = remainingMinutes
@@ -452,7 +458,7 @@ object TrainTrackerState {
             if (alarm.isSnoozed) return
 
             val shouldTrigger = when (alarm.triggerUnit) {
-                AlarmTriggerUnit.KILOMETERS -> remainingKm <= alarm.triggerDistanceKm
+                AlarmTriggerUnit.KILOMETERS -> effectiveKm <= alarm.triggerDistanceKm
                 AlarmTriggerUnit.MINUTES -> remainingMinutes <= alarm.triggerMinutesBefore
             }
 
@@ -469,32 +475,35 @@ object TrainTrackerState {
 
         val targetIdx = stations.indexOfFirst {
             it.code.equals(alarm.stationCode, ignoreCase = true) ||
-            it.name.contains(alarm.stationName, ignoreCase = true)
+            it.name.contains(alarm.stationName, ignoreCase = true) ||
+            alarm.stationName.contains(it.name, ignoreCase = true)
         }
         if (targetIdx < 0) return
 
-        val curStationName = currentStatus.currentStation
-        val curIdx = stations.indexOfFirst {
-            it.name.contains(curStationName, ignoreCase = true) ||
-            (curStationName.contains(it.code, ignoreCase = true) && it.code.isNotBlank())
-        }.takeIf { it >= 0 } ?: ((stations.size - 1) * currentStatus.progressPercent).toInt().coerceIn(0, stations.size - 1)
+        val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { currentStatus.currentStation }, stations)
+            .takeIf { it >= 0 } ?: ((stations.size - 1) * currentStatus.progressPercent).toInt().coerceIn(0, stations.size - 1)
 
         val curStation = stations.getOrNull(curIdx) ?: return
         val targetStation = stations[targetIdx]
 
-        val remainingKm = if (targetStation.distanceKm >= curStation.distanceKm && curStation.distanceKm > 0) {
-            (targetStation.distanceKm - curStation.distanceKm).toDouble()
+        val rawRemainingKm = if (targetStation.distanceKm >= curStation.distanceKm && curStation.distanceKm > 0) {
+            (targetStation.distanceKm - curStation.distanceKm - liveDistanceOffsetKm).coerceAtLeast(0.0)
         } else {
             val (lat1, lon1) = if (curStation.latitude != 0.0) curStation.latitude to curStation.longitude else StationDataService.getCoordinates(curStation.code)
             val (lat2, lon2) = if (targetStation.latitude != 0.0) targetStation.latitude to targetStation.longitude else StationDataService.getCoordinates(targetStation.code)
             calculateHaversineDistanceKm(lat1, lon1, lat2, lon2)
         }
 
+        val alarmKey = "alarm_${alarm.trainNumber}_${alarm.stationCode}"
+        val prev = remainingKmCache[alarmKey]
+        val effectiveKm = if (prev != null && prev > 0.0) minOf(prev, rawRemainingKm) else rawRemainingKm
+        remainingKmCache[alarmKey] = effectiveKm
+
         val speed = (currentStatus.speedKmh.takeIf { it > 10 } ?: 65).toDouble()
-        val remainingMinutes = ((remainingKm / speed) * 60).toInt().coerceAtLeast(1)
+        val remainingMinutes = ((effectiveKm / speed) * 60).toInt().coerceAtLeast(1)
 
         activeAlarm = alarm.copy(
-            distanceRemainingKm = ((remainingKm * 10).toInt() / 10.0).coerceAtLeast(0.0),
+            distanceRemainingKm = ((effectiveKm * 10).toInt() / 10.0).coerceAtLeast(0.0),
             minutesRemaining = remainingMinutes
         )
 
@@ -502,7 +511,7 @@ object TrainTrackerState {
         if (alarm.isSnoozed) return
 
         val shouldTrigger = when (alarm.triggerUnit) {
-            AlarmTriggerUnit.KILOMETERS -> remainingKm <= alarm.triggerDistanceKm
+            AlarmTriggerUnit.KILOMETERS -> effectiveKm <= alarm.triggerDistanceKm
             AlarmTriggerUnit.MINUTES -> remainingMinutes <= alarm.triggerMinutesBefore
         }
 
@@ -561,10 +570,71 @@ object TrainTrackerState {
         isSearchDropdownOpen = false
     }
 
-    // ── Phase 7: Real-Time Continuous Odometer & Dead Reckoning Engine ──────
+    // ── Phase 7: Real-Time Continuous Odometer & Monotonic Dead Reckoning Engine ──────
     var liveDistanceOffsetKm by mutableStateOf(0.0)
     var lastLiveStatusUpdateTimeMs by mutableStateOf(0L)
+    var lastConfirmedStationName by mutableStateOf("")
+    private val remainingKmCache = mutableMapOf<String, Double>()
     private var deadReckoningJob: Job? = null
+
+    /**
+     * Resilient pan-India station name resolver that strips prefixes like "Crossing",
+     * "Before", "Near", "At", "Departed" and matches station codes or clean names.
+     */
+    fun findStationIndex(rawName: String, stations: List<Station>): Int {
+        if (stations.isEmpty() || rawName.isBlank()) return -1
+        val clean = rawName
+            .replace(Regex("(?i)\\b(crossing|before|after|near|at|departed|approaching|halted at|passed)\\b"), "")
+            .trim()
+
+        // 1. Exact match on clean or raw
+        val idxExact = stations.indexOfFirst {
+            it.name.equals(clean, ignoreCase = true) || it.name.equals(rawName, ignoreCase = true)
+        }
+        if (idxExact >= 0) return idxExact
+
+        // 2. Contains match (longer than 2 chars)
+        val idxContains = stations.indexOfFirst {
+            (clean.length >= 3 && it.name.contains(clean, ignoreCase = true)) ||
+            (clean.length >= 3 && clean.contains(it.name, ignoreCase = true)) ||
+            (it.code.isNotBlank() && (rawName.contains(it.code, ignoreCase = true) || clean.contains(it.code, ignoreCase = true)))
+        }
+        if (idxContains >= 0) return idxContains
+
+        // 3. Token word matching (words with length >= 3)
+        val tokens = clean.split(Regex("[\\s,]+")).filter { it.length >= 3 && !it.equals("express", ignoreCase = true) }
+        if (tokens.isNotEmpty()) {
+            val idxToken = stations.indexOfFirst { stn ->
+                tokens.any { token -> stn.name.contains(token, ignoreCase = true) }
+            }
+            if (idxToken >= 0) return idxToken
+        }
+
+        return -1
+    }
+
+    fun onLiveStatusReceived(updated: LiveStatus) {
+        liveStatus = updated
+        val stations = updated.stations
+
+        val newStn = updated.currentStation.trim()
+        if (newStn.isNotBlank() && stations.isNotEmpty()) {
+            val newIdx = findStationIndex(newStn, stations)
+            val oldIdx = findStationIndex(lastConfirmedStationName, stations)
+
+            if (newIdx > oldIdx || lastConfirmedStationName.isBlank()) {
+                // Train officially progressed to a new station along the route
+                lastConfirmedStationName = newStn
+                liveDistanceOffsetKm = 0.0
+                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+            }
+        }
+
+        if (stations.isNotEmpty()) {
+            com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, stations)
+        }
+        checkAlarmGeofence()
+    }
 
     fun startDeadReckoningEngine() {
         deadReckoningJob?.cancel()
@@ -572,17 +642,25 @@ object TrainTrackerState {
             while (true) {
                 delay(1000) // 1-second continuous live odometer tick
                 val status = liveStatus ?: continue
-                if (status.stations.isEmpty() || activeTrain.number.isBlank()) continue
+                val stations = status.stations
+                if (stations.isEmpty() || activeTrain.number.isBlank()) continue
 
                 val speed = status.speedKmh
                 if (isInsideTrain && currentGpsLocation != null) {
                     // Physical on-train satellite tracking
                     updateInTrainCockpit(currentGpsLocation!!)
-                } else if (speed > 5 && lastLiveStatusUpdateTimeMs > 0L) {
-                    // Real-time dead-reckoning distance interpolation between server updates
-                    val elapsedSeconds = (com.railgaadi.app.util.PlatformDate.nowMillis() - lastLiveStatusUpdateTimeMs) / 1000.0
-                    val addedKm = speed.toDouble() * (elapsedSeconds / 3600.0)
-                    liveDistanceOffsetKm = addedKm
+                } else if (speed > 5) {
+                    // Train travels speed / 3600 km every second
+                    val addedKm = speed.toDouble() / 3600.0
+
+                    // Cap dead reckoning offset so it never overshoots the next station
+                    val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { status.currentStation }, stations)
+                    if (curIdx >= 0 && curIdx + 1 < stations.size) {
+                        val maxAllowedOffset = (stations[curIdx + 1].distanceKm - stations[curIdx].distanceKm - 0.1).coerceAtLeast(0.0)
+                        liveDistanceOffsetKm = (liveDistanceOffsetKm + addedKm).coerceAtMost(maxAllowedOffset)
+                    } else {
+                        liveDistanceOffsetKm += addedKm
+                    }
                 }
             }
         }
@@ -593,7 +671,9 @@ object TrainTrackerState {
         val stations = status.stations
         if (stations.isEmpty()) return null
 
-        // 1. If passenger is inside the train with GPS active: Use physical satellite distance!
+        val stationKey = "${activeTrain.number}_${station.code}_${station.distanceKm.toInt()}"
+
+        // 1. If passenger is inside the train with physical GPS active
         if (isInsideTrain && currentGpsLocation != null) {
             val loc = currentGpsLocation!!
             val (stnLat, stnLon) = if (station.latitude != 0.0 && station.longitude != 0.0) {
@@ -602,21 +682,39 @@ object TrainTrackerState {
                 StationDataService.getCoordinates(station.code)
             }
             if (stnLat != 0.0 && stnLon != 0.0) {
-                val dist = calculateHaversineDistanceKm(loc.latitude, loc.longitude, stnLat, stnLon)
-                return ((dist * 10).toInt() / 10.0).coerceAtLeast(0.0)
+                val rawDist = calculateHaversineDistanceKm(loc.latitude, loc.longitude, stnLat, stnLon)
+                val rounded = ((rawDist * 10).toInt() / 10.0).coerceAtLeast(0.0)
+
+                // Strictly non-increasing: remaining distance can never increase
+                val prev = remainingKmCache[stationKey]
+                val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
+                remainingKmCache[stationKey] = effective
+                return effective
             }
         }
 
-        // 2. Continuous dead reckoning interpolation
-        val curStn = baseStation ?: stations.find {
-            it.name.contains(status.currentStation, ignoreCase = true) ||
-            (it.code.isNotBlank() && status.currentStation.contains(it.code, ignoreCase = true))
-        } ?: stations.firstOrNull() ?: return null
+        // 2. Track-based continuous dead-reckoning odometer
+        val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { status.currentStation }, stations)
+            .takeIf { it >= 0 }
+            ?: baseStation?.let { bs -> findStationIndex(bs.name, stations).takeIf { it >= 0 } }
+            ?: ((stations.size - 1) * status.progressPercent).toInt().coerceIn(0, stations.size - 1)
 
-        if (station.distanceKm <= curStn.distanceKm) return null
+        val curStn = stations.getOrNull(curIdx) ?: return null
 
-        val rawRemaining = (station.distanceKm - curStn.distanceKm) - liveDistanceOffsetKm
-        return ((rawRemaining * 10).toInt() / 10.0).coerceAtLeast(0.1)
+        // If the train has already passed or reached this station
+        if (station.distanceKm <= curStn.distanceKm) {
+            return null
+        }
+
+        val baseDistanceDiff = station.distanceKm - curStn.distanceKm
+        val estimatedRemaining = baseDistanceDiff - liveDistanceOffsetKm
+        val rounded = ((estimatedRemaining * 10).toInt() / 10.0).coerceAtLeast(0.1)
+
+        // Strictly non-increasing: remaining distance to any upcoming station can never increase
+        val prev = remainingKmCache[stationKey]
+        val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
+        remainingKmCache[stationKey] = effective
+        return effective
     }
 
     // Live Auto-Refresh Polling Engine (Seamless 3-second live updates in background)
@@ -644,14 +742,8 @@ object TrainTrackerState {
                     try {
                         if (!isOfflineModeEnabled) {
                             val updated = service.getLiveStatus(activeTrain.number)
-                            liveStatus = updated
-                            lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
-                            liveDistanceOffsetKm = 0.0
-                            if (updated.stations.isNotEmpty()) {
-                                com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(activeTrain.number, updated.stations)
-                            }
+                            onLiveStatusReceived(updated)
                             refreshWeather(silent = true)
-                            checkAlarmGeofence()
                         }
                     } catch (_: Exception) {
                         // Resilient offline fallback: calculate position via on-device GPS if internet drops
@@ -662,8 +754,7 @@ object TrainTrackerState {
                                 gps = loc,
                                 existingStations = liveStatus?.stations
                             )
-                            liveStatus = offlineLive
-                            checkAlarmGeofence()
+                            onLiveStatusReceived(offlineLive)
                         }
                     } finally {
                         isAutoRefreshing = false
@@ -686,11 +777,8 @@ object TrainTrackerState {
             isAutoRefreshing = true
             try {
                 val updated = service.getLiveStatus(activeTrain.number)
-                liveStatus = updated
-                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
-                liveDistanceOffsetKm = 0.0
+                onLiveStatusReceived(updated)
                 refreshWeather(silent = true)
-                checkAlarmGeofence()
             } catch (_: Exception) {
             } finally {
                 isAutoRefreshing = false
@@ -708,7 +796,9 @@ object TrainTrackerState {
         autoRefreshJob?.cancel()
         deadReckoningJob?.cancel()
         deadReckoningJob = null
+        lastConfirmedStationName = ""
         liveDistanceOffsetKm = 0.0
+        remainingKmCache.clear()
         lastLiveStatusUpdateTimeMs = 0L
         isInsideTrain = false
         inTrainLocationText = ""
@@ -723,6 +813,13 @@ object TrainTrackerState {
         activeTrain = train
         searchQuery = "${train.number} - ${train.name}"
         isSearchDropdownOpen = false
+
+        deadReckoningJob?.cancel()
+        deadReckoningJob = null
+        lastConfirmedStationName = ""
+        liveDistanceOffsetKm = 0.0
+        remainingKmCache.clear()
+        lastLiveStatusUpdateTimeMs = 0L
 
         if (!boardingStationInput.isNullOrBlank()) {
             val resolved = StationDataService.resolveStation(boardingStationInput)
@@ -745,18 +842,13 @@ object TrainTrackerState {
             isLoadingStatus = true
             try {
                 val status = service.getLiveStatus(train.number)
-                liveStatus = status
-                lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
-                liveDistanceOffsetKm = 0.0
+                onLiveStatusReceived(status)
                 startDeadReckoningEngine()
-                if (status.stations.isNotEmpty()) {
-                    com.railgaadi.app.model.OfflineTrainEngine.cacheRoute(train.number, status.stations)
-                }
             } catch (_: Exception) {
                 val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
                 if (loc != null) {
-                    liveStatus = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
-                    lastLiveStatusUpdateTimeMs = com.railgaadi.app.util.PlatformDate.nowMillis()
+                    val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
+                    onLiveStatusReceived(offlineLive)
                     startDeadReckoningEngine()
                 }
             }
