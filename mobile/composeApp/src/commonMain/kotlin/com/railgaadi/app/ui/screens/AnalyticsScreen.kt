@@ -1,6 +1,6 @@
 package com.railgaadi.app.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import kotlinx.coroutines.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -83,6 +84,20 @@ fun AnalyticsScreen(
     var searchResults by remember { mutableStateOf<List<Train>>(emptyList()) }
     var isSearchingTrains by remember { mutableStateOf(false) }
 
+    // Floating Inside-the-Train banner state with 7-second auto-collapse timer (Where Is My Train style)
+    var isInsideTrainBannerVisible by remember { mutableStateOf(false) }
+    var autoCollapseJob by remember { mutableStateOf<Job?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val triggerInsideTrainBanner: () -> Unit = {
+        isInsideTrainBannerVisible = true
+        autoCollapseJob?.cancel()
+        autoCollapseJob = coroutineScope.launch {
+            delay(7000)
+            isInsideTrainBannerVisible = false
+        }
+    }
+
     // If active train is set, ensure liveStatus is fetched and start live auto-refresh (10s)
     LaunchedEffect(activeTrain.number) {
         if (activeTrain.number.isNotBlank()) {
@@ -124,6 +139,16 @@ fun AnalyticsScreen(
 
     val curStation = stations.getOrNull(curIdx)
 
+    // Immediate next station ahead of train (whether pass-through or halt)
+    val upcomingStation = run {
+        if (stations.isEmpty()) null
+        else {
+            stations.drop(curIdx + 1).firstOrNull { it.distanceKm > (curStation?.distanceKm ?: 0.0) }
+                ?: stations.getOrNull(curIdx + 1)
+                ?: stations.drop(curIdx + 1).firstOrNull()
+        }
+    }
+
     // Find the NEXT scheduled HALT station (haltMinutes > 0), skipping pass-throughs
     // This matches the "Next Station Halt:" label in the UI
     val nextStation = run {
@@ -131,6 +156,10 @@ fun AnalyticsScreen(
         // Prefer a halt station; if none found fall back to any next station
         candidates.firstOrNull { it.haltMinutes > 0 }
             ?: candidates.firstOrNull()
+    }
+
+    val kmToUpcoming = upcomingStation?.let {
+        TrainTrackerState.getLiveRemainingKmToStation(it, curStation)
     }
 
     val kmToNext = nextStation?.let {
@@ -536,7 +565,7 @@ fun AnalyticsScreen(
                                     }
                                 }
 
-                                if (kmToNext != null && kmToNext <= 8.5) {
+                                if (kmToNext != null) {
                                     val displayKm = kmToNext.toInt().coerceAtLeast(1)
                                     Box(
                                         modifier = Modifier
@@ -544,7 +573,7 @@ fun AnalyticsScreen(
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = "$displayKm km away",
+                                            text = if (kmToNext <= 0.0) "Arrived" else "$displayKm km away",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = RailBluePrimary
@@ -1107,11 +1136,19 @@ fun AnalyticsScreen(
                                                                     verticalAlignment = Alignment.CenterVertically,
                                                                     modifier = Modifier.fillMaxWidth()
                                                                 ) {
-                                                                    val approachingHeader = if (kmToNext != null && kmToNext <= 8.5) {
-                                                                        val dist = kmToNext.toInt().coerceAtLeast(1)
-                                                                        "$dist km to ${nextStation?.name ?: "Upcoming Stop"}"
-                                                                    } else {
-                                                                        "Crossing ${activePassThrough?.name ?: liveStatus?.currentStation ?: "Pass-through"}"
+                                                                    val nextHaltStation = segments.getOrNull(segIdx + 1)?.haltStation
+                                                                    val targetStop = upcomingStation ?: nextHaltStation ?: nextStation
+                                                                    val stopDist = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStation) }
+                                                                        ?: kmToUpcoming
+                                                                        ?: kmToNext
+
+                                                                    val approachingHeader = when {
+                                                                        stopDist != null && stopDist <= 0.0 -> "Arrived at ${targetStop?.name ?: "Station"}"
+                                                                        stopDist != null -> {
+                                                                            val dist = stopDist.toInt().coerceAtLeast(1)
+                                                                            "$dist km to ${targetStop?.name ?: "Upcoming Stop"}"
+                                                                        }
+                                                                        else -> "Approaching ${targetStop?.name ?: nextStation?.name ?: "Upcoming Stop"}"
                                                                     }
                                                                     Text(
                                                                         text = "🚆 $approachingHeader",
@@ -1131,15 +1168,19 @@ fun AnalyticsScreen(
                                                             ) {
                                                                 val delay = liveStatus?.delayMinutes ?: 0
                                                                 val delayText = when {
-                                                                    delay == 0 -> "Running On Time"
-                                                                    delay > 0 -> "Delayed +${delay}m"
+                                                                    delay == 0 -> "On Time"
+                                                                    delay > 0 -> "Delayed by ${delay}m"
                                                                     else -> "${-delay}m Early"
                                                                 }
+                                                                val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
                                                                 Text(
-                                                                    text = delayText,
+                                                                    text = "((•)) $delayText$passText",
                                                                     fontSize = 10.sp,
                                                                     fontWeight = FontWeight.SemiBold,
-                                                                    color = if (delay <= 0) RailGreenOnTime else RailRedDelayed
+                                                                    color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis,
+                                                                    modifier = Modifier.weight(1f, fill = false)
                                                                 )
 
                                                                 // Interactive Expand Pill Button
@@ -1645,16 +1686,64 @@ fun AnalyticsScreen(
             )
         }
 
-        // ── Phase 6 Master Hero: Persistent Floating In-Train Cockpit Dock (WIMT Style) ──
+        // ── Phase 6 Master Hero: Where Is My Train Style Bottom Interface ──
         if (activeTrain.number.isNotBlank()) {
-            AnalyticsHeroInTrainDock(
-                activeTrain = activeTrain,
-                nextStation = nextStation,
-                kmToNext = kmToNext,
-                isDark = isDark,
+            val targetStop = upcomingStation ?: nextStation
+            val targetDistKm = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStation) }
+                ?: kmToUpcoming
+                ?: kmToNext
+
+            // 1. Expandable "Are you inside this train?" Banner (auto-collapses after 7 seconds)
+            AnimatedVisibility(
+                visible = isInsideTrainBannerVisible,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(bottom = 86.dp)
+                    .padding(horizontal = 14.dp)
+            ) {
+                WimtInsideTrainBanner(
+                    activeTrain = activeTrain,
+                    isDark = isDark,
+                    onSwitchChanged = { checked ->
+                        TrainTrackerState.toggleInsideTrainMode(checked)
+                        triggerInsideTrainBanner()
+                    },
+                    onDismiss = {
+                        isInsideTrainBannerVisible = false
+                        autoCollapseJob?.cancel()
+                    }
+                )
+            }
+
+            // 2. Floating Action "+" Button (pinned on bottom right above dock)
+            WimtFloatingPlusButton(
+                isInside = TrainTrackerState.isInsideTrain,
+                isOpen = isInsideTrainBannerVisible,
+                isDark = isDark,
+                onClick = {
+                    if (isInsideTrainBannerVisible) {
+                        isInsideTrainBannerVisible = false
+                        autoCollapseJob?.cancel()
+                    } else {
+                        triggerInsideTrainBanner()
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 82.dp)
+            )
+
+            // 3. Persistent WIMT Bottom Status Dock
+            WimtStatusBottomDock(
+                targetStop = targetStop,
+                targetDistKm = targetDistKm,
+                delayMinutes = liveStatus?.delayMinutes ?: 0,
+                activePassThroughName = if (curStation?.haltMinutes == 0) curStation.name else null,
+                isDark = isDark,
+                onRefresh = { TrainTrackerState.refreshLiveStatus() },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
 
@@ -1668,30 +1757,211 @@ fun AnalyticsScreen(
 }
 
 /**
- * Master Hero In-Train Persistent Floating Dock (Where Is My Train style)
- * Fixed to the bottom of AnalyticsScreen so users never need to scroll to access it.
+ * Persistent WIMT Bottom Status Dock
+ * Displays real-time remaining distance to next stop, delay status, dynamic update time,
+ * and a one-tap circular refresh button matching Where Is My Train.
  */
 @Composable
-private fun AnalyticsHeroInTrainDock(
-    activeTrain: Train,
-    nextStation: Station?,
-    kmToNext: Double?,
+private fun WimtStatusBottomDock(
+    targetStop: Station?,
+    targetDistKm: Double?,
+    delayMinutes: Int,
+    activePassThroughName: String?,
     isDark: Boolean,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isInside = TrainTrackerState.isInsideTrain
+    val isDelayed = delayMinutes > 0
+    val headlineColor = if (isDelayed) {
+        if (isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
+    } else {
+        if (isDark) Color(0xFF34D399) else Color(0xFF047857)
+    }
 
-    // Infinite pulsing animation for live GPS beacon
-    val infiniteTransition = rememberInfiniteTransition(label = "inTrainPulse")
-    val beaconAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
+    val headlineText = when {
+        targetDistKm != null && targetDistKm <= 0.0 -> "Arrived at ${targetStop?.name ?: "Upcoming Stop"}"
+        targetDistKm != null -> {
+            val dist = targetDistKm.toInt().coerceAtLeast(1)
+            "$dist km to ${targetStop?.name ?: "Upcoming Stop"}"
+        }
+        else -> "Approaching ${targetStop?.name ?: "Upcoming Stop"}"
+    }
+
+    val delayText = when {
+        delayMinutes == 0 -> "On Time"
+        delayMinutes > 0 -> "Delayed by ${delayMinutes}m"
+        else -> "${-delayMinutes}m Early"
+    }
+
+    val pillBg = if (isDelayed) {
+        if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEE2E2)
+    } else {
+        if (isDark) Color(0xFF064E3B) else Color(0xFFDCFCE7)
+    }
+
+    val pillTextColor = if (isDelayed) {
+        if (isDark) Color(0xFFFCA5A5) else Color(0xFF991B1B)
+    } else {
+        if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
+    }
+
+    Surface(
+        color = if (isDark) Color(0xFF1E293B) else Color.White,
+        shadowElevation = 10.dp,
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                // Line 1: 6 km to Shri Ganganagar Junction / 2 km to Malwan
+                Text(
+                    text = headlineText,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = headlineColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Line 2: ((•)) On Time / ((•)) Delayed by 55 mins • Passing Banwali
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(pillBg)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "((•)) $delayText",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = pillTextColor
+                        )
+                    }
+
+                    if (!activePassThroughName.isNullOrBlank()) {
+                        Text(
+                            text = "• Passing $activePassThroughName",
+                            fontSize = 11.sp,
+                            color = if (isDark) DarkTextSecondary else LightTextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Line 3: Updated a few seconds ago
+                Text(
+                    text = TrainTrackerState.getRelativeUpdateTimeText(),
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Right: Circular Refresh Button (Where Is My Train style)
+            IconButton(
+                onClick = onRefresh,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color(0xFF334155) else Color(0xFFE0F2FE))
+            ) {
+                Text(
+                    text = if (TrainTrackerState.isAutoRefreshing) "⏳" else "🔄",
+                    fontSize = 18.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Floating "+" Button pinned above bottom dock on the right (Where Is My Train style).
+ * Tap opens the Inside-the-Train banner, which auto-collapses after 7 seconds.
+ */
+@Composable
+private fun WimtFloatingPlusButton(
+    isInside: Boolean,
+    isOpen: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (isInside) {
+            Color(0xFF10B981)
+        } else if (isOpen) {
+            RailBluePrimary
+        } else {
+            if (isDark) Color(0xFF1E293B) else Color(0xFFDBEAFE)
+        },
+        shadowElevation = 6.dp,
+        border = BorderStroke(
+            1.dp,
+            if (isInside) Color(0xFF059669) else RailBluePrimary.copy(alpha = 0.35f)
         ),
-        label = "beaconAlpha"
-    )
+        modifier = modifier
+            .size(48.dp)
+            .clickable { onClick() }
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (isInside) {
+                Text("🛰️", fontSize = 18.sp)
+            } else if (isOpen) {
+                Text("✕", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "💬",
+                        fontSize = 16.sp,
+                        modifier = Modifier.offset(x = 1.dp)
+                    )
+                    Text(
+                        text = "+",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = RailBluePrimary,
+                        modifier = Modifier.offset(x = (-3).dp, y = (-2).dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Expandable "Are you inside this train?" Banner.
+ * Automatically collapses after 7 seconds back to the floating "+" sign.
+ */
+@Composable
+private fun WimtInsideTrainBanner(
+    activeTrain: Train,
+    isDark: Boolean,
+    onSwitchChanged: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isInside = TrainTrackerState.isInsideTrain
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -1699,109 +1969,76 @@ private fun AnalyticsHeroInTrainDock(
             containerColor = if (isInside) {
                 if (isDark) Color(0xFF064E3B) else Color(0xFFDCFCE7)
             } else {
-                if (isDark) Color(0xFF1E293B) else Color(0xFFFFFFFF)
+                if (isDark) Color(0xFF1E293B) else Color.White
             }
         ),
         border = BorderStroke(
-            width = if (isInside) 1.5.dp else 1.dp,
-            color = if (isInside) Color(0xFF10B981)
-            else if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)
+            1.5.dp,
+            if (isInside) Color(0xFF10B981)
+            else if (isDark) Color.White.copy(alpha = 0.15f) else Color(0xFF93C5FD)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Icon + Labels
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isInside) Color(0xFF10B981).copy(alpha = 0.20f)
+                            else if (isDark) Color(0xFF334155) else Color(0xFFDBEAFE)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Avatar / Badge
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isInside) Color(0xFF10B981).copy(alpha = 0.20f)
-                                else if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(if (isInside) "🛰️" else "🚆", fontSize = 18.sp)
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isInside) "Inside ${activeTrain.number}" else "Are you inside this train?",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (isInside) (if (isDark) Color(0xFF34D399) else Color(0xFF065F46))
-                                else if (isDark) DarkTextPrimary else LightTextPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            if (isInside) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF10B981).copy(alpha = beaconAlpha))
-                                )
-                            }
-                        }
-
-                        // Dynamic subtitle: Live distance to upcoming stop or status
-                        val subText = if (isInside) {
-                            if (kmToNext != null && kmToNext <= 8.5) {
-                                val dist = kmToNext.toInt().coerceAtLeast(1)
-                                "📍 $dist km to ${nextStation?.name ?: "Upcoming Stop"} • Zero-lag GPS"
-                            } else {
-                                TrainTrackerState.inTrainLocationText.ifBlank { "🛰️ Live Satellite Telemetry Active" }
-                            }
-                        } else {
-                            if (kmToNext != null && kmToNext <= 8.5) {
-                                val dist = kmToNext.toInt().coerceAtLeast(1)
-                                "📍 $dist km to ${nextStation?.name ?: "Upcoming Stop"} • Tap toggle"
-                            } else {
-                                "Turn ON for zero-lag satellite GPS tracking"
-                            }
-                        }
-
-                        Text(
-                            text = subText,
-                            fontSize = 11.sp,
-                            fontWeight = if (kmToNext != null && kmToNext <= 8.5) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isInside) (if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857))
-                            else if (kmToNext != null && kmToNext <= 8.5) RailBluePrimary
-                            else if (isDark) DarkTextSecondary else LightTextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(if (isInside) "🛰️" else "🚆", fontSize = 18.sp)
                 }
 
-                // Right Switch Toggle (Pinned directly at bottom-right under thumb)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (isInside) "Inside ${activeTrain.number}" else "Are you inside this train?",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isInside) (if (isDark) Color(0xFF34D399) else Color(0xFF065F46))
+                        else if (isDark) DarkTextPrimary else LightTextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    val subText = if (isInside) {
+                        "Zero-lag satellite GPS tracking active • Auto-collapses in 7s"
+                    } else {
+                        "Turn ON for zero-lag satellite GPS tracking"
+                    }
+                    Text(
+                        text = subText,
+                        fontSize = 10.sp,
+                        color = if (isInside) (if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857))
+                        else if (isDark) DarkTextSecondary else LightTextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Switch(
                     checked = isInside,
-                    onCheckedChange = { checked ->
-                        TrainTrackerState.toggleInsideTrainMode(checked)
-                    },
+                    onCheckedChange = onSwitchChanged,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = Color(0xFF10B981),
@@ -1809,6 +2046,13 @@ private fun AnalyticsHeroInTrainDock(
                         uncheckedTrackColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
                     )
                 )
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Text("✕", fontSize = 12.sp, color = Color.Gray)
+                }
             }
         }
     }

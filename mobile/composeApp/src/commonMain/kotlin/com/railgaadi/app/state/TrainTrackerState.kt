@@ -15,6 +15,7 @@ import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.network.WeatherService
 import com.railgaadi.app.util.GeoLocation
 import com.railgaadi.app.util.PlatformAlarm
+import com.railgaadi.app.util.PlatformDate
 import com.railgaadi.app.util.PlatformLocation
 import com.railgaadi.app.util.PlatformSpeech
 import com.railgaadi.app.util.PlatformStorage
@@ -665,6 +666,7 @@ object TrainTrackerState {
 
     fun onLiveStatusReceived(updated: LiveStatus) {
         liveStatus = updated
+        lastLiveStatusUpdateTimeMs = PlatformDate.nowMillis()
         val stations = updated.stations
 
         val newStn = updated.currentStation.trim()
@@ -750,6 +752,18 @@ object TrainTrackerState {
         }
     }
 
+    fun getRelativeUpdateTimeText(): String {
+        val ms = lastLiveStatusUpdateTimeMs
+        if (ms <= 0L) return "Updated a few seconds ago"
+        val diffSec = ((PlatformDate.nowMillis() - ms) / 1000).coerceAtLeast(0)
+        return when {
+            diffSec < 15 -> "Updated a few seconds ago"
+            diffSec < 60 -> "Updated ${diffSec}s ago"
+            diffSec < 3600 -> "Updated ${diffSec / 60}m ago"
+            else -> "Updated a while ago"
+        }
+    }
+
     fun getLiveRemainingKmToStation(station: Station, baseStation: Station? = null): Double? {
         val status = liveStatus ?: return null
         val stations = status.stations
@@ -785,24 +799,50 @@ object TrainTrackerState {
 
         val curStn = stations.getOrNull(curIdx) ?: return null
 
-        // If the train has already passed or reached this station, clear stale cache and hide
-        if (station.distanceKm <= curStn.distanceKm) {
+        val targetIdx = findStationIndex(station.name, stations).takeIf { it >= 0 }
+            ?: stations.indexOfFirst { it.code.equals(station.code, ignoreCase = true) }
+
+        // If the station is already behind the train along the route, clear cache and return null
+        if (targetIdx in 0 until curIdx) {
             remainingKmCache.remove(stationKey)
             return null
         }
 
-        val baseDistanceDiff = station.distanceKm - curStn.distanceKm
+        // If the train has arrived at this exact station
+        if (targetIdx == curIdx) {
+            remainingKmCache.remove(stationKey)
+            return 0.0
+        }
+
+        // Target station is ahead of current train position
+        val baseDistanceDiff = if (station.distanceKm > curStn.distanceKm) {
+            station.distanceKm - curStn.distanceKm
+        } else {
+            // Coordinate-based Haversine fallback if distanceKm is 0 or missing in API
+            val (cLat, cLon) = if (curStn.latitude != 0.0 && curStn.longitude != 0.0) {
+                curStn.latitude to curStn.longitude
+            } else {
+                StationDataService.getCoordinates(curStn.code)
+            }
+            val (sLat, sLon) = if (station.latitude != 0.0 && station.longitude != 0.0) {
+                station.latitude to station.longitude
+            } else {
+                StationDataService.getCoordinates(station.code)
+            }
+            if (cLat != 0.0 && sLat != 0.0) {
+                calculateHaversineDistanceKm(cLat, cLon, sLat, sLon)
+            } else {
+                val hopCount = if (targetIdx > curIdx) targetIdx - curIdx else 1
+                hopCount * 12.0
+            }
+        }
+
         val estimatedRemaining = (baseDistanceDiff - liveDistanceOffsetKm).coerceAtLeast(0.0)
         val rounded = ((estimatedRemaining * 10).toInt() / 10.0)
 
         // Strictly non-increasing: remaining distance to any upcoming station can never increase
         val prev = remainingKmCache[stationKey]
         val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
-        // If we've estimated 0 or below, clear the cache so caller gets null and hides the chip
-        if (effective <= 0.0) {
-            remainingKmCache.remove(stationKey)
-            return null
-        }
         remainingKmCache[stationKey] = effective
         return effective
     }
