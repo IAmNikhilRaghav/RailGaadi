@@ -740,8 +740,16 @@ fun AnalyticsScreen(
                                                     }
                                                 }
                                                 val distInfo = activeAlarm.distanceRemainingKm?.let { "$it km away" } ?: "${activeAlarm.triggerDistanceKm.toInt()} km before"
+                                                val snoozeSecs = TrainTrackerState.snoozeRemainingSeconds
+                                                val snoozeText = if (snoozeSecs > 0) {
+                                                    val m = snoozeSecs / 60
+                                                    val s = snoozeSecs % 60
+                                                    "Alarm snoozed • Rings in ${if (m > 0) "${m}m ${s}s" else "${s}s"}"
+                                                } else {
+                                                    "Alarm snoozed • Ringing shortly"
+                                                }
                                                 Text(
-                                                    text = if (activeAlarm.isSnoozed) "Alarm snoozed • Will re-alarm when timer ends" else "Rings $distInfo • Geofence active",
+                                                    text = if (activeAlarm.isSnoozed) snoozeText else "Rings $distInfo • Geofence active",
                                                     fontSize = 11.sp,
                                                     color = if (isDark) DarkTextSecondary else LightTextSecondary,
                                                     maxLines = 1,
@@ -1139,11 +1147,16 @@ fun AnalyticsScreen(
                                                                 verticalAlignment = Alignment.CenterVertically
                                                             ) {
                                                                 val delay = liveStatus?.delayMinutes ?: 0
+                                                                val delayText = when {
+                                                                    delay == 0 -> "Running On Time"
+                                                                    delay > 0 -> "Delayed +${delay}m"
+                                                                    else -> "${-delay}m Early"
+                                                                }
                                                                 Text(
-                                                                    text = if (delay == 0) "Running On Time" else "Delayed +${delay}m",
+                                                                    text = delayText,
                                                                     fontSize = 10.sp,
                                                                     fontWeight = FontWeight.SemiBold,
-                                                                    color = if (delay == 0) RailGreenOnTime else RailRedDelayed
+                                                                    color = if (delay <= 0) RailGreenOnTime else RailRedDelayed
                                                                 )
 
                                                                 // Interactive Expand Pill Button
@@ -1654,11 +1667,6 @@ fun AnalyticsScreen(
             DestinationAlarmModal(
                 onDismiss = { TrainTrackerState.closeAlarmSetup() }
             )
-        }
-
-        // Phase 4: Full-Screen Wake-Up Alarm Ringing Dialog
-        if (TrainTrackerState.isAlarmRinging) {
-            AlarmRingingDialog()
         }
     }
 }

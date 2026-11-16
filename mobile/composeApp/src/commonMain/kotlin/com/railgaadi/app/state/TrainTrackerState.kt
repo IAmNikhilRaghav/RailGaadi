@@ -117,6 +117,7 @@ object TrainTrackerState {
     var showAlarmSetupModal by mutableStateOf(false)
     var targetAlarmStation by mutableStateOf<Station?>(null)
     var isAlarmRinging by mutableStateOf(false)
+    var snoozeRemainingSeconds by mutableStateOf(0)
 
     // ── Phase 5: Satellite GPS Tracking Engine (Hybrid Foreground & Background) ──
     var isOfflineModeEnabled by mutableStateOf(false)
@@ -324,6 +325,7 @@ object TrainTrackerState {
     fun disarmAlarm() {
         snoozeJob?.cancel()
         snoozeJob = null
+        snoozeRemainingSeconds = 0
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         activeAlarm = null
@@ -382,6 +384,7 @@ object TrainTrackerState {
     fun dismissAlarm() {
         snoozeJob?.cancel()
         snoozeJob = null
+        snoozeRemainingSeconds = 0
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         isAlarmRinging = false
@@ -396,18 +399,22 @@ object TrainTrackerState {
     }
 
     fun snoozeAlarm(minutes: Int = 2) {
-        val validMinutes = minutes.coerceAtLeast(2)
+        val validMinutes = minutes.coerceAtLeast(1)
         snoozeJob?.cancel()
         alarmRingingJob?.cancel()
         alarmRingingJob = null
         isAlarmRinging = false
+        snoozeRemainingSeconds = validMinutes * 60
         activeAlarm = activeAlarm?.copy(isRinging = false, isSnoozed = true)
         PlatformAlarm.stopAlarm()
         PlatformAlarm.stopVibrate()
         PlatformSpeech.stop()
 
         snoozeJob = scope.launch {
-            delay(validMinutes * 60 * 1000L)
+            while (snoozeRemainingSeconds > 0) {
+                delay(1000)
+                snoozeRemainingSeconds--
+            }
             if (activeAlarm?.isArmed == true) {
                 activeAlarm = activeAlarm?.copy(isSnoozed = false)
                 triggerAlarm()
@@ -433,90 +440,77 @@ object TrainTrackerState {
         val alarm = activeAlarm ?: return
         if (!alarm.isArmed || alarm.isRinging) return
 
-        val loc = gpsLoc ?: currentGpsLocation ?: PlatformLocation.getLastLocation()
+        val currentStatus = liveStatus
+        val stations = currentStatus?.stations ?: emptyList()
 
-        // 1. High-precision real device GPS geofence:
-        // Calculate remaining physical distance to station coordinates directly
-        if (loc != null && alarm.stationLat != 0.0 && alarm.stationLon != 0.0) {
-            val rawRemainingKm = calculateHaversineDistanceKm(loc.latitude, loc.longitude, alarm.stationLat, alarm.stationLon)
-            val speed = if (loc.speedKmh > 10.0) loc.speedKmh else (liveStatus?.speedKmh?.toDouble()?.takeIf { it > 10.0 } ?: 65.0)
+        // 1. Locate destination station on the train route
+        val targetIdx = if (stations.isNotEmpty()) {
+            stations.indexOfFirst {
+                it.code.equals(alarm.stationCode, ignoreCase = true) ||
+                it.name.contains(alarm.stationName, ignoreCase = true) ||
+                alarm.stationName.contains(it.name, ignoreCase = true)
+            }
+        } else -1
+        val targetStation = if (targetIdx >= 0) stations[targetIdx] else null
 
-            // Strictly non-increasing alarm distance: GPS jitter cannot increase distance
-            val alarmKey = "alarm_${alarm.trainNumber}_${alarm.stationCode}"
-            val prev = remainingKmCache[alarmKey]
-            val effectiveKm = if (prev != null && prev > 0.0) minOf(prev, rawRemainingKm) else rawRemainingKm
-            remainingKmCache[alarmKey] = effectiveKm
-
-            val remainingMinutes = ((effectiveKm / speed) * 60).toInt().coerceAtLeast(1)
-            val roundedKm = ((effectiveKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
-            val updated = alarm.copy(
-                distanceRemainingKm = roundedKm,
-                minutesRemaining = remainingMinutes
-            )
-            activeAlarm = updated
-
-            // While snooze timer is active, do not trigger alarm from background geofence polling
-            if (alarm.isSnoozed) return
-
-            val shouldTrigger = when (alarm.triggerUnit) {
-                AlarmTriggerUnit.KILOMETERS -> effectiveKm <= alarm.triggerDistanceKm
-                AlarmTriggerUnit.MINUTES -> remainingMinutes <= alarm.triggerMinutesBefore
+        // 2. Calculate remaining distance (km) to the destination station
+        val effectiveKm: Double? = when {
+            // Case A: Passenger physically inside the train with GPS active
+            isInsideTrain && (gpsLoc ?: currentGpsLocation) != null -> {
+                val loc = gpsLoc ?: currentGpsLocation!!
+                val (stnLat, stnLon) = if (alarm.stationLat != 0.0 && alarm.stationLon != 0.0) {
+                    alarm.stationLat to alarm.stationLon
+                } else if (targetStation != null && targetStation.latitude != 0.0) {
+                    targetStation.latitude to targetStation.longitude
+                } else {
+                    StationDataService.getCoordinates(alarm.stationCode)
+                }
+                if (stnLat != 0.0 && stnLon != 0.0) {
+                    calculateHaversineDistanceKm(loc.latitude, loc.longitude, stnLat, stnLon)
+                } else null
             }
 
-            if (shouldTrigger) {
-                triggerAlarm()
+            // Case B: Live train tracking along route (uses train's live position & odometer)
+            targetStation != null -> {
+                val rem = getLiveRemainingKmToStation(targetStation)
+                if (rem != null) {
+                    rem
+                } else {
+                    // rem is null when train has already reached or passed targetStation
+                    val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { currentStatus?.currentStation ?: "" }, stations)
+                    if (curIdx >= targetIdx && targetIdx >= 0) 0.0 else null
+                }
             }
-            return
+
+            // Case C: Fallback coordinates when route stations not loaded yet
+            alarm.stationLat != 0.0 && alarm.stationLon != 0.0 && isInsideTrain && (gpsLoc ?: currentGpsLocation) != null -> {
+                val loc = (gpsLoc ?: currentGpsLocation)!!
+                calculateHaversineDistanceKm(loc.latitude, loc.longitude, alarm.stationLat, alarm.stationLon)
+            }
+
+            else -> null
         }
 
-        // 2. Fallback: If device GPS is not acquired yet, calculate from timetable
-        val currentStatus = liveStatus ?: return
-        val stations = currentStatus.stations
-        if (stations.isEmpty()) return
+        if (effectiveKm == null) return
 
-        val targetIdx = stations.indexOfFirst {
-            it.code.equals(alarm.stationCode, ignoreCase = true) ||
-            it.name.contains(alarm.stationName, ignoreCase = true) ||
-            alarm.stationName.contains(it.name, ignoreCase = true)
-        }
-        if (targetIdx < 0) return
-
-        val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { currentStatus.currentStation }, stations)
-            .takeIf { it >= 0 } ?: ((stations.size - 1) * currentStatus.progressPercent).toInt().coerceIn(0, stations.size - 1)
-
-        val curStation = stations.getOrNull(curIdx) ?: return
-        val targetStation = stations[targetIdx]
-
-        val rawRemainingKm = if (targetStation.distanceKm >= curStation.distanceKm && curStation.distanceKm > 0) {
-            (targetStation.distanceKm - curStation.distanceKm - liveDistanceOffsetKm).coerceAtLeast(0.0)
-        } else {
-            val (lat1, lon1) = if (curStation.latitude != 0.0) curStation.latitude to curStation.longitude else StationDataService.getCoordinates(curStation.code)
-            val (lat2, lon2) = if (targetStation.latitude != 0.0) targetStation.latitude to targetStation.longitude else StationDataService.getCoordinates(targetStation.code)
-            calculateHaversineDistanceKm(lat1, lon1, lat2, lon2)
-        }
-
-        val alarmKey = "alarm_${alarm.trainNumber}_${alarm.stationCode}"
-        val prev = remainingKmCache[alarmKey]
-        val effectiveKm = if (prev != null && prev > 0.0) minOf(prev, rawRemainingKm) else rawRemainingKm
-        remainingKmCache[alarmKey] = effectiveKm
-
-        val speed = (currentStatus.speedKmh.takeIf { it > 10 } ?: 65).toDouble()
-        val remainingMinutes = ((effectiveKm / speed) * 60).toInt().coerceAtLeast(1)
+        val roundedKm = ((effectiveKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
+        val speed = (currentStatus?.speedKmh?.takeIf { it > 10 } ?: 65).toDouble()
+        val remainingMinutes = ((roundedKm / speed) * 60).toInt().coerceAtLeast(1)
 
         activeAlarm = alarm.copy(
-            distanceRemainingKm = ((effectiveKm * 10).toInt() / 10.0).coerceAtLeast(0.0),
+            distanceRemainingKm = roundedKm,
             minutesRemaining = remainingMinutes
         )
 
         // While snooze timer is active, do not trigger alarm from background geofence polling
-        if (alarm.isSnoozed) return
+        if (alarm.isSnoozed || snoozeRemainingSeconds > 0) return
 
         val shouldTrigger = when (alarm.triggerUnit) {
-            AlarmTriggerUnit.KILOMETERS -> effectiveKm <= alarm.triggerDistanceKm
+            AlarmTriggerUnit.KILOMETERS -> roundedKm <= alarm.triggerDistanceKm
             AlarmTriggerUnit.MINUTES -> remainingMinutes <= alarm.triggerMinutesBefore
         }
 
-        if (shouldTrigger && curIdx <= targetIdx) {
+        if (shouldTrigger) {
             triggerAlarm()
         }
     }

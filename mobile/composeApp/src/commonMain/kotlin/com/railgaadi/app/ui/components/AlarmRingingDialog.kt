@@ -267,7 +267,7 @@ fun AlarmRingingDialog() {
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            listOf(2, 5, 10).forEach { mins ->
+                            listOf(1, 2, 5, 10).forEach { mins ->
                                 val isSel = !isManualSnooze && snoozeMinutes == mins
                                 Box(
                                     modifier = Modifier
@@ -289,7 +289,7 @@ fun AlarmRingingDialog() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "$mins min",
+                                        text = "$mins m",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSel) Color.White else (if (isDark) DarkTextPrimary else LightTextPrimary)
@@ -300,7 +300,7 @@ fun AlarmRingingDialog() {
                             // Stepper / Custom Counter Box: [-] mins [+]
                             Row(
                                 modifier = Modifier
-                                    .weight(1.5f)
+                                    .weight(1.3f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isManualSnooze) RailBluePrimary.copy(alpha = 0.12f) else (if (isDark) DarkSurface else Color(0xFFF1F5F9)))
@@ -316,11 +316,11 @@ fun AlarmRingingDialog() {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .width(32.dp)
+                                        .width(28.dp)
                                         .clickable {
                                             keyboardController?.hide()
                                             isManualSnooze = true
-                                            snoozeMinutes = (snoozeMinutes - 1).coerceAtLeast(2)
+                                            snoozeMinutes = (snoozeMinutes - 1).coerceAtLeast(1)
                                             manualSnoozeInput = snoozeMinutes.toString()
                                         },
                                     contentAlignment = Alignment.Center
@@ -343,7 +343,7 @@ fun AlarmRingingDialog() {
                                             manualSnoozeInput = digits
                                             val parsed = digits.toIntOrNull()
                                             if (parsed != null) {
-                                                snoozeMinutes = parsed.coerceAtLeast(2)
+                                                snoozeMinutes = parsed.coerceAtLeast(1)
                                             }
                                         }
                                     },
@@ -357,14 +357,14 @@ fun AlarmRingingDialog() {
                                         textAlign = TextAlign.Center
                                     ),
                                     cursorBrush = SolidColor(RailBluePrimary),
-                                    modifier = Modifier.width(36.dp)
+                                    modifier = Modifier.width(32.dp)
                                 )
 
                                 // Plus button
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .width(32.dp)
+                                        .width(28.dp)
                                         .clickable {
                                             keyboardController?.hide()
                                             isManualSnooze = true
@@ -383,15 +383,16 @@ fun AlarmRingingDialog() {
                             }
                         }
 
+                        val effectiveMinutes = if (isManualSnooze && manualSnoozeInput.isNotBlank()) {
+                            manualSnoozeInput.toIntOrNull()?.coerceAtLeast(1) ?: snoozeMinutes
+                        } else {
+                            snoozeMinutes
+                        }
+
                         // Snooze action button with dynamic minutes
                         OutlinedButton(
                             onClick = {
                                 keyboardController?.hide()
-                                val effectiveMinutes = if (isManualSnooze && manualSnoozeInput.isNotBlank()) {
-                                    manualSnoozeInput.toIntOrNull()?.coerceAtLeast(2) ?: snoozeMinutes
-                                } else {
-                                    snoozeMinutes
-                                }
                                 TrainTrackerState.snoozeAlarm(effectiveMinutes)
                             },
                             modifier = Modifier
@@ -401,7 +402,7 @@ fun AlarmRingingDialog() {
                             border = BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f))
                         ) {
                             Text(
-                                "⏰ Snooze for $snoozeMinutes Minutes",
+                                "⏰ Snooze for $effectiveMinutes ${if (effectiveMinutes == 1) "Minute" else "Minutes"}",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isDark) DarkTextPrimary else LightTextPrimary
