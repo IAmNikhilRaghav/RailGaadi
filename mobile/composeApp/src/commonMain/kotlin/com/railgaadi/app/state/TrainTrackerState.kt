@@ -9,10 +9,12 @@ import com.railgaadi.app.model.CellTowerRepository
 import com.railgaadi.app.model.DestinationAlarm
 import com.railgaadi.app.model.LiveStatus
 import com.railgaadi.app.model.OfflineTrainEngine
+import com.railgaadi.app.model.RadioTrilaterationEngine
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.model.StationDataService
 import com.railgaadi.app.model.TrackCellRecord
 import com.railgaadi.app.model.Train
+import com.railgaadi.app.model.TrilaterationResult
 import com.railgaadi.app.network.LandmarkService
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.network.WeatherService
@@ -139,10 +141,12 @@ object TrainTrackerState {
     var inTrainEstArrivalMinutes by mutableStateOf(0)
     var inTrainRemainingKm by mutableStateOf(0.0)
 
-    // True Cell Tower Tracking State
+    // True Cell Tower & Multi-Tower Trilateration Tracking State
     var currentCellTower by mutableStateOf<CellTowerData?>(null)
     var currentCellRecord by mutableStateOf<TrackCellRecord?>(null)
-    var activeTrackingProvider by mutableStateOf("Cloud") // "Cloud", "GPS", "Cell Tower"
+    var visibleCellTowers by mutableStateOf<List<CellTowerData>>(emptyList())
+    var currentTrilaterationResult by mutableStateOf<TrilaterationResult?>(null)
+    var activeTrackingProvider by mutableStateOf("Cloud") // "Cloud", "GPS", "Trilateration", "Cell Tower"
     private var isCellScanningActive = false
 
     fun toggleInsideTrainMode(enabled: Boolean? = null) {
@@ -240,8 +244,8 @@ object TrainTrackerState {
         if (isCellScanningActive || !PlatformCellScanner.isSupported()) return
         try {
             isCellScanningActive = true
-            PlatformCellScanner.startCellScanning { cell ->
-                onCellTowerUpdated(cell)
+            PlatformCellScanner.startMultiCellScanning { cells ->
+                onMultiCellsUpdated(cells)
             }
         } catch (e: Throwable) {
             println("ensureCellScanning error: ${e.message}")
@@ -257,15 +261,28 @@ object TrainTrackerState {
         }
     }
 
-    private fun onCellTowerUpdated(cell: CellTowerData) {
-        currentCellTower = cell
-        val record = CellTowerRepository.resolveCellTower(cell)
+    private fun onMultiCellsUpdated(cells: List<CellTowerData>) {
+        visibleCellTowers = cells
+        val primary = cells.firstOrNull { it.isRegistered } ?: cells.firstOrNull() ?: return
+        currentCellTower = primary
+        val record = CellTowerRepository.resolveCellTower(primary)
         currentCellRecord = record
 
-        // If passenger is inside train and GPS is degraded/offline, let Cell Tower drive the cockpit
+        // Compute Level 4 Multi-Tower RSRP Signal Trilateration
+        val stations = liveStatus?.stations ?: emptyList()
+        val triResult = RadioTrilaterationEngine.computeTrilateration(cells, stations)
+        currentTrilaterationResult = triResult
+
+        // If passenger is inside train and GPS is degraded/offline, let Trilateration/Cell Tower drive the cockpit
         if (isInsideTrain && (currentGpsLocation == null || (currentGpsLocation?.accuracyMeters ?: 999f) > 80f)) {
-            activeTrackingProvider = "Cell Tower"
-            if (record != null) {
+            if (triResult != null) {
+                activeTrackingProvider = if (triResult.isMultiTowerLock) "Trilateration" else "Cell Tower"
+                inTrainLocationText = triResult.statusDescription
+                inTrainNextHaltText = triResult.approachingStationName
+                inTrainRemainingKm = triResult.remainingDistanceKm
+                inTrainEstArrivalMinutes = ((triResult.remainingDistanceKm / 60.0) * 60).toInt().coerceAtLeast(1)
+            } else if (record != null) {
+                activeTrackingProvider = "Cell Tower"
                 inTrainLocationText = "Near ${record.lineDescription} (${record.distanceToStationKm} km to ${record.stationName})"
                 inTrainNextHaltText = record.stationName
                 inTrainRemainingKm = record.distanceToStationKm
@@ -858,7 +875,20 @@ object TrainTrackerState {
             }
         }
 
-        // 1b. If passenger is inside the train with physical Cell Tower lock (offline / metal coach)
+        // 1b. If passenger is inside the train with Multi-Tower Trilateration lock (±80m accuracy)
+        if (isInsideTrain && currentTrilaterationResult != null) {
+            val tri = currentTrilaterationResult!!
+            if (tri.approachingStationCode.equals(station.code, ignoreCase = true) ||
+                station.name.contains(tri.approachingStationName, ignoreCase = true)) {
+                val rounded = ((tri.remainingDistanceKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
+                val prev = remainingKmCache[stationKey]
+                val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
+                remainingKmCache[stationKey] = effective
+                return effective
+            }
+        }
+
+        // 1c. If passenger is inside the train with physical Cell Tower lock (offline / metal coach)
         if (isInsideTrain && currentCellRecord != null) {
             val record = currentCellRecord!!
             if (record.stationCode.equals(station.code, ignoreCase = true) ||
@@ -1017,6 +1047,8 @@ object TrainTrackerState {
         inTrainRemainingKm = 0.0
         currentCellTower = null
         currentCellRecord = null
+        visibleCellTowers = emptyList()
+        currentTrilaterationResult = null
         activeTrackingProvider = "Cloud"
         try { PlatformStorage.remove(KEY_ODOMETER) } catch (_: Throwable) {}
         stopGpsTrackingIfIdle()

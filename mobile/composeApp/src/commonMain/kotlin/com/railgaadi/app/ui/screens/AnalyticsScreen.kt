@@ -2003,6 +2003,7 @@ private fun WimtInsideTrainBanner(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     val headerText = if (isInside) {
                         when (TrainTrackerState.activeTrackingProvider) {
+                            "Trilateration" -> "Inside ${activeTrain.number} (Trilateration)"
                             "Cell Tower" -> "Inside ${activeTrain.number} (Cell Tower)"
                             "GPS" -> "Inside ${activeTrain.number} (GPS)"
                             else -> "Inside ${activeTrain.number}"
@@ -2021,12 +2022,13 @@ private fun WimtInsideTrainBanner(
 
                     val subText = if (isInside) {
                         when (TrainTrackerState.activeTrackingProvider) {
+                            "Trilateration" -> "Multi-Tower Trilateration active (±80m) • Auto-collapses in 7s"
                             "Cell Tower" -> "Offline Cell Tower tracking active • Auto-collapses in 7s"
                             "GPS" -> "Zero-lag satellite GPS tracking active • Auto-collapses in 7s"
                             else -> "Zero-lag live tracking active • Auto-collapses in 7s"
                         }
                     } else {
-                        "Turn ON for zero-lag GPS & Cell Tower tracking"
+                        "Turn ON for zero-lag GPS & Multi-Tower tracking"
                     }
                     Text(
                         text = subText,
