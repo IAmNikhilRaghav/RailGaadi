@@ -1153,7 +1153,7 @@ fun AnalyticsScreen(
                                                                     val name = cur?.name ?: ""
                                                                     if (name.isNotBlank()) {
                                                                         if (cur?.haltMinutes == 0) "Crossing $name"
-                                                                        else "Departed $name"
+                                                                        else "At $name"
                                                                     } else {
                                                                         "En Route"
                                                                     }
@@ -2379,7 +2379,6 @@ private fun WimtStationTrackRow(
                             ) {
                                 val bubbleTitle = when {
                                     station.haltMinutes == 0 -> "Crossing ${station.name}"
-                                    isEnRoute -> "Departed ${station.name}"
                                     else -> "At ${station.name}"
                                 }
                                 Text(
