@@ -289,6 +289,20 @@ object TrainTrackerState {
                 inTrainEstArrivalMinutes = ((record.distanceToStationKm / 55.0) * 60).toInt().coerceAtLeast(1)
             }
         }
+
+        // Dynamically update timeline if inside train or in offline mode without satellite lock
+        if ((isInsideTrain || isOfflineModeEnabled) && activeTrain.number.isNotBlank() && (currentGpsLocation == null || (currentGpsLocation?.accuracyMeters ?: 999f) > 80f)) {
+            if (triResult != null || record != null) {
+                val hybridLive = OfflineTrainEngine.calculateHybridOfflineLiveStatus(
+                    train = activeTrain,
+                    gps = currentGpsLocation,
+                    cell = primary,
+                    visibleCells = cells,
+                    existingStations = stations
+                )
+                onLiveStatusReceived(hybridLive)
+            }
+        }
     }
 
     private fun onGpsLocationUpdated(loc: GeoLocation) {
@@ -334,8 +348,9 @@ object TrainTrackerState {
     fun enableOfflineGpsMode() {
         isOfflineModeEnabled = true
         isGpsTrackingActive = true
-        offlineGpsStatusText = "Connecting to Satellites..."
+        offlineGpsStatusText = "Connecting to Satellites / Cell Towers..."
         ensureGpsTracking()
+        ensureCellScanning()
     }
 
     fun disableOfflineGpsMode() {
@@ -984,14 +999,27 @@ object TrainTrackerState {
                             val updated = service.getLiveStatus(activeTrain.number)
                             onLiveStatusReceived(updated)
                             refreshWeather(silent = true)
-                        }
-                    } catch (_: Exception) {
-                        // Resilient offline fallback: calculate position via on-device GPS if internet drops
-                        val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
-                        if (loc != null && activeTrain.number.isNotBlank()) {
-                            val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(
+                        } else {
+                            // In offline mode, calculate position using Hybrid engine (GPS / Multi-Tower Trilateration / Cell Tower)
+                            val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
+                            val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateHybridOfflineLiveStatus(
                                 train = activeTrain,
                                 gps = loc,
+                                cell = currentCellTower,
+                                visibleCells = visibleCellTowers,
+                                existingStations = liveStatus?.stations
+                            )
+                            onLiveStatusReceived(offlineLive)
+                        }
+                    } catch (_: Exception) {
+                        // Resilient offline fallback: calculate position via Hybrid Engine (GPS / Cell Tower Trilateration) if internet drops
+                        if (activeTrain.number.isNotBlank()) {
+                            val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
+                            val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateHybridOfflineLiveStatus(
+                                train = activeTrain,
+                                gps = loc,
+                                cell = currentCellTower,
+                                visibleCells = visibleCellTowers,
                                 existingStations = liveStatus?.stations
                             )
                             onLiveStatusReceived(offlineLive)
@@ -1105,14 +1133,18 @@ object TrainTrackerState {
                 startDeadReckoningEngine()
             } catch (_: Exception) {
                 val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
-                if (loc != null) {
-                    if (!isSameTrain || lastConfirmedStationName.isBlank()) {
-                        restoreOdometerSnapshot(train.number)
-                    }
-                    val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateOfflineLiveStatus(train, loc)
-                    onLiveStatusReceived(offlineLive)
-                    startDeadReckoningEngine()
+                if (!isSameTrain || lastConfirmedStationName.isBlank()) {
+                    restoreOdometerSnapshot(train.number)
                 }
+                val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateHybridOfflineLiveStatus(
+                    train = train,
+                    gps = loc,
+                    cell = currentCellTower,
+                    visibleCells = visibleCellTowers,
+                    existingStations = liveStatus?.stations
+                )
+                onLiveStatusReceived(offlineLive)
+                startDeadReckoningEngine()
             }
             isLoadingStatus = false
             refreshWeather(silent = false)
