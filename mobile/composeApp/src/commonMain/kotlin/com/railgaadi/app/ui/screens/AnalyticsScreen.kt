@@ -509,7 +509,6 @@ fun AnalyticsScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -816,7 +815,7 @@ fun AnalyticsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Full-Width iOS Segmented Control: Track | Timetable | Coach
@@ -1015,7 +1014,8 @@ fun AnalyticsScreen(
                                             curTrainDistKm = curStation?.distanceKm ?: 0.0,
                                             delayMinutes = liveStatus?.delayMinutes ?: 0,
                                             speedKmh = liveStatus?.speedKmh ?: 0,
-                                            isDark = isDark
+                                            isDark = isDark,
+                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
                                         )
                                     }
 
@@ -1040,7 +1040,8 @@ fun AnalyticsScreen(
                                             curTrainDistKm = curStation?.distanceKm ?: 0.0,
                                             delayMinutes = liveStatus?.delayMinutes ?: 0,
                                             speedKmh = liveStatus?.speedKmh ?: 0,
-                                            isDark = isDark
+                                            isDark = isDark,
+                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
                                         )
 
                                         // If there are pass-through stations after this halt stop, show collapse pill / active train bar
@@ -1308,7 +1309,8 @@ fun AnalyticsScreen(
                                                         curTrainDistKm = curStation?.distanceKm ?: 0.0,
                                                         delayMinutes = liveStatus?.delayMinutes ?: 0,
                                                         speedKmh = liveStatus?.speedKmh ?: 0,
-                                                        isDark = isDark
+                                                        isDark = isDark,
+                                                        isEnRoute = ptCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
                                                     )
                                                 }
                                             }
@@ -1474,12 +1476,11 @@ fun AnalyticsScreen(
                     val avgSpeed = (topSpeed * 0.68).toInt()
 
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(0.dp),
                         colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -1530,12 +1531,11 @@ fun AnalyticsScreen(
                 item {
                     val delay = liveStatus?.delayMinutes ?: 0
                     Card(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(0.dp),
                         colors = CardDefaults.cardColors(containerColor = if (isDark) DarkSurface else LightSurface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -2183,7 +2183,8 @@ private fun WimtStationTrackRow(
     curTrainDistKm: Double,
     delayMinutes: Int,
     speedKmh: Int,
-    isDark: Boolean
+    isDark: Boolean,
+    isEnRoute: Boolean = false  // true = train departed this station and is now between stops
 ) {
     val isHaltStop = station.haltMinutes > 0  // true = scheduled halt; false = pass-through
 
@@ -2378,7 +2379,7 @@ private fun WimtStationTrackRow(
                     }
                 }
 
-                // If this is the current live station, show floating Live Speech-Bubble
+                                // If this is the current live station, show floating Live Speech-Bubble
                 if (isCurrent) {
                     Card(
                         shape = RoundedCornerShape(10.dp),
@@ -2400,7 +2401,7 @@ private fun WimtStationTrackRow(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "At ${station.name}",
+                                    text = if (isEnRoute) "En Route · Departed ${station.name}" else "At ${station.name}",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = RailBluePrimary

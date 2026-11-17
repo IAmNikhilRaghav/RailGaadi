@@ -603,14 +603,14 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
 
             val data = response?.data
             if (data != null && !data.route.isNullOrEmpty()) {
-                val delay = data.delayMinutes ?: data.currentLocation?.delayMinutes ?: 0
+                val delay = (data.delayMinutes ?: data.currentLocation?.delayMinutes ?: 0)
+                    .coerceAtLeast(0) // Indian Railways never officially runs early; negative = stale data
                 val rawStatus = (data.status ?: "running").uppercase()
                 val statusStr = when {
                     rawStatus.contains("COMPLETED") || rawStatus.contains("ARRIVED") -> "ARRIVED"
                     rawStatus.contains("NOT-STARTED") || rawStatus.contains("SCHEDULED") -> "SCHEDULED"
                     rawStatus.contains("CANCELLED") -> "CANCELLED"
                     delay > 0 -> "DELAYED $delay min"
-                    delay < 0 -> "EARLY ${-delay} min"
                     else -> "ON TIME"
                 }
 
@@ -710,22 +710,32 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     st == "upcoming" || st == "scheduled" || st == "expected"
                 }
 
+                // Only treat at-station as valid if the train has actually reached there —
+                // i.e., atStationIdx must come AFTER the last departed stop.
+                // The API sometimes prematurely reports "at-station" for the next stop
+                // before the train physically arrives, which causes the train to jump ahead.
+                val validAtStationIdx = if (atStationIdx >= 0 && atStationIdx >= lastDepartedIdx) {
+                    atStationIdx
+                } else {
+                    -1 // discard premature at-station
+                }
+
                 val currentStatus = data.currentLocation?.status ?: ""
-                val isAtStation = atStationIdx >= 0 ||
-                    currentStatus.contains("at-station", ignoreCase = true) ||
-                    currentStatus.contains("halted", ignoreCase = true)
+                val isAtStation = validAtStationIdx >= 0 ||
+                    (lastDepartedIdx < 0 && currentStatus.contains("at-station", ignoreCase = true)) ||
+                    (lastDepartedIdx < 0 && currentStatus.contains("halted", ignoreCase = true))
 
                 // Determine real current station name & index:
                 val curStationName: String
                 val curStationCode: String
                 val curIdx: Int
 
-                if (atStationIdx >= 0) {
-                    // Train is confirmed halted at a station
-                    val haltStop = allStops[atStationIdx]
+                if (validAtStationIdx >= 0) {
+                    // Train is confirmed halted at a station (validated against lastDepartedIdx)
+                    val haltStop = allStops[validAtStationIdx]
                     curStationName = haltStop.stationName ?: ""
                     curStationCode = haltStop.stationCode ?: ""
-                    curIdx = atStationIdx
+                    curIdx = validAtStationIdx
                 } else if (lastDepartedIdx >= 0) {
                     val lastDep = allStops[lastDepartedIdx]
                     val clStation = data.currentLocation?.stationName ?: ""
@@ -759,9 +769,9 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     }.takeIf { it >= 0 } ?: 0
                 }
 
-                val nextStationName = if (atStationIdx >= 0) {
-                    val nextHalt = allStops.drop(atStationIdx + 1).firstOrNull { it.isHalt == true }
-                    nextHalt?.stationName ?: allStops.getOrNull(atStationIdx + 1)?.stationName
+                val nextStationName = if (validAtStationIdx >= 0) {
+                    val nextHalt = allStops.drop(validAtStationIdx + 1).firstOrNull { it.isHalt == true }
+                    nextHalt?.stationName ?: allStops.getOrNull(validAtStationIdx + 1)?.stationName
                         ?: data.nextHalt?.stationName ?: ""
                 } else if (firstUpcomingIdx >= 0) {
                     // Find the next halt (not just any pass-through)
