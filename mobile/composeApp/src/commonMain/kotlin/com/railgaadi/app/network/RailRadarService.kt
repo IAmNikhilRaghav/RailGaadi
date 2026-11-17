@@ -1,5 +1,6 @@
 package com.railgaadi.app.network
 
+import kotlin.math.*
 import com.railgaadi.app.model.LiveStatus
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.model.StationBoardTrain
@@ -170,7 +171,9 @@ data class RailRadarRouteStop(
     val scheduledDeparture: String? = null,
     val actualArrival: String? = null,
     val actualDeparture: String? = null,
+    val delayArrival: Int? = 0,
     val delayDeparture: Int? = 0,
+    val delayMinutes: Int? = 0,
     val platform: String? = null,
     val distance: Double? = 0.0,
     val speedToNextStationKmph: Double? = null
@@ -589,6 +592,36 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
         }
     }
 
+    private fun calculateHaversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371.0 // Earth radius in km
+        val dLat = (lat2 - lat1) * (PI / 180.0)
+        val dLon = (lon2 - lon1) * (PI / 180.0)
+        val a = sin(dLat / 2).pow(2) +
+                cos(lat1 * (PI / 180.0)) * cos(lat2 * (PI / 180.0)) *
+                sin(dLon / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return r * c
+    }
+
+    private fun calculateTimeDifferenceMinutes(scheduledIso: String?, actualIso: String?): Int? {
+        if (scheduledIso.isNullOrBlank() || actualIso.isNullOrBlank() || scheduledIso == "—" || actualIso == "—") return null
+        return try {
+            val sTime = if (scheduledIso.contains("T")) scheduledIso.substringAfter("T").take(5) else scheduledIso.take(5)
+            val aTime = if (actualIso.contains("T")) actualIso.substringAfter("T").take(5) else actualIso.take(5)
+            val sParts = sTime.split(":").map { it.toInt() }
+            val aParts = aTime.split(":").map { it.toInt() }
+            if (sParts.size < 2 || aParts.size < 2) return null
+            val sMins = sParts[0] * 60 + sParts[1]
+            val aMins = aParts[0] * 60 + aParts[1]
+            var diff = aMins - sMins
+            if (diff < -720) diff += 1440
+            if (diff > 720) diff -= 1440
+            diff
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /**
      * DYNAMIC LIVE STATUS TRACKING:
      * Queries RailRadar live API for ANY Pan-India train, returns real halts & GIS track coordinates
@@ -603,17 +636,6 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
 
             val data = response?.data
             if (data != null && !data.route.isNullOrEmpty()) {
-                val delay = (data.delayMinutes ?: data.currentLocation?.delayMinutes ?: 0)
-                    .coerceAtLeast(0) // Indian Railways never officially runs early; negative = stale data
-                val rawStatus = (data.status ?: "running").uppercase()
-                val statusStr = when {
-                    rawStatus.contains("COMPLETED") || rawStatus.contains("ARRIVED") -> "ARRIVED"
-                    rawStatus.contains("NOT-STARTED") || rawStatus.contains("SCHEDULED") -> "SCHEDULED"
-                    rawStatus.contains("CANCELLED") -> "CANCELLED"
-                    delay > 0 -> "DELAYED $delay min"
-                    else -> "ON TIME"
-                }
-
                 // Parse GIS route coordinates if available from API
                 val routeCoords = mutableListOf<Pair<Double, Double>>()
                 val geoCoords = data.geometry?.geojson?.geometry?.coordinates
@@ -629,7 +651,11 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                 // haltMinutes=0 on Station signals a pass-through for visual differentiation in UI
                 val allStops = data.route ?: emptyList()
 
-                val stations = allStops.map { stop ->
+                var lastDist = 0.0
+                val stations = mutableListOf<Station>()
+
+                for (i in allStops.indices) {
+                    val stop = allStops[i]
                     val code = stop.stationCode ?: ""
                     val apiLat = stop.lat ?: 0.0
                     val apiLng = stop.lng ?: 0.0
@@ -656,17 +682,35 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     val dep = formatIsoTime(stop.scheduledDeparture ?: stop.actualDeparture)
                     val arr = formatIsoTime(stop.scheduledArrival ?: stop.actualArrival)
 
-                    Station(
-                        code = code,
-                        name = stop.stationName ?: code,
-                        latitude = coords.first,
-                        longitude = coords.second,
-                        scheduledDep = dep,
-                        scheduledArr = arr,
-                        distanceKm = stop.distance ?: 0.0,
-                        platform = stop.platform?.takeIf { it.isNotBlank() } ?: "",
-                        // haltMinutes=0 → pass-through (train doesn't stop); >0 → scheduled halt
-                        haltMinutes = if (stop.isHalt == true) 2 else 0
+                    // Ensure monotonic strictly-increasing distanceKm along the track
+                    val rawDist = stop.distance
+                    val resolvedDist = if (rawDist != null && rawDist > lastDist) {
+                        lastDist = rawDist
+                        rawDist
+                    } else if (i > 0) {
+                        val prev = stations[i - 1]
+                        val hop = if (coords.first != 0.0 && prev.latitude != 0.0) {
+                            calculateHaversineKm(prev.latitude, prev.longitude, coords.first, coords.second)
+                        } else 6.0
+                        lastDist += hop
+                        lastDist
+                    } else {
+                        0.0
+                    }
+
+                    stations.add(
+                        Station(
+                            code = code,
+                            name = stop.stationName ?: code,
+                            latitude = coords.first,
+                            longitude = coords.second,
+                            scheduledDep = dep,
+                            scheduledArr = arr,
+                            distanceKm = ((resolvedDist * 10).roundToInt()) / 10.0,
+                            platform = stop.platform?.takeIf { it.isNotBlank() } ?: "1",
+                            // haltMinutes=0 → pass-through (train doesn't stop); >0 → scheduled halt
+                            haltMinutes = if (stop.isHalt == true) 2 else 0
+                        )
                     )
                 }
 
@@ -782,6 +826,40 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     data.nextHalt?.stationName ?: stations.getOrNull(curIdx + 1)?.name ?: ""
                 }
 
+                // ── Compute AUTHORITATIVE Live Delay Minutes (matching 'Where Is My Train' pan-India) ──
+                val curStop = if (validAtStationIdx >= 0) allStops.getOrNull(validAtStationIdx) else null
+                val lastDepStop = if (lastDepartedIdx >= 0) allStops.getOrNull(lastDepartedIdx) else null
+
+                val stopDepartureDelay = (curStop?.delayDeparture?.takeIf { it > 0 } ?: lastDepStop?.delayDeparture?.takeIf { it > 0 })
+                val stopArrivalDelay = (curStop?.delayArrival?.takeIf { it > 0 } ?: lastDepStop?.delayArrival?.takeIf { it > 0 })
+                val stopDelayMinutes = (curStop?.delayMinutes?.takeIf { it > 0 } ?: lastDepStop?.delayMinutes?.takeIf { it > 0 })
+
+                val timeDiffDelay = calculateTimeDifferenceMinutes(
+                    curStop?.scheduledArrival ?: curStop?.scheduledDeparture,
+                    curStop?.actualArrival ?: curStop?.actualDeparture
+                )?.takeIf { it > 0 } ?: calculateTimeDifferenceMinutes(
+                    lastDepStop?.scheduledDeparture ?: lastDepStop?.scheduledArrival,
+                    lastDepStop?.actualDeparture ?: lastDepStop?.actualArrival
+                )?.takeIf { it > 0 }
+
+                val topLevelApiDelay = (data.delayMinutes ?: data.currentLocation?.delayMinutes)?.takeIf { it > 0 }
+
+                val authoritativeDelay = (stopDepartureDelay
+                    ?: stopArrivalDelay
+                    ?: stopDelayMinutes
+                    ?: timeDiffDelay
+                    ?: topLevelApiDelay
+                    ?: 0).coerceAtLeast(0)
+
+                val rawStatus = (data.status ?: "running").uppercase()
+                val statusStr = when {
+                    rawStatus.contains("COMPLETED") || rawStatus.contains("ARRIVED") -> "ARRIVED"
+                    rawStatus.contains("NOT-STARTED") || rawStatus.contains("SCHEDULED") -> "SCHEDULED"
+                    rawStatus.contains("CANCELLED") -> "CANCELLED"
+                    authoritativeDelay > 0 -> "DELAYED $authoritativeDelay min"
+                    else -> "ON TIME"
+                }
+
                 // ── Compute REAL speed from route segment data ──
                 // The API almost never populates currentLocation.speed, but each route
                 // stop has speedToNextStationKmph which is the real sectional speed.
@@ -812,7 +890,7 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
                     trainNumber = data.trainNumber ?: cleanNumber,
                     trainName = data.trainName ?: "Train #$cleanNumber",
                     status = statusStr,
-                    delayMinutes = delay,
+                    delayMinutes = authoritativeDelay,
                     speedKmh = resolvedSpeed,
                     currentStation = curStationName,
                     nextStation = nextStationName,

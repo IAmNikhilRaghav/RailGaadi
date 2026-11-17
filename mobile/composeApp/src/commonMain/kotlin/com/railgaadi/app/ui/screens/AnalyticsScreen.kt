@@ -158,6 +158,9 @@ fun AnalyticsScreen(
             ?: candidates.firstOrNull()
     }
 
+    // Observe live odometer offset so Compose re-evaluates remaining distance in real time every second
+    val liveOdometer = TrainTrackerState.liveDistanceOffsetKm
+
     val kmToUpcoming = upcomingStation?.let {
         TrainTrackerState.getLiveRemainingKmToStation(it, curStation)
     }
@@ -1137,6 +1140,7 @@ fun AnalyticsScreen(
                                                                     verticalAlignment = Alignment.CenterVertically,
                                                                     modifier = Modifier.fillMaxWidth()
                                                                 ) {
+                                                                    val cardOdometer = TrainTrackerState.liveDistanceOffsetKm
                                                                     val nextHaltStation = segments.getOrNull(segIdx + 1)?.haltStation
                                                                     val targetStop = nextHaltStation ?: nextStation ?: upcomingStation
                                                                     val curStn = curStation ?: stations.getOrNull(curIdx)

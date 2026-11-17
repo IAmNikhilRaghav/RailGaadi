@@ -809,6 +809,9 @@ object TrainTrackerState {
         // Persist odometer so app-reopen resumes from correct position
         saveOdometerSnapshot()
         checkAlarmGeofence()
+        if (deadReckoningJob?.isActive != true) {
+            startDeadReckoningEngine()
+        }
     }
 
     fun startDeadReckoningEngine() {
@@ -832,12 +835,16 @@ object TrainTrackerState {
                     // Cap offset so it never overshoots into the next station
                     val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { status.currentStation }, stations)
                     if (curIdx >= 0 && curIdx + 1 < stations.size) {
-                        val segLength = (stations[curIdx + 1].distanceKm - stations[curIdx].distanceKm).coerceAtLeast(1.0)
-                        val maxAllowed = (segLength - 0.1).coerceAtLeast(0.0)
+                        val nextStn = stations.drop(curIdx + 1).firstOrNull { it.distanceKm > stations[curIdx].distanceKm }
+                        val segLength = if (nextStn != null) (nextStn.distanceKm - stations[curIdx].distanceKm) else 40.0
+                        val maxAllowed = (segLength - 0.2).coerceAtLeast(0.0)
                         liveDistanceOffsetKm = (liveDistanceOffsetKm + addedKm).coerceAtMost(maxAllowed)
                     } else {
                         liveDistanceOffsetKm += addedKm
                     }
+
+                    // Clear remaining-km cache to allow smooth downward decrement on each tick
+                    remainingKmCache.clear()
 
                     // Persist odometer state to storage every 10 seconds
                     saveTickCounter++
@@ -963,7 +970,7 @@ object TrainTrackerState {
         }
 
         val estimatedRemaining = (baseDistanceDiff - liveDistanceOffsetKm).coerceAtLeast(0.0)
-        val rounded = ((estimatedRemaining * 10).toInt() / 10.0)
+        val rounded = (kotlin.math.round(estimatedRemaining * 10)) / 10.0
 
         // Strictly non-increasing: remaining distance to any upcoming station can never increase
         val prev = remainingKmCache[stationKey]
