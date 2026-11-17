@@ -3,6 +3,7 @@ package com.railgaadi.app.model
 import com.railgaadi.app.util.CellTowerData
 import com.railgaadi.app.util.GeoLocation
 import com.railgaadi.app.util.PlatformDate
+import com.railgaadi.app.util.formatDelayDuration
 import kotlin.math.*
 
 object OfflineTrainEngine {
@@ -67,8 +68,8 @@ object OfflineTrainEngine {
         val statusText = when {
             progress >= 0.98f -> "ARRIVED"
             delayMinutes <= 2 -> "ON TIME ($lockType)"
-            delayMinutes > 2 -> "DELAYED ${delayMinutes}m ($lockType)"
-            else -> "EARLY ${-delayMinutes}m ($lockType)"
+            delayMinutes > 2 -> "DELAYED ${formatDelayDuration(delayMinutes)} ($lockType)"
+            else -> "EARLY ${formatDelayDuration(-delayMinutes)} ($lockType)"
         }
 
         return LiveStatus(
@@ -127,8 +128,8 @@ object OfflineTrainEngine {
         val statusText = when {
             progress >= 0.98f -> "ARRIVED"
             delayMinutes <= 2 -> "ON TIME (CELL TOWER)"
-            delayMinutes > 2 -> "DELAYED ${delayMinutes}m (CELL TOWER)"
-            else -> "EARLY ${-delayMinutes}m (CELL TOWER)"
+            delayMinutes > 2 -> "DELAYED ${formatDelayDuration(delayMinutes)} (CELL TOWER)"
+            else -> "EARLY ${formatDelayDuration(-delayMinutes)} (CELL TOWER)"
         }
 
         return LiveStatus(
@@ -281,8 +282,8 @@ object OfflineTrainEngine {
         val statusText = when {
             progress >= 0.98f -> "ARRIVED"
             delayMinutes <= 2 -> "ON TIME (GPS)"
-            delayMinutes > 2 -> "DELAYED ${delayMinutes}m (GPS)"
-            else -> "EARLY ${-delayMinutes}m (GPS)"
+            delayMinutes > 2 -> "DELAYED ${formatDelayDuration(delayMinutes)} (GPS)"
+            else -> "EARLY ${formatDelayDuration(-delayMinutes)} (GPS)"
         }
 
         val effectiveSpeed = if (gps.speedKmh > 5.0) gps.speedKmh.toInt() else 65

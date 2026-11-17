@@ -40,6 +40,7 @@ import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.util.formatDelayDuration
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
@@ -965,12 +966,12 @@ private fun StationBoardTrainCard(
                             RailGreenOnTime
                         )
                         train.delayMinutes > 0 -> Triple(
-                            "● +${train.delayMinutes}m LATE",
+                            "● +${formatDelayDuration(train.delayMinutes)} LATE",
                             RailRedDelayed.copy(alpha = 0.12f),
                             RailRedDelayed
                         )
                         else -> Triple(
-                            "● ${-train.delayMinutes}m EARLY",
+                            "● ${formatDelayDuration(-train.delayMinutes)} EARLY",
                             RailGreenOnTime.copy(alpha = 0.12f),
                             RailGreenOnTime
                         )

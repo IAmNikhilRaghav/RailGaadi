@@ -32,3 +32,28 @@ fun Double.formatDecimals(decimals: Int): String {
 
 fun Float.formatDecimals(decimals: Int): String = this.toDouble().formatDecimals(decimals)
 
+/**
+ * Formats train delay minutes into a human-readable duration string.
+ * - Under 60 minutes: e.g. "48 mins", "55 mins"
+ * - 60 minutes and above: counted in hours and remaining minutes, e.g.
+ *   - 60 mins -> "1hr"
+ *   - 84 mins -> "1hrs 24mins"
+ *   - 120 mins -> "2hrs"
+ *   - 145 mins -> "2hrs 25mins"
+ */
+fun formatDelayDuration(minutes: Int): String {
+    val absM = abs(minutes)
+    if (absM < 60) {
+        return "$absM mins"
+    }
+    val hours = absM / 60
+    val remMins = absM % 60
+    val hrStr = if (hours == 1) "1hr" else "${hours}hrs"
+    return if (remMins == 0) {
+        hrStr
+    } else {
+        "${hours}hrs ${remMins}mins"
+    }
+}
+
+

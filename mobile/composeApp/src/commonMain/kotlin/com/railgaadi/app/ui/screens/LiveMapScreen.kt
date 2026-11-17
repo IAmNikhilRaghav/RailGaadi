@@ -48,6 +48,7 @@ import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.NativeMapView
 import com.railgaadi.app.util.PlatformSpeech
+import com.railgaadi.app.util.formatDelayDuration
 
 // Pan-India Real-time Navigation Telemetry Calculator
 fun calculateNavigationTelemetry(
@@ -1025,7 +1026,7 @@ fun LiveMapScreen() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        if (isDelayed) "${liveStatus?.delayMinutes}m LATE" else I18n.t("status_on_time"),
+                                        if (isDelayed) "${formatDelayDuration(liveStatus?.delayMinutes ?: 0)} LATE" else I18n.t("status_on_time"),
                                         color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -1061,7 +1062,8 @@ fun LiveMapScreen() {
                             ) {
                                 MetricBox(title = "Next Stop", value = liveStatus?.nextStation?.take(14) ?: "Next Halt", icon = "📍")
                                 MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
-                                MetricBox(title = "Delay", value = "${liveStatus?.delayMinutes ?: 0} min", icon = "⏱️")
+                                val delayMin = liveStatus?.delayMinutes ?: 0
+                                MetricBox(title = "Delay", value = if (delayMin == 0) "On time" else formatDelayDuration(delayMin), icon = "⏱️")
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))

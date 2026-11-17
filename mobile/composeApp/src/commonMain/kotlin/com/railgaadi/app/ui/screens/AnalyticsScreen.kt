@@ -52,6 +52,7 @@ import com.railgaadi.app.ui.components.VectorCoachIcon
 import com.railgaadi.app.ui.components.DestinationAlarmModal
 import com.railgaadi.app.ui.components.AlarmRingingDialog
 import com.railgaadi.app.ui.components.InTrainCockpitBanner
+import com.railgaadi.app.util.formatDelayDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -624,8 +625,8 @@ fun AnalyticsScreen(
                                 // Delay Status Pill
                                 val (statusText, statusBg, statusColor) = when {
                                     delay == 0 -> Triple("● On Time", RailGreenOnTime.copy(alpha = 0.12f), RailGreenOnTime)
-                                    delay > 0 -> Triple("● +${delay}m Late", RailRedDelayed.copy(alpha = 0.12f), RailRedDelayed)
-                                    else -> Triple("● ${-delay}m Early", RailGreenOnTime.copy(alpha = 0.12f), RailGreenOnTime)
+                                    delay > 0 -> Triple("● +${formatDelayDuration(delay)} Late", RailRedDelayed.copy(alpha = 0.12f), RailRedDelayed)
+                                    else -> Triple("● ${formatDelayDuration(-delay)} Early", RailGreenOnTime.copy(alpha = 0.12f), RailGreenOnTime)
                                 }
 
                                 Box(
@@ -1187,8 +1188,8 @@ fun AnalyticsScreen(
                                                                 val delay = liveStatus?.delayMinutes ?: 0
                                                                 val delayText = when {
                                                                     delay == 0 -> "On Time"
-                                                                    delay > 0 -> "Delayed by ${delay}m"
-                                                                    else -> "${-delay}m Early"
+                                                                    delay > 0 -> "Delayed by ${formatDelayDuration(delay)}"
+                                                                    else -> "${formatDelayDuration(-delay)} Early"
                                                                 }
                                                                 val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
                                                                 Column(modifier = Modifier.weight(1f, fill = false)) {
@@ -2403,8 +2404,8 @@ private fun WimtStationTrackRow(
                             }
                             val curDelayText = when {
                                 delayMinutes == 0 -> "Running on time"
-                                delayMinutes > 0 -> "Delayed by $delayMinutes mins"
-                                else -> "${-delayMinutes} mins early"
+                                delayMinutes > 0 -> "Delayed by ${formatDelayDuration(delayMinutes)}"
+                                else -> "${formatDelayDuration(-delayMinutes)} early"
                             }
                             Text(
                                 text = curDelayText,
@@ -2452,7 +2453,7 @@ private fun WimtStationTrackRow(
                     )
                 } else if (isCurrent && delayMinutes > 0) {
                     Text(
-                        text = "+${delayMinutes}m",
+                        text = "+${formatDelayDuration(delayMinutes)}",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = RailRedDelayed
