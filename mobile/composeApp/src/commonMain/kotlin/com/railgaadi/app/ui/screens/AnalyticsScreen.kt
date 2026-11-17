@@ -1701,15 +1701,14 @@ fun AnalyticsScreen(
 }
 
 /**
- * Authentic Side-Profile Real Train with Seated Passenger Icon.
+ * Classic Indian Railways Train Coach with Seated Passenger Icon.
  * Features:
- * - Full railway track foundation with horizontal steel rail and sleeper ties underneath
- * - True train wheel bogies (dual steel flanged wheel trucks resting directly on the track)
- * - Aerodynamic high-speed bullet train / locomotive body with sloped cockpit nose
- * - Electric train overhead roof pantograph and undercarriage chassis with coupler
- * - Sleek train livery speed stripe running along the coach waist
- * - Forward slanted driver cockpit windshield and passenger carriage windows
- * - Passenger clearly seated in a high-back train passenger seat looking out the window
+ * - Straight flat front and rear (traditional Indian Railways ICF/LHB coach profile)
+ * - Horizontal steel rail track with cross-tie sleepers underneath
+ * - Dual steel flanged wheel bogies resting directly on the rail line
+ * - Front & rear heavy-duty train buffers (couplers)
+ * - Classic coach waistline livery stripe running full length
+ * - Multiple rectangular coach windows with a passenger seated inside looking out
  */
 @Composable
 private fun PersonInsideTrainIcon(
@@ -1718,6 +1717,7 @@ private fun PersonInsideTrainIcon(
     modifier: Modifier = Modifier
 ) {
     val bodyColor = if (isInside) Color(0xFF10B981) else RailBluePrimary
+    val roofColor = if (isInside) Color(0xFF059669) else Color(0xFF1D4ED8)
     val stripeColor = if (isInside) Color(0xFFD1FAE5) else Color(0xFFDBEAFE)
     val windowBg = if (isInside) {
         if (isDark) Color(0xFF022C22) else Color(0xFFF0FDF4)
@@ -1738,13 +1738,12 @@ private fun PersonInsideTrainIcon(
     val chassisColor = if (isDark) Color(0xFF0F172A) else Color(0xFF334155)
     val wheelOuterColor = if (isDark) Color(0xFF475569) else Color(0xFF64748B)
     val wheelInnerColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
-    val pantoColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
 
-    Canvas(modifier = modifier.size(width = 30.dp, height = 24.dp)) {
+    Canvas(modifier = modifier.size(width = 30.dp, height = 22.dp)) {
         val w = size.width
         val h = size.height
 
-        // 1. Railway Track & Sleeper Ties (at the very bottom)
+        // 1. Railway Track & Sleepers (at the very bottom)
         val railY = h * 0.84f
         // Steel rail line
         drawLine(
@@ -1760,7 +1759,7 @@ private fun PersonInsideTrainIcon(
         for (i in 1..5) {
             val sx = sleeperSpacing * i
             drawLine(
-                color = trackColor.copy(alpha = 0.65f),
+                color = trackColor.copy(alpha = 0.60f),
                 start = Offset(sx, railY + 1.2.dp.toPx()),
                 end = Offset(sx, h * 0.98f),
                 strokeWidth = 1.6.dp.toPx(),
@@ -1775,19 +1774,19 @@ private fun PersonInsideTrainIcon(
         // Bogie frame connection bars
         drawLine(
             color = wheelOuterColor,
-            start = Offset(w * 0.17f, wheelY),
-            end = Offset(w * 0.38f, wheelY),
-            strokeWidth = 1.2.dp.toPx()
+            start = Offset(w * 0.19f, wheelY),
+            end = Offset(w * 0.39f, wheelY),
+            strokeWidth = 1.0.dp.toPx()
         )
         drawLine(
             color = wheelOuterColor,
-            start = Offset(w * 0.59f, wheelY),
-            end = Offset(w * 0.80f, wheelY),
-            strokeWidth = 1.2.dp.toPx()
+            start = Offset(w * 0.61f, wheelY),
+            end = Offset(w * 0.81f, wheelY),
+            strokeWidth = 1.0.dp.toPx()
         )
 
         // 4 Steel flanged railway wheels
-        val wheelCenters = listOf(w * 0.20f, w * 0.35f, w * 0.62f, w * 0.77f)
+        val wheelCenters = listOf(w * 0.22f, w * 0.36f, w * 0.64f, w * 0.78f)
         for (cx in wheelCenters) {
             drawCircle(
                 color = wheelOuterColor,
@@ -1797,140 +1796,139 @@ private fun PersonInsideTrainIcon(
             drawCircle(
                 color = wheelInnerColor,
                 center = Offset(cx, wheelY),
-                radius = 0.8.dp.toPx()
+                radius = 0.7.dp.toPx()
             )
         }
 
         // 3. Undercarriage Chassis Skirt
         drawRoundRect(
             color = chassisColor,
-            topLeft = Offset(w * 0.10f, h * 0.67f),
-            size = Size(w * 0.75f, h * 0.07f),
-            cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
+            topLeft = Offset(w * 0.09f, h * 0.68f),
+            size = Size(w * 0.82f, h * 0.05f),
+            cornerRadius = CornerRadius(0.8.dp.toPx(), 0.8.dp.toPx())
         )
 
-        // Rear Coupler Pin
+        // 4. Classic Indian Train Buffers (Couplers) at Front and Rear
+        // Left buffer
         drawLine(
             color = chassisColor,
-            start = Offset(w * 0.03f, h * 0.63f),
-            end = Offset(w * 0.10f, h * 0.63f),
-            strokeWidth = 1.5.dp.toPx(),
+            start = Offset(w * 0.03f, h * 0.64f),
+            end = Offset(w * 0.09f, h * 0.64f),
+            strokeWidth = 1.6.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = chassisColor,
+            start = Offset(w * 0.03f, h * 0.60f),
+            end = Offset(w * 0.03f, h * 0.68f),
+            strokeWidth = 1.6.dp.toPx(),
             cap = StrokeCap.Round
         )
 
-        // 4. Roof Overhead Pantograph (Electric Train)
+        // Right buffer
         drawLine(
-            color = pantoColor,
-            start = Offset(w * 0.22f, h * 0.18f),
-            end = Offset(w * 0.30f, h * 0.06f),
-            strokeWidth = 1.1.dp.toPx()
+            color = chassisColor,
+            start = Offset(w * 0.91f, h * 0.64f),
+            end = Offset(w * 0.97f, h * 0.64f),
+            strokeWidth = 1.6.dp.toPx(),
+            cap = StrokeCap.Round
         )
         drawLine(
-            color = pantoColor,
-            start = Offset(w * 0.30f, h * 0.06f),
-            end = Offset(w * 0.38f, h * 0.18f),
-            strokeWidth = 1.1.dp.toPx()
-        )
-        drawLine(
-            color = pantoColor,
-            start = Offset(w * 0.26f, h * 0.06f),
-            end = Offset(w * 0.34f, h * 0.06f),
-            strokeWidth = 1.3.dp.toPx(),
+            color = chassisColor,
+            start = Offset(w * 0.97f, h * 0.60f),
+            end = Offset(w * 0.97f, h * 0.68f),
+            strokeWidth = 1.6.dp.toPx(),
             cap = StrokeCap.Round
         )
 
-        // 5. Locomotive / Coach Aerodynamic Body
-        val bodyPath = Path().apply {
-            moveTo(w * 0.09f, h * 0.68f)
-            lineTo(w * 0.09f, h * 0.22f)
-            quadraticTo(w * 0.09f, h * 0.18f, w * 0.14f, h * 0.18f)
-            lineTo(w * 0.62f, h * 0.18f)
-            // Aerodynamic bullet nose
-            quadraticTo(w * 0.80f, h * 0.22f, w * 0.94f, h * 0.52f)
-            quadraticTo(w * 0.94f, h * 0.66f, w * 0.86f, h * 0.68f)
-            lineTo(w * 0.09f, h * 0.68f)
-            close()
-        }
-        drawPath(path = bodyPath, color = bodyColor)
+        // 5. Main Indian Train Coach Body (Flat & Straight, Classic ICF/LHB Profile)
+        val coachLeft = w * 0.09f
+        val coachTop = h * 0.16f
+        val coachW = w * 0.82f
+        val coachH = h * 0.52f
+        val coachCorner = 2.5.dp.toPx()
 
-        // 6. Livery Speed Stripe
-        val stripePath = Path().apply {
-            moveTo(w * 0.09f, h * 0.53f)
-            lineTo(w * 0.84f, h * 0.53f)
-            quadraticTo(w * 0.90f, h * 0.57f, w * 0.87f, h * 0.61f)
-            lineTo(w * 0.09f, h * 0.61f)
-            close()
-        }
-        drawPath(path = stripePath, color = stripeColor)
-
-        // 7. Front Nose Headlight
-        drawCircle(
-            color = Color(0xFFFDE047),
-            center = Offset(w * 0.89f, h * 0.56f),
-            radius = 1.4.dp.toPx()
-        )
-        drawCircle(
-            color = Color.White,
-            center = Offset(w * 0.89f, h * 0.56f),
-            radius = 0.7.dp.toPx()
-        )
-
-        // 8. Driver Cockpit Windshield (Slanted Front)
-        val cockpitPath = Path().apply {
-            moveTo(w * 0.66f, h * 0.24f)
-            lineTo(w * 0.82f, h * 0.38f)
-            lineTo(w * 0.74f, h * 0.40f)
-            lineTo(w * 0.64f, h * 0.28f)
-            close()
-        }
-        drawPath(path = cockpitPath, color = Color(0xFF0F172A))
-
-        // 9. Rear Coach Window / Carriage Partition
         drawRoundRect(
-            color = windowBg,
-            topLeft = Offset(w * 0.14f, h * 0.24f),
-            size = Size(w * 0.13f, h * 0.25f),
-            cornerRadius = CornerRadius(1.5.dp.toPx(), 1.5.dp.toPx())
+            color = bodyColor,
+            topLeft = Offset(coachLeft, coachTop),
+            size = Size(coachW, coachH),
+            cornerRadius = CornerRadius(coachCorner, coachCorner)
         )
 
-        // 10. Spacious Center Passenger Window & Seated Passenger
-        val winLeft = w * 0.31f
+        // Arched Roof Cap
+        drawRoundRect(
+            color = roofColor,
+            topLeft = Offset(coachLeft, coachTop),
+            size = Size(coachW, 3.2.dp.toPx()),
+            cornerRadius = CornerRadius(coachCorner, coachCorner)
+        )
+
+        // 6. Indian Railways Coach Waist Stripe
+        val stripeY = h * 0.54f
+        val stripeH = 2.2.dp.toPx()
+        drawRect(
+            color = stripeColor,
+            topLeft = Offset(coachLeft, stripeY),
+            size = Size(coachW, stripeH)
+        )
+
+        // 7. Coach Windows (Classic 3-Window Layout)
         val winTop = h * 0.24f
-        val winW = w * 0.30f
         val winH = h * 0.25f
+        val winCorner = 1.5.dp.toPx()
 
+        // Rear window (left)
         drawRoundRect(
             color = windowBg,
-            topLeft = Offset(winLeft, winTop),
-            size = Size(winW, winH),
-            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+            topLeft = Offset(w * 0.14f, winTop),
+            size = Size(w * 0.18f, winH),
+            cornerRadius = CornerRadius(winCorner, winCorner)
         )
 
-        // Train Passenger Seat (High Backrest & Headrest behind passenger)
+        // Front window (right)
+        drawRoundRect(
+            color = windowBg,
+            topLeft = Offset(w * 0.68f, winTop),
+            size = Size(w * 0.18f, winH),
+            cornerRadius = CornerRadius(winCorner, winCorner)
+        )
+
+        // Center passenger window
+        val centerWinLeft = w * 0.38f
+        val centerWinW = w * 0.24f
+        drawRoundRect(
+            color = windowBg,
+            topLeft = Offset(centerWinLeft, winTop),
+            size = Size(centerWinW, winH),
+            cornerRadius = CornerRadius(2.0.dp.toPx(), 2.0.dp.toPx())
+        )
+
+        // 8. Seated Passenger Inside the Center Window
+        // Train seat backrest
         drawRoundRect(
             color = seatColor,
-            topLeft = Offset(winLeft + 1.2.dp.toPx(), winTop + 1.5.dp.toPx()),
-            size = Size(2.2.dp.toPx(), winH - 2.5.dp.toPx()),
-            cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
+            topLeft = Offset(centerWinLeft + 1.2.dp.toPx(), winTop + 1.5.dp.toPx()),
+            size = Size(2.0.dp.toPx(), winH - 2.5.dp.toPx()),
+            cornerRadius = CornerRadius(0.8.dp.toPx(), 0.8.dp.toPx())
         )
 
-        // Passenger Head (clearly visible looking out the train window)
-        val personCenterX = winLeft + winW * 0.52f
+        // Passenger Head (looking out the window)
+        val personCenterX = centerWinLeft + centerWinW * 0.54f
         val headCenterY = winTop + 3.2.dp.toPx()
         drawCircle(
             color = personColor,
             center = Offset(personCenterX, headCenterY),
-            radius = 2.1.dp.toPx()
+            radius = 2.0.dp.toPx()
         )
 
-        // Passenger Torso / Shoulders resting comfortably in the seat
-        val torsoTopY = headCenterY + 2.2.dp.toPx()
+        // Passenger Torso / Shoulders
+        val torsoTopY = headCenterY + 2.0.dp.toPx()
         val torsoH = (winTop + winH) - torsoTopY
         if (torsoH > 0f) {
             drawRoundRect(
                 color = personColor,
-                topLeft = Offset(personCenterX - 3.0.dp.toPx(), torsoTopY),
-                size = Size(6.0.dp.toPx(), torsoH),
+                topLeft = Offset(personCenterX - 2.8.dp.toPx(), torsoTopY),
+                size = Size(5.6.dp.toPx(), torsoH),
                 cornerRadius = CornerRadius(1.2.dp.toPx(), 1.2.dp.toPx())
             )
         }
