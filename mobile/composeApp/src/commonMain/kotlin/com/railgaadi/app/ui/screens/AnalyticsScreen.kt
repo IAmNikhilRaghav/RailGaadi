@@ -1164,7 +1164,7 @@ fun AnalyticsScreen(
                                                                         }
                                                                     }
                                                                     Text(
-                                                                        text = "🚆 $approachingHeader",
+                                                                        text = approachingHeader,
                                                                         fontSize = 12.sp,
                                                                         fontWeight = FontWeight.ExtraBold,
                                                                         color = RailBluePrimary,
