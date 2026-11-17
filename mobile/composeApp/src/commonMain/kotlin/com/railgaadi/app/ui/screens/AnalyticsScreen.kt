@@ -1125,110 +1125,97 @@ fun AnalyticsScreen(
                                                             .clickable {
                                                                 expandedSegments.value = expandedSegments.value + segIdx
                                                             }
-                                                            .padding(vertical = 4.dp)
+                                                            .padding(vertical = 2.dp)
                                                     ) {
                                                         Column(
-                                                            modifier = Modifier.padding(10.dp),
-                                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                            verticalArrangement = Arrangement.spacedBy(3.dp)
                                                         ) {
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Row(
-                                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                                    verticalAlignment = Alignment.CenterVertically,
-                                                                    modifier = Modifier.fillMaxWidth()
-                                                                ) {
-                                                                    val cardOdometer = TrainTrackerState.liveDistanceOffsetKm
-                                                                    val nextHaltStation = segments.getOrNull(segIdx + 1)?.haltStation
-                                                                    val targetStop = nextHaltStation ?: nextStation ?: upcomingStation
-                                                                    val curStn = curStation ?: stations.getOrNull(curIdx)
-                                                                    val stopDist = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStn) }
-                                                                        ?: kmToNext
-                                                                        ?: kmToUpcoming
-                                                                        ?: if (targetStop != null && curStn != null && targetStop.distanceKm > curStn.distanceKm) {
-                                                                            (targetStop.distanceKm - curStn.distanceKm).coerceAtLeast(0.0)
-                                                                        } else null
+                                                            val cardOdometer = TrainTrackerState.liveDistanceOffsetKm
+                                                            val nextHaltStation = segments.getOrNull(segIdx + 1)?.haltStation
+                                                            val targetStop = nextHaltStation ?: nextStation ?: upcomingStation
+                                                            val curStn = curStation ?: stations.getOrNull(curIdx)
+                                                            val stopDist = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStn) }
+                                                                ?: kmToNext
+                                                                ?: kmToUpcoming
+                                                                ?: if (targetStop != null && curStn != null && targetStop.distanceKm > curStn.distanceKm) {
+                                                                    (targetStop.distanceKm - curStn.distanceKm).coerceAtLeast(0.0)
+                                                                } else null
 
-                                                                    val approachingHeader = when {
-                                                                        stopDist != null && stopDist <= 0.3 -> "Arrived at ${targetStop?.name ?: "Station"}"
-                                                                        stopDist != null && stopDist <= 8.0 -> {
-                                                                            val dist = stopDist.roundToInt().coerceAtLeast(1)
-                                                                            "$dist km to ${targetStop?.name ?: "Next Station"}"
-                                                                        }
-                                                                        else -> {
-                                                                            val cur = curStation ?: stations.getOrNull(curIdx)
-                                                                            val name = cur?.name ?: ""
-                                                                            if (name.isNotBlank()) {
-                                                                                if (cur?.haltMinutes == 0) "Crossing $name"
-                                                                                else "Departed $name"
-                                                                            } else {
-                                                                                "En Route"
-                                                                            }
-                                                                        }
+                                                            val approachingHeader = when {
+                                                                stopDist != null && stopDist <= 0.3 -> "Arrived at ${targetStop?.name ?: "Station"}"
+                                                                stopDist != null && stopDist <= 8.0 -> {
+                                                                    val dist = stopDist.roundToInt().coerceAtLeast(1)
+                                                                    "$dist km to ${targetStop?.name ?: "Next Station"}"
+                                                                }
+                                                                else -> {
+                                                                    val cur = curStation ?: stations.getOrNull(curIdx)
+                                                                    val name = cur?.name ?: ""
+                                                                    if (name.isNotBlank()) {
+                                                                        if (cur?.haltMinutes == 0) "Crossing $name"
+                                                                        else "Departed $name"
+                                                                    } else {
+                                                                        "En Route"
                                                                     }
-                                                                    Text(
-                                                                        text = approachingHeader,
-                                                                        fontSize = 12.sp,
-                                                                        fontWeight = FontWeight.ExtraBold,
-                                                                        color = RailBluePrimary,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
                                                                 }
                                                             }
 
+                                                            // Line 1: Header + Compact stations expand button
                                                             Row(
                                                                 modifier = Modifier.fillMaxWidth(),
                                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                                 verticalAlignment = Alignment.CenterVertically
                                                             ) {
-                                                                val delay = liveStatus?.delayMinutes ?: 0
-                                                                val delayText = when {
-                                                                    delay == 0 -> "On Time"
-                                                                    delay > 0 -> "Delayed by ${formatDelayDuration(delay)}"
-                                                                    else -> "${formatDelayDuration(-delay)} Early"
-                                                                }
-                                                                val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
-                                                                Column(modifier = Modifier.weight(1f, fill = false)) {
-                                                                    Text(
-                                                                        text = "((•)) $delayText$passText",
-                                                                        fontSize = 10.sp,
-                                                                        fontWeight = FontWeight.SemiBold,
-                                                                        color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
-                                                                    Text(
-                                                                        text = TrainTrackerState.getRelativeUpdateTimeText(),
-                                                                        fontSize = 9.sp,
-                                                                        color = Color.Gray.copy(alpha = 0.8f)
-                                                                    )
-                                                                }
+                                                                Text(
+                                                                    text = approachingHeader,
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    color = RailBluePrimary,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis,
+                                                                    modifier = Modifier.weight(1f, fill = false)
+                                                                )
 
-                                                                // Interactive Expand Pill Button
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .clip(RoundedCornerShape(20.dp))
-                                                                        .background(RailBluePrimary.copy(alpha = 0.15f))
-                                                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                                                ) {
-                                                                    Row(
-                                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                                        verticalAlignment = Alignment.CenterVertically
+                                                                if (ptCount > 0) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .clip(RoundedCornerShape(20.dp))
+                                                                            .background(RailBluePrimary.copy(alpha = 0.15f))
+                                                                            .padding(horizontal = 7.dp, vertical = 2.dp)
                                                                     ) {
-                                                                        Text("▼", fontSize = 8.sp, color = RailBluePrimary)
-                                                                        Text(
-                                                                            text = "$ptCount stations",
-                                                                            fontSize = 10.sp,
-                                                                            fontWeight = FontWeight.Bold,
-                                                                            color = RailBluePrimary
-                                                                        )
+                                                                        Row(
+                                                                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                                                            verticalAlignment = Alignment.CenterVertically
+                                                                        ) {
+                                                                            Text("▼", fontSize = 8.sp, color = RailBluePrimary)
+                                                                            Text(
+                                                                                text = "$ptCount stations",
+                                                                                fontSize = 10.sp,
+                                                                                fontWeight = FontWeight.Bold,
+                                                                                color = RailBluePrimary
+                                                                            )
+                                                                        }
                                                                     }
                                                                 }
                                                             }
+
+                                                            // Line 2: Full width delay text (appears in one line without truncating)
+                                                            val delay = liveStatus?.delayMinutes ?: 0
+                                                            val delayText = when {
+                                                                delay == 0 -> "On Time"
+                                                                delay > 0 -> "Delayed by ${formatDelayDuration(delay)}"
+                                                                else -> "${formatDelayDuration(-delay)} Early"
+                                                            }
+                                                            val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
+                                                            Text(
+                                                                text = "((•)) $delayText$passText",
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.fillMaxWidth()
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -2412,11 +2399,6 @@ private fun WimtStationTrackRow(
                                 fontSize = 10.sp,
                                 color = if (delayMinutes <= 0) RailGreenOnTime else RailRedDelayed,
                                 fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = TrainTrackerState.getRelativeUpdateTimeText(),
-                                fontSize = 9.sp,
-                                color = Color.Gray.copy(alpha = 0.8f)
                             )
                         }
                     }
