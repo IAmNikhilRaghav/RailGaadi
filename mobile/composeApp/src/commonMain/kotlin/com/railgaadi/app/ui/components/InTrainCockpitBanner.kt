@@ -212,7 +212,7 @@ fun InTrainCockpitBanner(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = if (remainingKm > 0) "${remainingKm} km" else "Approaching",
+                                    text = if (remainingKm > 0) "${remainingKm.toInt().coerceAtLeast(1)} km" else "Arrived",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = RailBluePrimary

@@ -1,5 +1,6 @@
 package com.railgaadi.app.ui.screens
 
+import kotlin.math.roundToInt
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import kotlinx.coroutines.*
@@ -553,7 +554,7 @@ fun AnalyticsScreen(
                                             color = Color.Gray
                                         )
                                         Text(
-                                            text = nextStation?.name ?: "Terminus Approaching",
+                                            text = nextStation?.name ?: "Next Station Halt",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = if (isDark) DarkTextPrimary else LightTextPrimary,
@@ -1137,18 +1138,26 @@ fun AnalyticsScreen(
                                                                     modifier = Modifier.fillMaxWidth()
                                                                 ) {
                                                                     val nextHaltStation = segments.getOrNull(segIdx + 1)?.haltStation
-                                                                    val targetStop = upcomingStation ?: nextHaltStation ?: nextStation
-                                                                    val stopDist = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStation) }
-                                                                        ?: kmToUpcoming
+                                                                    val targetStop = nextHaltStation ?: nextStation ?: upcomingStation
+                                                                    val curStn = curStation ?: stations.getOrNull(curIdx)
+                                                                    val stopDist = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStn) }
                                                                         ?: kmToNext
+                                                                        ?: kmToUpcoming
+                                                                        ?: if (targetStop != null && curStn != null && targetStop.distanceKm > curStn.distanceKm) {
+                                                                            (targetStop.distanceKm - curStn.distanceKm).coerceAtLeast(0.0)
+                                                                        } else null
 
                                                                     val approachingHeader = when {
-                                                                        stopDist != null && stopDist <= 0.0 -> "Arrived at ${targetStop?.name ?: "Station"}"
-                                                                        stopDist != null -> {
-                                                                            val dist = stopDist.toInt().coerceAtLeast(1)
-                                                                            "$dist km to ${targetStop?.name ?: "Upcoming Stop"}"
+                                                                        stopDist != null && stopDist <= 0.3 -> "Arrived at ${targetStop?.name ?: "Station"}"
+                                                                        stopDist != null && stopDist <= 8.0 -> {
+                                                                            val dist = stopDist.roundToInt().coerceAtLeast(1)
+                                                                            "$dist km to ${targetStop?.name ?: "Next Station"}"
                                                                         }
-                                                                        else -> "Approaching ${targetStop?.name ?: nextStation?.name ?: "Upcoming Stop"}"
+                                                                        else -> {
+                                                                            val departedName = curStation?.name ?: ""
+                                                                            if (departedName.isNotBlank()) "Departed $departedName"
+                                                                            else "Departed ${stations.getOrNull(curIdx)?.name ?: "Previous Station"}"
+                                                                        }
                                                                     }
                                                                     Text(
                                                                         text = "🚆 $approachingHeader",

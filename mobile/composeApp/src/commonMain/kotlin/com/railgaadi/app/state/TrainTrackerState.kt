@@ -208,7 +208,7 @@ object TrainTrackerState {
         // 3. Craft exact human-readable location description
         inTrainLocationText = when {
             distToClosest < 0.4 -> "At ${closestStation.name} (${closestStation.code}) Platform"
-            distToClosest < 1.5 -> "Departing / Approaching ${closestStation.name} (${closestStation.code})"
+            distToClosest < 1.5 -> "Near ${closestStation.name} (${closestStation.code})"
             nextIdx > 0 && nextIdx > closestIdx -> "Between ${closestStation.name} & ${upcomingStation.name}"
             nextIdx > 0 -> "Between ${stations[nextIdx - 1].name} & ${upcomingStation.name}"
             else -> "Near ${closestStation.name} (${closestStation.code})"
