@@ -2171,9 +2171,6 @@ private fun WimtStationTrackRow(
 
     // Read live odometer state so Compose recomposes every station row in real time each second
     val liveOffset = TrainTrackerState.liveDistanceOffsetKm
-    val kmRemaining = if (isUpcoming) {
-        TrainTrackerState.getLiveRemainingKmToStation(station)
-    } else null
 
     Row(
         modifier = Modifier
@@ -2327,29 +2324,27 @@ private fun WimtStationTrackRow(
                                 text = if (station.platform.startsWith("PF")) station.platform else "PF ${station.platform}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = RailBluePrimary
+                                color = RailBluePrimary,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                         if (station.distanceKm > 0) {
                             Text(
                                 text = "• ${station.distanceKm.toInt()} km",
                                 fontSize = 10.sp,
-                                color = Color.Gray
-                            )
-                        }
-                        if (isUpcoming && kmRemaining != null && kmRemaining > 0) {
-                            Text(
-                                text = "• ${kmRemaining.roundToInt().coerceAtLeast(1)} km away",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = RailBluePrimary
+                                color = Color.Gray,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                         if (station.haltMinutes > 0) {
                             Text(
                                 text = "• Halt ${station.haltMinutes}m",
                                 fontSize = 10.sp,
-                                color = Color.Gray
+                                color = Color.Gray,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     } else {
@@ -2358,21 +2353,17 @@ private fun WimtStationTrackRow(
                             Text(
                                 text = "${station.distanceKm.toInt()} km",
                                 fontSize = 9.sp,
-                                color = Color.Gray.copy(alpha = 0.6f)
-                            )
-                        }
-                        if (isUpcoming && kmRemaining != null && kmRemaining > 0) {
-                            Text(
-                                text = "• ${kmRemaining.roundToInt().coerceAtLeast(1)} km away",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = RailBluePrimary
+                                color = Color.Gray.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                         Text(
                             text = "· No halt",
                             fontSize = 9.sp,
-                            color = Color.Gray.copy(alpha = 0.5f)
+                            color = Color.Gray.copy(alpha = 0.5f),
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
