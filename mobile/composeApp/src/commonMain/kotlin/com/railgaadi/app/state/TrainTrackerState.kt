@@ -1051,11 +1051,35 @@ object TrainTrackerState {
         scope.launch {
             isAutoRefreshing = true
             try {
-                val updated = service.getLiveStatus(activeTrain.number)
-                onLiveStatusReceived(updated)
-                refreshWeather(silent = true)
+                if (!isOfflineModeEnabled) {
+                    val updated = service.getLiveStatus(activeTrain.number)
+                    onLiveStatusReceived(updated)
+                    refreshWeather(silent = true)
+                } else {
+                    val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
+                    val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateHybridOfflineLiveStatus(
+                        train = activeTrain,
+                        gps = loc,
+                        cell = currentCellTower,
+                        visibleCells = visibleCellTowers,
+                        existingStations = liveStatus?.stations
+                    )
+                    onLiveStatusReceived(offlineLive)
+                }
             } catch (_: Exception) {
+                if (activeTrain.number.isNotBlank()) {
+                    val loc = currentGpsLocation ?: PlatformLocation.getLastLocation()
+                    val offlineLive = com.railgaadi.app.model.OfflineTrainEngine.calculateHybridOfflineLiveStatus(
+                        train = activeTrain,
+                        gps = loc,
+                        cell = currentCellTower,
+                        visibleCells = visibleCellTowers,
+                        existingStations = liveStatus?.stations
+                    )
+                    onLiveStatusReceived(offlineLive)
+                }
             } finally {
+                lastLiveStatusUpdateTimeMs = PlatformDate.nowMillis()
                 isAutoRefreshing = false
             }
         }

@@ -1158,9 +1158,14 @@ fun AnalyticsScreen(
                                                                             "$dist km to ${targetStop?.name ?: "Next Station"}"
                                                                         }
                                                                         else -> {
-                                                                            val departedName = curStation?.name ?: ""
-                                                                            if (departedName.isNotBlank()) "Departed $departedName"
-                                                                            else "Departed ${stations.getOrNull(curIdx)?.name ?: "Previous Station"}"
+                                                                            val cur = curStation ?: stations.getOrNull(curIdx)
+                                                                            val name = cur?.name ?: ""
+                                                                            if (name.isNotBlank()) {
+                                                                                if (cur?.haltMinutes == 0) "Crossing $name"
+                                                                                else "Departed $name"
+                                                                            } else {
+                                                                                "En Route"
+                                                                            }
                                                                         }
                                                                     }
                                                                     Text(
@@ -1186,15 +1191,21 @@ fun AnalyticsScreen(
                                                                     else -> "${-delay}m Early"
                                                                 }
                                                                 val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
-                                                                Text(
-                                                                    text = "((•)) $delayText$passText",
-                                                                    fontSize = 10.sp,
-                                                                    fontWeight = FontWeight.SemiBold,
-                                                                    color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
-                                                                    maxLines = 1,
-                                                                    overflow = TextOverflow.Ellipsis,
-                                                                    modifier = Modifier.weight(1f, fill = false)
-                                                                )
+                                                                Column(modifier = Modifier.weight(1f, fill = false)) {
+                                                                    Text(
+                                                                        text = "((•)) $delayText$passText",
+                                                                        fontSize = 10.sp,
+                                                                        fontWeight = FontWeight.SemiBold,
+                                                                        color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis
+                                                                    )
+                                                                    Text(
+                                                                        text = TrainTrackerState.getRelativeUpdateTimeText(),
+                                                                        fontSize = 9.sp,
+                                                                        color = Color.Gray.copy(alpha = 0.8f)
+                                                                    )
+                                                                }
 
                                                                 // Interactive Expand Pill Button
                                                                 Box(
@@ -2115,6 +2126,26 @@ private fun LiveTrainPulseNode(
 }
 
 /**
+ * Adds delay minutes to a time string (e.g. "15:55" + 50 -> "16:45")
+ */
+private fun addMinutesToTimeString(timeStr: String, minutes: Int): String? {
+    if (timeStr == "—" || timeStr == "START" || timeStr == "END" || !timeStr.contains(":")) return null
+    return try {
+        val parts = timeStr.trim().split(":")
+        val h = parts[0].toInt()
+        val m = parts[1].take(2).toInt()
+        var totalMinutes = h * 60 + m + minutes
+        while (totalMinutes < 0) totalMinutes += 1440
+        totalMinutes %= 1440
+        val newH = totalMinutes / 60
+        val newM = totalMinutes % 60
+        "${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}"
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
  * Individual Station Node & Vertical Spine Component in Where Is My Train (WIMT) Format
  */
 @Composable
@@ -2138,6 +2169,8 @@ private fun WimtStationTrackRow(
     val trackFutureColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
     val passThroughColor = RailBluePrimary.copy(alpha = 0.28f) // light translucent for non-halt nodes
 
+    // Read live odometer state so Compose recomposes every station row in real time each second
+    val liveOffset = TrainTrackerState.liveDistanceOffsetKm
     val kmRemaining = if (isUpcoming) {
         TrainTrackerState.getLiveRemainingKmToStation(station)
     } else null
@@ -2166,12 +2199,15 @@ private fun WimtStationTrackRow(
                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                     color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
                 )
-                if (isCurrent && delayMinutes > 0) {
+                // Projected / Actual Live Arrival Time (Where Is My Train style)
+                val liveArrTime = addMinutesToTimeString(arrTime, delayMinutes)
+                if (liveArrTime != null && liveArrTime != arrTime) {
                     Text(
-                        text = "+${delayMinutes}m",
+                        text = liveArrTime,
                         fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = RailRedDelayed
+                        color = if (delayMinutes > 0) RailRedDelayed else RailGreenOnTime
                     )
                 }
 
@@ -2301,6 +2337,14 @@ private fun WimtStationTrackRow(
                                 color = Color.Gray
                             )
                         }
+                        if (isUpcoming && kmRemaining != null && kmRemaining > 0) {
+                            Text(
+                                text = "• ${kmRemaining.roundToInt().coerceAtLeast(1)} km away",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RailBluePrimary
+                            )
+                        }
                         if (station.haltMinutes > 0) {
                             Text(
                                 text = "• Halt ${station.haltMinutes}m",
@@ -2315,6 +2359,14 @@ private fun WimtStationTrackRow(
                                 text = "${station.distanceKm.toInt()} km",
                                 fontSize = 9.sp,
                                 color = Color.Gray.copy(alpha = 0.6f)
+                            )
+                        }
+                        if (isUpcoming && kmRemaining != null && kmRemaining > 0) {
+                            Text(
+                                text = "• ${kmRemaining.roundToInt().coerceAtLeast(1)} km away",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RailBluePrimary
                             )
                         }
                         Text(
@@ -2346,8 +2398,13 @@ private fun WimtStationTrackRow(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val bubbleTitle = when {
+                                    station.haltMinutes == 0 -> "Crossing ${station.name}"
+                                    isEnRoute -> "Departed ${station.name}"
+                                    else -> "At ${station.name}"
+                                }
                                 Text(
-                                    text = "At ${station.name}",
+                                    text = bubbleTitle,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = RailBluePrimary
@@ -2363,6 +2420,11 @@ private fun WimtStationTrackRow(
                                 fontSize = 10.sp,
                                 color = if (delayMinutes <= 0) RailGreenOnTime else RailRedDelayed,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = TrainTrackerState.getRelativeUpdateTimeText(),
+                                fontSize = 9.sp,
+                                color = Color.Gray.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -2387,7 +2449,17 @@ private fun WimtStationTrackRow(
                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                     color = if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary
                 )
-                if (isCurrent && delayMinutes > 0) {
+                // Projected / Actual Live Departure Time (Where Is My Train style)
+                val liveDepTime = addMinutesToTimeString(depTime, delayMinutes)
+                if (liveDepTime != null && liveDepTime != depTime) {
+                    Text(
+                        text = liveDepTime,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (delayMinutes > 0) RailRedDelayed else RailGreenOnTime
+                    )
+                } else if (isCurrent && delayMinutes > 0) {
                     Text(
                         text = "+${delayMinutes}m",
                         fontSize = 10.sp,
