@@ -1,13 +1,7 @@
 package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import kotlinx.coroutines.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -1686,7 +1680,7 @@ fun AnalyticsScreen(
             )
         }
 
-        // ── Phase 6 Master Hero: Where Is My Train Style Bottom Interface ──
+        // ── Phase 6 Master Hero: Floating Action Controls (Where Is My Train style) ──
         if (activeTrain.number.isNotBlank()) {
             val targetStop = upcomingStation ?: nextStation
             val targetDistKm = targetStop?.let { TrainTrackerState.getLiveRemainingKmToStation(it, curStation) }
@@ -1700,7 +1694,7 @@ fun AnalyticsScreen(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 86.dp)
+                    .padding(bottom = 80.dp)
                     .padding(horizontal = 14.dp)
             ) {
                 WimtInsideTrainBanner(
@@ -1717,7 +1711,7 @@ fun AnalyticsScreen(
                 )
             }
 
-            // 2. Floating Action "+" Button (pinned on bottom right above dock)
+            // 2. Floating Action "+" Button (pinned on bottom right, with zero overlap)
             WimtFloatingPlusButton(
                 isInside = TrainTrackerState.isInsideTrain,
                 isOpen = isInsideTrainBannerVisible,
@@ -1732,18 +1726,17 @@ fun AnalyticsScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 82.dp)
+                    .padding(end = 16.dp, bottom = 80.dp)
             )
 
-            // 3. Persistent WIMT Bottom Status Dock
-            WimtStatusBottomDock(
-                targetStop = targetStop,
-                targetDistKm = targetDistKm,
-                delayMinutes = liveStatus?.delayMinutes ?: 0,
-                activePassThroughName = if (curStation?.haltMinutes == 0) curStation.name else null,
+            // 3. Collapsible Floating Refresh Button (pinned at bottom-right, tuckable to right edge)
+            CollapsibleFloatingRefreshButton(
+                isRefreshing = TrainTrackerState.isAutoRefreshing,
                 isDark = isDark,
-                onRefresh = { TrainTrackerState.refreshLiveStatus() },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                onRefresh = { TrainTrackerState.triggerManualRefresh() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 20.dp)
             )
         }
 
@@ -1757,134 +1750,82 @@ fun AnalyticsScreen(
 }
 
 /**
- * Persistent WIMT Bottom Status Dock
- * Displays real-time remaining distance to next stop, delay status, dynamic update time,
- * and a one-tap circular refresh button matching Where Is My Train.
+ * Collapsible Floating Refresh Button (Where Is My Train style).
+ * Sits at the bottom right. Can be collapsed / tucked away at the right side of the screen
+ * with only the clean circular refresh icon (like the one at the top) peeking out.
  */
 @Composable
-private fun WimtStatusBottomDock(
-    targetStop: Station?,
-    targetDistKm: Double?,
-    delayMinutes: Int,
-    activePassThroughName: String?,
+private fun CollapsibleFloatingRefreshButton(
+    isRefreshing: Boolean,
     isDark: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDelayed = delayMinutes > 0
-    val headlineColor = if (isDelayed) {
-        if (isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
-    } else {
-        if (isDark) Color(0xFF34D399) else Color(0xFF047857)
-    }
-
-    val headlineText = when {
-        targetDistKm != null && targetDistKm <= 0.0 -> "Arrived at ${targetStop?.name ?: "Upcoming Stop"}"
-        targetDistKm != null -> {
-            val dist = targetDistKm.toInt().coerceAtLeast(1)
-            "$dist km to ${targetStop?.name ?: "Upcoming Stop"}"
-        }
-        else -> "Approaching ${targetStop?.name ?: "Upcoming Stop"}"
-    }
-
-    val delayText = when {
-        delayMinutes == 0 -> "On Time"
-        delayMinutes > 0 -> "Delayed by ${delayMinutes}m"
-        else -> "${-delayMinutes}m Early"
-    }
-
-    val pillBg = if (isDelayed) {
-        if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEE2E2)
-    } else {
-        if (isDark) Color(0xFF064E3B) else Color(0xFFDCFCE7)
-    }
-
-    val pillTextColor = if (isDelayed) {
-        if (isDark) Color(0xFFFCA5A5) else Color(0xFF991B1B)
-    } else {
-        if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
-    }
+    var isCollapsed by remember { mutableStateOf(false) }
+    val offsetX by animateDpAsState(
+        targetValue = if (isCollapsed) 28.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "refreshButtonOffset"
+    )
 
     Surface(
-        color = if (isDark) Color(0xFF1E293B) else Color.White,
-        shadowElevation = 10.dp,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)),
-        modifier = modifier.fillMaxWidth()
+        shape = RoundedCornerShape(
+            topStart = 22.dp,
+            bottomStart = 22.dp,
+            topEnd = if (isCollapsed) 6.dp else 22.dp,
+            bottomEnd = if (isCollapsed) 6.dp else 22.dp
+        ),
+        color = if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE),
+        shadowElevation = if (isCollapsed) 2.dp else 6.dp,
+        border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.35f)),
+        modifier = modifier
+            .offset(x = offsetX)
+            .height(44.dp)
+            .clickable {
+                if (isCollapsed) {
+                    isCollapsed = false
+                }
+                onRefresh()
+            }
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(
+                start = 10.dp,
+                end = if (isCollapsed) 4.dp else 10.dp,
+                top = 6.dp,
+                bottom = 6.dp
+            )
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                // Line 1: 6 km to Shri Ganganagar Junction / 2 km to Malwan
-                Text(
-                    text = headlineText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = headlineColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // Line 2: ((•)) On Time / ((•)) Delayed by 55 mins • Passing Banwali
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (!isCollapsed) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable { isCollapsed = true },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(pillBg)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "((•)) $delayText",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = pillTextColor
-                        )
-                    }
-
-                    if (!activePassThroughName.isNullOrBlank()) {
-                        Text(
-                            text = "• Passing $activePassThroughName",
-                            fontSize = 11.sp,
-                            color = if (isDark) DarkTextSecondary else LightTextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = "›",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RailBluePrimary.copy(alpha = 0.7f)
+                    )
                 }
-
-                // Line 3: Updated a few seconds ago
+            } else {
                 Text(
-                    text = TrainTrackerState.getRelativeUpdateTimeText(),
-                    fontSize = 10.sp,
-                    color = Color.Gray
+                    text = "‹",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RailBluePrimary
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Right: Circular Refresh Button (Where Is My Train style)
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(if (isDark) Color(0xFF334155) else Color(0xFFE0F2FE))
-            ) {
-                Text(
-                    text = if (TrainTrackerState.isAutoRefreshing) "⏳" else "🔄",
-                    fontSize = 18.sp
-                )
-            }
+            Text(
+                text = if (isRefreshing) "⏳" else "🔄",
+                fontSize = 18.sp
+            )
         }
     }
 }
