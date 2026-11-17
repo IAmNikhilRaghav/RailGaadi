@@ -1,5 +1,6 @@
 package com.railgaadi.app.model
 
+import com.railgaadi.app.util.CellTowerData
 import com.railgaadi.app.util.GeoLocation
 import com.railgaadi.app.util.PlatformDate
 import kotlin.math.*
@@ -21,6 +22,128 @@ object OfflineTrainEngine {
 
     fun getCachedRoute(trainNumber: String): List<Station>? {
         return routeCache[trainNumber.trim()]
+    }
+
+    /**
+     * Resolves live train status using physical Cell Tower triangulation
+     * (Zero internet, zero GPS satellite visibility required)
+     */
+    fun calculateCellTowerLiveStatus(
+        train: Train,
+        cell: CellTowerData,
+        existingStations: List<Station>? = null
+    ): LiveStatus? {
+        val stations = existingStations?.takeIf { it.isNotEmpty() }
+            ?: routeCache[train.number.trim()]
+            ?: fallbackRouteForTrain(train)
+
+        if (stations.isEmpty()) return null
+
+        val record = CellTowerRepository.resolveCellTower(cell) ?: return null
+
+        // Find the matched station index in the train's itinerary
+        var matchIdx = stations.indexOfFirst {
+            it.code.equals(record.stationCode, ignoreCase = true) ||
+            it.name.contains(record.stationName, ignoreCase = true)
+        }
+
+        // If not a direct scheduled stop (e.g., small pass-through tower), find closest route stop
+        if (matchIdx == -1) {
+            matchIdx = stations.indices.minByOrNull { idx ->
+                val stn = stations[idx]
+                val (lat, lon) = if (stn.latitude != 0.0) stn.latitude to stn.longitude else StationDataService.getCoordinates(stn.code)
+                haversineKm(record.latitude, record.longitude, lat, lon)
+            } ?: 0
+        }
+
+        val approachingStation = stations[matchIdx]
+        val passedIdx = (matchIdx - 1).coerceAtLeast(0)
+        val lastPassedStation = stations[passedIdx]
+
+        val totalStations = stations.size
+        val progress = (matchIdx.toFloat() / (totalStations - 1).coerceAtLeast(1)).coerceIn(0.0f, 1.0f)
+        val delayMinutes = calculateDelayMinutes(approachingStation.scheduledArr ?: approachingStation.scheduledDep)
+
+        val statusText = when {
+            progress >= 0.98f -> "ARRIVED"
+            delayMinutes <= 2 -> "ON TIME (CELL TOWER)"
+            delayMinutes > 2 -> "DELAYED ${delayMinutes}m (CELL TOWER)"
+            else -> "EARLY ${-delayMinutes}m (CELL TOWER)"
+        }
+
+        return LiveStatus(
+            trainNumber = train.number,
+            trainName = train.name,
+            status = statusText,
+            delayMinutes = delayMinutes.coerceAtLeast(0),
+            speedKmh = 58, // Estimated running track speed
+            currentStation = "${lastPassedStation.name} (${lastPassedStation.code})",
+            nextStation = "${approachingStation.name} (${approachingStation.code})",
+            progressPercent = progress,
+            stations = stations
+        )
+    }
+
+    /**
+     * Hybrid position engine:
+     * 1. GPS Satellite (±10m precision)
+     * 2. Cell Tower Triangulation (±500m precision inside coach / tunnel)
+     */
+    fun calculateHybridOfflineLiveStatus(
+        train: Train,
+        gps: GeoLocation?,
+        cell: CellTowerData?,
+        existingStations: List<Station>? = null
+    ): LiveStatus {
+        val stations = existingStations?.takeIf { it.isNotEmpty() }
+            ?: routeCache[train.number.trim()]
+            ?: fallbackRouteForTrain(train)
+
+        // If GPS is active and has good accuracy, use GPS and simultaneously learn the serving cell tower
+        if (gps != null && gps.latitude != 0.0 && gps.accuracyMeters in 0.1f..120f) {
+            val gpsStatus = calculateOfflineLiveStatus(train, gps, stations)
+            if (cell != null && cell.isValid) {
+                // Opportunistically learn/update cell database
+                CellTowerRepository.learnCellTower(
+                    cell = cell,
+                    stationCode = gpsStatus.nextStation.substringAfter("(").substringBefore(")"),
+                    stationName = gpsStatus.nextStation.substringBefore("(").trim(),
+                    latitude = gps.latitude,
+                    longitude = gps.longitude,
+                    distanceKm = 2.0
+                )
+            }
+            return gpsStatus
+        }
+
+        // If GPS is degraded or unavailable (metal coach / Faraday cage), fall back to True Cell Tower Tracking!
+        if (cell != null && cell.isValid) {
+            val cellStatus = calculateCellTowerLiveStatus(train, cell, stations)
+            if (cellStatus != null) return cellStatus
+        }
+
+        // Fallback to GPS even if degraded, or basic timetable estimation
+        return if (gps != null && gps.latitude != 0.0) {
+            calculateOfflineLiveStatus(train, gps, stations)
+        } else {
+            fallbackLiveStatus(train, stations)
+        }
+    }
+
+    private fun fallbackLiveStatus(train: Train, stations: List<Station>): LiveStatus {
+        val first = stations.firstOrNull()
+        val second = stations.getOrNull(1) ?: first
+        return LiveStatus(
+            trainNumber = train.number,
+            trainName = train.name,
+            status = "SCHEDULE ESTIMATED",
+            delayMinutes = 0,
+            speedKmh = 60,
+            currentStation = "${first?.name ?: train.origin} (${first?.code ?: ""})",
+            nextStation = "${second?.name ?: train.destination} (${second?.code ?: ""})",
+            progressPercent = 0.2f,
+            stations = stations
+        )
     }
 
     /**

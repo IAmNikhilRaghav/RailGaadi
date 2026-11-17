@@ -2001,8 +2001,16 @@ private fun WimtInsideTrainBanner(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val headerText = if (isInside) {
+                        when (TrainTrackerState.activeTrackingProvider) {
+                            "Cell Tower" -> "Inside ${activeTrain.number} (Cell Tower)"
+                            "GPS" -> "Inside ${activeTrain.number} (GPS)"
+                            else -> "Inside ${activeTrain.number}"
+                        }
+                    } else "Are you inside this train?"
+
                     Text(
-                        text = if (isInside) "Inside ${activeTrain.number}" else "Are you inside this train?",
+                        text = headerText,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (isInside) (if (isDark) Color(0xFF34D399) else Color(0xFF065F46))
@@ -2012,9 +2020,13 @@ private fun WimtInsideTrainBanner(
                     )
 
                     val subText = if (isInside) {
-                        "Zero-lag satellite GPS tracking active • Auto-collapses in 7s"
+                        when (TrainTrackerState.activeTrackingProvider) {
+                            "Cell Tower" -> "Offline Cell Tower tracking active • Auto-collapses in 7s"
+                            "GPS" -> "Zero-lag satellite GPS tracking active • Auto-collapses in 7s"
+                            else -> "Zero-lag live tracking active • Auto-collapses in 7s"
+                        }
                     } else {
-                        "Turn ON for zero-lag satellite GPS tracking"
+                        "Turn ON for zero-lag GPS & Cell Tower tracking"
                     }
                     Text(
                         text = subText,

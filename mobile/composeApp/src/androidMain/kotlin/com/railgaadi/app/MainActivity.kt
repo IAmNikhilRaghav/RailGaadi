@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
 import com.railgaadi.app.util.PlatformAlarm
+import com.railgaadi.app.util.PlatformCellScanner
 import com.railgaadi.app.util.PlatformLocation
 import com.railgaadi.app.util.PlatformSpeech
 import com.railgaadi.app.util.PlatformStorage
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
         PlatformSpeech.init(this)
         PlatformAlarm.init(this)
         PlatformLocation.init(this)
+        PlatformCellScanner.init(this)
         setContent {
             App()
         }

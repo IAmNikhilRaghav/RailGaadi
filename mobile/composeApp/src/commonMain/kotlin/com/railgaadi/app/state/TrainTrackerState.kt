@@ -5,16 +5,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.railgaadi.app.model.AlarmTone
 import com.railgaadi.app.model.AlarmTriggerUnit
+import com.railgaadi.app.model.CellTowerRepository
 import com.railgaadi.app.model.DestinationAlarm
 import com.railgaadi.app.model.LiveStatus
+import com.railgaadi.app.model.OfflineTrainEngine
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.model.StationDataService
+import com.railgaadi.app.model.TrackCellRecord
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.LandmarkService
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.network.WeatherService
+import com.railgaadi.app.util.CellTowerData
 import com.railgaadi.app.util.GeoLocation
 import com.railgaadi.app.util.PlatformAlarm
+import com.railgaadi.app.util.PlatformCellScanner
 import com.railgaadi.app.util.PlatformDate
 import com.railgaadi.app.util.PlatformLocation
 import com.railgaadi.app.util.PlatformSpeech
@@ -127,18 +132,25 @@ object TrainTrackerState {
     var offlineGpsStatusText by mutableStateOf("Standby")
     private var isGpsListening = false
 
-    // ── Phase 6: On-Board Passenger "Inside Train Mode" & Live Cockpit Telemetry ──
+    // ── Phase 6 & Phase 7: On-Board Passenger "Inside Train Mode" & Cell Tower / GPS Telemetry ──
     var isInsideTrain by mutableStateOf(false)
     var inTrainLocationText by mutableStateOf("")
     var inTrainNextHaltText by mutableStateOf("")
     var inTrainEstArrivalMinutes by mutableStateOf(0)
     var inTrainRemainingKm by mutableStateOf(0.0)
 
+    // True Cell Tower Tracking State
+    var currentCellTower by mutableStateOf<CellTowerData?>(null)
+    var currentCellRecord by mutableStateOf<TrackCellRecord?>(null)
+    var activeTrackingProvider by mutableStateOf("Cloud") // "Cloud", "GPS", "Cell Tower"
+    private var isCellScanningActive = false
+
     fun toggleInsideTrainMode(enabled: Boolean? = null) {
         val target = enabled ?: !isInsideTrain
         isInsideTrain = target
         if (target) {
             ensureGpsTracking()
+            ensureCellScanning()
             currentGpsLocation?.let { updateInTrainCockpit(it) }
         } else {
             inTrainLocationText = ""
@@ -146,6 +158,7 @@ object TrainTrackerState {
             inTrainEstArrivalMinutes = 0
             inTrainRemainingKm = 0.0
             stopGpsTrackingIfIdle()
+            stopCellScanningIfIdle()
         }
     }
 
@@ -223,11 +236,65 @@ object TrainTrackerState {
         }
     }
 
+    fun ensureCellScanning() {
+        if (isCellScanningActive || !PlatformCellScanner.isSupported()) return
+        try {
+            isCellScanningActive = true
+            PlatformCellScanner.startCellScanning { cell ->
+                onCellTowerUpdated(cell)
+            }
+        } catch (e: Throwable) {
+            println("ensureCellScanning error: ${e.message}")
+        }
+    }
+
+    fun stopCellScanningIfIdle() {
+        if (!isOfflineModeEnabled && !isInsideTrain) {
+            try {
+                PlatformCellScanner.stopCellScanning()
+                isCellScanningActive = false
+            } catch (_: Throwable) {}
+        }
+    }
+
+    private fun onCellTowerUpdated(cell: CellTowerData) {
+        currentCellTower = cell
+        val record = CellTowerRepository.resolveCellTower(cell)
+        currentCellRecord = record
+
+        // If passenger is inside train and GPS is degraded/offline, let Cell Tower drive the cockpit
+        if (isInsideTrain && (currentGpsLocation == null || (currentGpsLocation?.accuracyMeters ?: 999f) > 80f)) {
+            activeTrackingProvider = "Cell Tower"
+            if (record != null) {
+                inTrainLocationText = "Near ${record.lineDescription} (${record.distanceToStationKm} km to ${record.stationName})"
+                inTrainNextHaltText = record.stationName
+                inTrainRemainingKm = record.distanceToStationKm
+                inTrainEstArrivalMinutes = ((record.distanceToStationKm / 55.0) * 60).toInt().coerceAtLeast(1)
+            }
+        }
+    }
+
     private fun onGpsLocationUpdated(loc: GeoLocation) {
         currentGpsLocation = loc
+        if (loc.accuracyMeters in 0.1f..80f) {
+            activeTrackingProvider = "GPS"
+        }
         val speedText = if (loc.speedKmh > 5.0) "${loc.speedKmh.toInt()} km/h" else "±${loc.accuracyMeters.toInt().coerceAtLeast(1)}m"
         if (isOfflineModeEnabled) {
             offlineGpsStatusText = "🛰️ GPS ACTIVE • $speedText"
+        }
+
+        // Opportunistic self-learning: map current cell tower to this GPS coordinate
+        val cell = currentCellTower
+        if (cell != null && cell.isValid && inTrainNextHaltText.isNotBlank()) {
+            CellTowerRepository.learnCellTower(
+                cell = cell,
+                stationCode = inTrainNextHaltText.substringAfterLast("(").substringBeforeLast(")").ifBlank { inTrainNextHaltText },
+                stationName = inTrainNextHaltText.substringBeforeLast("(").trim(),
+                latitude = loc.latitude,
+                longitude = loc.longitude,
+                distanceKm = inTrainRemainingKm
+            )
         }
 
         // 1. Immediately evaluate destination alarm geofence with physical GPS
@@ -791,6 +858,19 @@ object TrainTrackerState {
             }
         }
 
+        // 1b. If passenger is inside the train with physical Cell Tower lock (offline / metal coach)
+        if (isInsideTrain && currentCellRecord != null) {
+            val record = currentCellRecord!!
+            if (record.stationCode.equals(station.code, ignoreCase = true) ||
+                station.name.contains(record.stationName, ignoreCase = true)) {
+                val rounded = ((record.distanceToStationKm * 10).toInt() / 10.0).coerceAtLeast(0.0)
+                val prev = remainingKmCache[stationKey]
+                val effective = if (prev != null && prev > 0.0) minOf(prev, rounded) else rounded
+                remainingKmCache[stationKey] = effective
+                return effective
+            }
+        }
+
         // 2. Track-based continuous dead-reckoning odometer
         val curIdx = findStationIndex(lastConfirmedStationName.ifBlank { status.currentStation }, stations)
             .takeIf { it >= 0 }
@@ -935,8 +1015,12 @@ object TrainTrackerState {
         inTrainNextHaltText = ""
         inTrainEstArrivalMinutes = 0
         inTrainRemainingKm = 0.0
+        currentCellTower = null
+        currentCellRecord = null
+        activeTrackingProvider = "Cloud"
         try { PlatformStorage.remove(KEY_ODOMETER) } catch (_: Throwable) {}
         stopGpsTrackingIfIdle()
+        stopCellScanningIfIdle()
     }
 
     fun selectTrain(train: Train, boardingStationInput: String? = null) {
