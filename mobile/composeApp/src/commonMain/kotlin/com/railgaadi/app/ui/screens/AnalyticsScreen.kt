@@ -2401,7 +2401,7 @@ private fun WimtStationTrackRow(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isEnRoute) "En Route · Departed ${station.name}" else "At ${station.name}",
+                                    text = "At ${station.name}",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = RailBluePrimary
