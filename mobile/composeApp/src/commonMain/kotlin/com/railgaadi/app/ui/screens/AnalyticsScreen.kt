@@ -4,9 +4,13 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import kotlinx.coroutines.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -1687,15 +1691,16 @@ fun AnalyticsScreen(
                 ?: kmToUpcoming
                 ?: kmToNext
 
-            // 1. Expandable "Are you inside this train?" Banner (auto-collapses after 7 seconds)
+            // 1. Expandable "Are you inside this train?" Banner
+            // Initiates / expands horizontally from the right (where the button is)
             AnimatedVisibility(
                 visible = isInsideTrainBannerVisible,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn() + expandHorizontally(expandFrom = Alignment.End),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End),
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomEnd)
                     .padding(bottom = 80.dp)
-                    .padding(horizontal = 14.dp)
+                    .padding(end = 16.dp, start = 16.dp)
             ) {
                 WimtInsideTrainBanner(
                     activeTrain = activeTrain,
@@ -1711,25 +1716,20 @@ fun AnalyticsScreen(
                 )
             }
 
-            // 2. Floating Action "+" Button (pinned on bottom right, with zero overlap)
-            WimtFloatingPlusButton(
-                isInside = TrainTrackerState.isInsideTrain,
-                isOpen = isInsideTrainBannerVisible,
-                isDark = isDark,
-                onClick = {
-                    if (isInsideTrainBannerVisible) {
-                        isInsideTrainBannerVisible = false
-                        autoCollapseJob?.cancel()
-                    } else {
-                        triggerInsideTrainBanner()
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 80.dp)
-            )
+            // 2. Floating Action Train+Person Button (pinned on bottom right)
+            // Replaces the '+' icon with "person sitting inside little train", initiates banner from right
+            if (!isInsideTrainBannerVisible) {
+                WimtFloatingTrainPersonButton(
+                    isInside = TrainTrackerState.isInsideTrain,
+                    isDark = isDark,
+                    onClick = { triggerInsideTrainBanner() },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 80.dp)
+                )
+            }
 
-            // 3. Collapsible Floating Refresh Button (pinned at bottom-right, tuckable to right edge)
+            // 3. Collapsible Floating Refresh Button (pinned at bottom-right, auto-collapses after 7s inactivity)
             CollapsibleFloatingRefreshButton(
                 isRefreshing = TrainTrackerState.isAutoRefreshing,
                 isDark = isDark,
@@ -1750,9 +1750,93 @@ fun AnalyticsScreen(
 }
 
 /**
+ * Minimal Person-Inside-Train Vector Icon.
+ * Highly recognizable minimal representation of a train carriage with a passenger sitting inside.
+ */
+@Composable
+private fun PersonInsideTrainIcon(
+    isInside: Boolean,
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val bodyColor = if (isInside) Color(0xFF10B981) else RailBluePrimary
+    val windowBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val personColor = if (isInside) Color(0xFF059669) else Color(0xFF1E293B)
+    val wheelColor = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+    val headlightColor = Color(0xFFFBBF24)
+
+    Canvas(modifier = modifier.size(width = 28.dp, height = 22.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // 1. Train Carriage Body (curved front on the right)
+        drawRoundRect(
+            color = bodyColor,
+            topLeft = Offset(x = 1.dp.toPx(), y = 2.5.dp.toPx()),
+            size = Size(width = w - 3.dp.toPx(), height = h - 6.5.dp.toPx()),
+            cornerRadius = CornerRadius(4.5.dp.toPx(), 4.5.dp.toPx())
+        )
+
+        // 2. Aerodynamic Front Windshield / Headlight on the right
+        drawCircle(
+            color = headlightColor,
+            center = Offset(x = w - 4.dp.toPx(), y = h - 7.dp.toPx()),
+            radius = 1.8.dp.toPx()
+        )
+
+        // 3. Passenger Window
+        val windowLeft = 4.dp.toPx()
+        val windowTop = 4.5.dp.toPx()
+        val windowW = w - 11.dp.toPx()
+        val windowH = 8.5.dp.toPx()
+
+        drawRoundRect(
+            color = windowBg,
+            topLeft = Offset(x = windowLeft, y = windowTop),
+            size = Size(width = windowW, height = windowH),
+            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+        )
+
+        // 4. Person sitting inside looking out the window
+        // Head
+        val personCenterX = windowLeft + windowW * 0.45f
+        val headCenterY = windowTop + 3.0.dp.toPx()
+        drawCircle(
+            color = personColor,
+            center = Offset(x = personCenterX, y = headCenterY),
+            radius = 2.0.dp.toPx()
+        )
+
+        // Torso / Shoulders
+        drawRoundRect(
+            color = personColor,
+            topLeft = Offset(x = personCenterX - 3.0.dp.toPx(), y = headCenterY + 2.0.dp.toPx()),
+            size = Size(width = 6.0.dp.toPx(), height = 3.5.dp.toPx()),
+            cornerRadius = CornerRadius(1.2.dp.toPx(), 1.2.dp.toPx())
+        )
+
+        // 5. Train Wheels
+        val wheelY = h - 2.2.dp.toPx()
+        drawCircle(
+            color = wheelColor,
+            center = Offset(x = 6.dp.toPx(), y = wheelY),
+            radius = 1.6.dp.toPx()
+        )
+        drawCircle(
+            color = wheelColor,
+            center = Offset(x = w - 8.dp.toPx(), y = wheelY),
+            radius = 1.6.dp.toPx()
+        )
+    }
+}
+
+/**
  * Collapsible Floating Refresh Button (Where Is My Train style).
- * Sits at the bottom right. Can be collapsed / tucked away at the right side of the screen
- * with only the clean circular refresh icon (like the one at the top) peeking out.
+ * Sits at bottom-right.
+ * Features:
+ * - Extremely minimal: purely the circular refresh icon (like the one at the top), with NO extra arrows.
+ * - Auto-collapses after 7 seconds of inactivity into the right display edge.
+ * - Tapping while collapsed expands it and triggers a live refresh, resetting the 7-second timer.
  */
 @Composable
 private fun CollapsibleFloatingRefreshButton(
@@ -1762,66 +1846,52 @@ private fun CollapsibleFloatingRefreshButton(
     modifier: Modifier = Modifier
 ) {
     var isCollapsed by remember { mutableStateOf(false) }
+    var autoCollapseTimerJob by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun resetInactivityTimer() {
+        autoCollapseTimerJob?.cancel()
+        autoCollapseTimerJob = scope.launch {
+            delay(7000)
+            isCollapsed = true
+        }
+    }
+
+    // Auto-collapse after 7 seconds of inactivity
+    LaunchedEffect(Unit) {
+        resetInactivityTimer()
+    }
+
     val offsetX by animateDpAsState(
-        targetValue = if (isCollapsed) 28.dp else 0.dp,
+        targetValue = if (isCollapsed) 26.dp else 0.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "refreshButtonOffset"
     )
 
     Surface(
-        shape = RoundedCornerShape(
-            topStart = 22.dp,
-            bottomStart = 22.dp,
-            topEnd = if (isCollapsed) 6.dp else 22.dp,
-            bottomEnd = if (isCollapsed) 6.dp else 22.dp
-        ),
+        shape = if (isCollapsed) {
+            RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp, topEnd = 4.dp, bottomEnd = 4.dp)
+        } else {
+            CircleShape
+        },
         color = if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE),
         shadowElevation = if (isCollapsed) 2.dp else 6.dp,
         border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.35f)),
         modifier = modifier
             .offset(x = offsetX)
-            .height(44.dp)
+            .size(44.dp)
             .clickable {
                 if (isCollapsed) {
                     isCollapsed = false
                 }
+                resetInactivityTimer()
                 onRefresh()
             }
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(
-                start = 10.dp,
-                end = if (isCollapsed) 4.dp else 10.dp,
-                top = 6.dp,
-                bottom = 6.dp
-            )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
         ) {
-            if (!isCollapsed) {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .clickable { isCollapsed = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "›",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RailBluePrimary.copy(alpha = 0.7f)
-                    )
-                }
-            } else {
-                Text(
-                    text = "‹",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RailBluePrimary
-                )
-            }
-
             Text(
                 text = if (isRefreshing) "⏳" else "🔄",
                 fontSize = 18.sp
@@ -1831,13 +1901,13 @@ private fun CollapsibleFloatingRefreshButton(
 }
 
 /**
- * Floating "+" Button pinned above bottom dock on the right (Where Is My Train style).
- * Tap opens the Inside-the-Train banner, which auto-collapses after 7 seconds.
+ * Floating Train+Person Button pinned on bottom right (Where Is My Train style).
+ * Displays a minimal recognizable "person inside train" logo.
+ * Tapping opens the Inside-the-Train banner, expanding from the right.
  */
 @Composable
-private fun WimtFloatingPlusButton(
+private fun WimtFloatingTrainPersonButton(
     isInside: Boolean,
-    isOpen: Boolean,
     isDark: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1845,16 +1915,14 @@ private fun WimtFloatingPlusButton(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = if (isInside) {
-            Color(0xFF10B981)
-        } else if (isOpen) {
-            RailBluePrimary
+            if (isDark) Color(0xFF065F46) else Color(0xFFDCFCE7)
         } else {
-            if (isDark) Color(0xFF1E293B) else Color(0xFFDBEAFE)
+            if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE)
         },
         shadowElevation = 6.dp,
         border = BorderStroke(
-            1.dp,
-            if (isInside) Color(0xFF059669) else RailBluePrimary.copy(alpha = 0.35f)
+            1.2.dp,
+            if (isInside) Color(0xFF10B981) else RailBluePrimary.copy(alpha = 0.35f)
         ),
         modifier = modifier
             .size(48.dp)
@@ -1864,28 +1932,18 @@ private fun WimtFloatingPlusButton(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize()
         ) {
+            PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
+
             if (isInside) {
-                Text("🛰️", fontSize = 18.sp)
-            } else if (isOpen) {
-                Text("✕", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "💬",
-                        fontSize = 16.sp,
-                        modifier = Modifier.offset(x = 1.dp)
-                    )
-                    Text(
-                        text = "+",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = RailBluePrimary,
-                        modifier = Modifier.offset(x = (-3).dp, y = (-2).dp)
-                    )
-                }
+                // Active satellite beacon dot at top right
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981))
+                )
             }
         }
     }
@@ -1893,7 +1951,7 @@ private fun WimtFloatingPlusButton(
 
 /**
  * Expandable "Are you inside this train?" Banner.
- * Automatically collapses after 7 seconds back to the floating "+" sign.
+ * Initiates / expands from the right, and automatically collapses after 7 seconds.
  */
 @Composable
 private fun WimtInsideTrainBanner(
@@ -1943,7 +2001,7 @@ private fun WimtInsideTrainBanner(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(if (isInside) "🛰️" else "🚆", fontSize = 18.sp)
+                    PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
