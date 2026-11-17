@@ -1275,11 +1275,11 @@ fun AnalyticsScreen(
                                                                 )
                                                                 Text(
                                                                     text = if (isExpanded)
-                                                                        "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}" + if (isTrainInThisSegment) " (● Live inside)" else ""
+                                                                        "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}"
                                                                     else
                                                                         "$ptCount pass-through station${if (ptCount > 1) "s" else ""}",
                                                                     fontSize = 11.sp,
-                                                                    fontWeight = if (isTrainInThisSegment) FontWeight.Bold else FontWeight.Medium,
+                                                                    fontWeight = FontWeight.Medium,
                                                                     color = RailBluePrimary.copy(alpha = 0.85f)
                                                                 )
                                                             }
@@ -1863,23 +1863,19 @@ private fun CollapsibleFloatingRefreshButton(
     }
 
     val offsetX by animateDpAsState(
-        targetValue = if (isCollapsed) 26.dp else 0.dp,
+        targetValue = if (isCollapsed) 24.dp else 0.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "refreshButtonOffset"
     )
 
     Surface(
-        shape = if (isCollapsed) {
-            RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp, topEnd = 4.dp, bottomEnd = 4.dp)
-        } else {
-            CircleShape
-        },
+        shape = CircleShape,
         color = if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE),
         shadowElevation = if (isCollapsed) 2.dp else 6.dp,
-        border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.35f)),
+        border = BorderStroke(1.2.dp, RailBluePrimary.copy(alpha = 0.35f)),
         modifier = modifier
             .offset(x = offsetX)
-            .size(44.dp)
+            .size(46.dp)
             .clickable {
                 if (isCollapsed) {
                     isCollapsed = false
@@ -1894,7 +1890,7 @@ private fun CollapsibleFloatingRefreshButton(
         ) {
             Text(
                 text = if (isRefreshing) "⏳" else "🔄",
-                fontSize = 18.sp
+                fontSize = 19.sp
             )
         }
     }
@@ -2069,7 +2065,7 @@ private fun LiveTrainPulseNode(
 
     val outerRingScale by infiniteTransition.animateFloat(
         initialValue = 0.85f,
-        targetValue = 1.35f,
+        targetValue = 1.45f,
         animationSpec = infiniteRepeatable(
             animation = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
@@ -2077,7 +2073,7 @@ private fun LiveTrainPulseNode(
         label = "outerScale"
     )
     val outerRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.45f,
+        initialValue = 0.50f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = tween(1500, easing = FastOutSlowInEasing),
@@ -2088,7 +2084,7 @@ private fun LiveTrainPulseNode(
 
     val innerRingScale by infiniteTransition.animateFloat(
         initialValue = 0.9f,
-        targetValue = 1.18f,
+        targetValue = 1.22f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
@@ -2096,7 +2092,7 @@ private fun LiveTrainPulseNode(
         label = "innerScale"
     )
     val innerRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
+        initialValue = 0.40f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
@@ -2105,40 +2101,55 @@ private fun LiveTrainPulseNode(
         label = "innerAlpha"
     )
 
+    val trainScale by infiniteTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "trainScale"
+    )
+
+    // Lighter App Theme Blue palette (Sky/Cyan theme blue)
+    val lightThemeBlue = Color(0xFF38BDF8)
+    val primaryThemeBlue = RailBluePrimary // 0xFF0284C7
+
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.size(32.dp)
+        modifier = modifier.size(34.dp)
     ) {
-        // Outermost radar pulse ring
+        // Outermost radar pulse ring (lighter app theme blue)
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(30.dp)
                 .scale(outerRingScale)
                 .clip(CircleShape)
-                .background(RailBluePrimary.copy(alpha = outerRingAlpha))
+                .background(lightThemeBlue.copy(alpha = outerRingAlpha))
         )
-        // Inner radar pulse ring
+        // Inner radar pulse ring (app theme blue)
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(24.dp)
                 .scale(innerRingScale)
                 .clip(CircleShape)
-                .background(RailBluePrimary.copy(alpha = innerRingAlpha))
+                .background(primaryThemeBlue.copy(alpha = innerRingAlpha))
         )
-        // Stationary train badge anchored rock-solid to the track
+        // Train badge in app's theme blue gradient, brightly popping with white border
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(23.dp)
+                .scale(trainScale)
                 .clip(CircleShape)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8))
+                        colors = listOf(Color(0xFF38BDF8), Color(0xFF0284C7))
                     )
                 )
                 .border(2.dp, Color.White, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("🚆", fontSize = 11.sp)
+            Text("🚆", fontSize = 12.sp)
         }
     }
 }
