@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1868,31 +1869,27 @@ private fun CollapsibleFloatingRefreshButton(
         label = "refreshButtonOffset"
     )
 
-    Surface(
-        shape = CircleShape,
-        color = if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE),
-        shadowElevation = if (isCollapsed) 2.dp else 6.dp,
-        border = BorderStroke(1.2.dp, RailBluePrimary.copy(alpha = 0.35f)),
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = modifier
             .offset(x = offsetX)
             .size(46.dp)
+            .clip(CircleShape)
+            .background(
+                color = if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE),
+                shape = CircleShape
+            )
+            .border(1.2.dp, RailBluePrimary.copy(alpha = 0.35f), CircleShape)
             .clickable {
-                if (isCollapsed) {
-                    isCollapsed = false
-                }
+                if (isCollapsed) isCollapsed = false
                 resetInactivityTimer()
                 onRefresh()
             }
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Text(
-                text = if (isRefreshing) "⏳" else "🔄",
-                fontSize = 19.sp
-            )
-        }
+        Text(
+            text = if (isRefreshing) "⏳" else "🔄",
+            fontSize = 19.sp
+        )
     }
 }
 
