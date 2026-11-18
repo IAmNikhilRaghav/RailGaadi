@@ -1044,7 +1044,7 @@ fun LiveMapScreen() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        if (isDelayed) "${formatDelayDuration(liveStatus?.delayMinutes ?: 0)} LATE" else I18n.t("status_on_time"),
+                                        if (isDelayed) I18n.formatDelay(liveStatus?.delayMinutes ?: 0) else I18n.t("status_on_time"),
                                         color = if (isDelayed) Color(0xFFB45309) else RailGreenOnTime,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -1078,10 +1078,10 @@ fun LiveMapScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                MetricBox(title = "Next Stop", value = liveStatus?.nextStation?.take(14) ?: "Next Halt", icon = "📍")
+                                MetricBox(title = I18n.t("next_stop"), value = liveStatus?.nextStation?.let { I18n.stationName(it).take(14) } ?: I18n.t("next_halt"), icon = "📍")
                                 MetricBox(title = I18n.t("platform"), value = "PF ${selectedStation.platform}", icon = "🚉")
                                 val delayMin = liveStatus?.delayMinutes ?: 0
-                                MetricBox(title = "Delay", value = if (delayMin == 0) "On time" else formatDelayDuration(delayMin), icon = "⏱️")
+                                MetricBox(title = I18n.t("delay_label"), value = I18n.formatDelay(delayMin), icon = "⏱️")
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -1112,7 +1112,7 @@ fun LiveMapScreen() {
                                 ) {
                                     Text("🧭", fontSize = 16.sp)
                                     Text(
-                                        "Directions to ${selectedStation.name}",
+                                        "${I18n.t("directions_to")} ${I18n.stationName(selectedStation.name)}",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -1343,14 +1343,14 @@ fun LiveMapScreen() {
                             }
                             Column {
                                 Text(
-                                    "DIRECTIONS TO YOUR ONBOARDING STATION",
+                                    I18n.t("directions_onboarding_title"),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp,
                                     color = Color(0xFF64748B)
                                 )
                                 Text(
-                                    selectedStation.name,
+                                    I18n.stationName(selectedStation.name),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -1373,7 +1373,7 @@ fun LiveMapScreen() {
                     // Quick Boarding Station Selector (Default: User's Search Origin Station)
                     if (trainStations.size > 1) {
                         Text(
-                            "Boarding Station (Where you start your journey):",
+                            I18n.t("boarding_station_prompt"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF64748B),
@@ -1409,7 +1409,7 @@ fun LiveMapScreen() {
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "${stn.name}${if (isBoarding) " (Boarding)" else if (isOrigin) " (Origin)" else ""}",
+                                        text = "${I18n.stationName(stn.name)}${if (isBoarding) " " + I18n.t("boarding_suffix") else if (isOrigin) " " + I18n.t("origin_suffix") else ""}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else Color(0xFF334155)
@@ -1440,7 +1440,7 @@ fun LiveMapScreen() {
                                 ) {
                                     Text("⚡", fontSize = 16.sp)
                                     Text(
-                                        if (selectedAlternativeRoute == 1) "Alternative" else "Fastest",
+                                        if (selectedAlternativeRoute == 1) I18n.t("alternative") else I18n.t("fastest"),
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 16.sp,
                                         color = Color(0xFF0F172A)
@@ -1456,7 +1456,7 @@ fun LiveMapScreen() {
 
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "${if (selectedAlternativeRoute == 1) "Alternative Route" else "Recommended"} • $navDistanceKm",
+                                "${if (selectedAlternativeRoute == 1) I18n.t("alternative") else I18n.t("recommended")} • $navDistanceKm",
                                 fontSize = 13.sp,
                                 color = Color(0xFF64748B),
                                 fontWeight = FontWeight.Medium
@@ -1485,7 +1485,7 @@ fun LiveMapScreen() {
                                 contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                             ) {
                                 Text(
-                                    "▶ Start (${if (selectedAlternativeRoute == 1) "Alternative" else "Fastest"})",
+                                    "▶ Start (${if (selectedAlternativeRoute == 1) I18n.t("alternative") else I18n.t("fastest")})",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -1521,7 +1521,7 @@ fun LiveMapScreen() {
                             ) {
                                 Text("↗", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 Text(
-                                    "Open Google Maps",
+                                    I18n.t("open_google_maps"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = Color.White
@@ -1537,7 +1537,7 @@ fun LiveMapScreen() {
                             modifier = Modifier.height(46.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp)
                         ) {
-                            Text("✕ Cancel", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF475569))
+                            Text("✕ " + I18n.t("cancel"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF475569))
                         }
                     }
 

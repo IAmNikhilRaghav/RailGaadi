@@ -100,7 +100,7 @@ fun PreferencesDrawer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Preferences",
+                            text = I18n.t("preferences"),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -133,8 +133,8 @@ fun PreferencesDrawer(
                         // 1. Dark Theme
                     CleanPreferenceTile(
                         icon = { VectorThemeIcon(isDarkMode) },
-                        title = "Dark Theme",
-                        subtitle = "Comfortable viewing at night",
+                        title = I18n.t("pref_dark_theme"),
+                        subtitle = I18n.t("pref_dark_theme_sub"),
                         trailing = {
                             Switch(
                                 checked = isDarkMode,
@@ -152,8 +152,8 @@ fun PreferencesDrawer(
                     // Offline GPS Satellite Mode (Phase 5)
                     CleanPreferenceTile(
                         icon = { VectorCompassIcon() },
-                        title = "Offline GPS Mode",
-                        subtitle = if (TrainTrackerState.isOfflineModeEnabled) "Active • Tracking via Satellites" else "Track inside trains with 0% internet",
+                        title = I18n.t("pref_offline_gps"),
+                        subtitle = if (TrainTrackerState.isOfflineModeEnabled) I18n.t("pref_offline_gps_active") else I18n.t("pref_offline_gps_sub"),
                         trailing = {
                             Switch(
                                 checked = TrainTrackerState.isOfflineModeEnabled,
@@ -171,8 +171,8 @@ fun PreferencesDrawer(
                     // 2. Trip Delay Alerts
                     CleanPreferenceTile(
                         icon = { VectorBellIcon() },
-                        title = "Trip Delay Alerts",
-                        subtitle = "Live notifications on delay",
+                        title = I18n.t("pref_trip_delay"),
+                        subtitle = I18n.t("pref_trip_delay_sub"),
                         trailing = {
                             Switch(
                                 checked = TrainTrackerState.tripDelayAlerts,
@@ -190,7 +190,7 @@ fun PreferencesDrawer(
                     // 3. Select Language
                     CleanPreferenceTile(
                         icon = { VectorGlobeIcon() },
-                        title = "Select Language / भाषा",
+                        title = I18n.t("pref_select_language"),
                         subtitle = "${I18n.languages.find { it.code == I18n.currentLanguage }?.native ?: "English"} (${I18n.languages.find { it.code == I18n.currentLanguage }?.label ?: "English"})",
                         onClick = onOpenLanguageModal,
                         trailing = {
@@ -217,8 +217,8 @@ fun PreferencesDrawer(
                     // 4. Saved Trains & Routes
                     CleanPreferenceTile(
                         icon = { VectorBookmarkIcon() },
-                        title = "Saved Trains & Routes",
-                        subtitle = "Quick access to pinned trains (${TrainTrackerState.savedTrains.size})",
+                        title = I18n.t("pref_saved_trains"),
+                        subtitle = "${I18n.t("pref_saved_trains_sub")} (${TrainTrackerState.savedTrains.size})",
                         onClick = {},
                         trailing = {
                             Text("›", fontSize = 18.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
@@ -230,8 +230,8 @@ fun PreferencesDrawer(
                     // 5. Share Live Status
                     CleanPreferenceTile(
                         icon = { VectorShareIcon() },
-                        title = "Share Live Status",
-                        subtitle = "Send journey status link",
+                        title = I18n.t("pref_share_status"),
+                        subtitle = I18n.t("pref_share_status_sub"),
                         onClick = {},
                         trailing = {
                             Text("›", fontSize = 18.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
@@ -251,7 +251,7 @@ fun PreferencesDrawer(
                             .padding(14.dp)
                     ) {
                         Text(
-                            text = "MAP STYLE",
+                            text = I18n.t("pref_map_style"),
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             letterSpacing = 1.sp,
@@ -265,10 +265,10 @@ fun PreferencesDrawer(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val styles = listOf(
-                                "light" to "Light",
-                                "dark" to "Dark",
-                                "satellite" to "Satellite",
-                                "terrain" to "Terrain"
+                                "light" to I18n.t("map_style_light"),
+                                "dark" to I18n.t("map_style_dark"),
+                                "satellite" to I18n.t("map_style_satellite"),
+                                "terrain" to I18n.t("map_style_terrain")
                             )
 
                             styles.forEach { (id, label) ->

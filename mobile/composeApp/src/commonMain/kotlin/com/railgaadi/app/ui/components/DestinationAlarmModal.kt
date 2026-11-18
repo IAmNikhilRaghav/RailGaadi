@@ -36,6 +36,7 @@ import com.railgaadi.app.model.AlarmTriggerUnit
 import com.railgaadi.app.model.Station
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.i18n.I18n
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,7 +131,7 @@ fun DestinationAlarmModal(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Destination Wake-Up Alarm",
+                            text = I18n.t("alarm_title"),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = textPrimary,
@@ -138,7 +139,7 @@ fun DestinationAlarmModal(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "GPS geofence alerts you even in sleep mode",
+                            text = I18n.t("alarm_sub"),
                             fontSize = 12.sp,
                             color = textSecondary,
                             maxLines = 1,
@@ -158,7 +159,7 @@ fun DestinationAlarmModal(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "● ARMED",
+                            text = "● " + I18n.t("armed_badge"),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = RailGreenOnTime,
@@ -172,7 +173,7 @@ fun DestinationAlarmModal(
             // 1. Station Selector
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "TARGET DESTINATION STATION",
+                    text = I18n.t("target_destination"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = textSecondary,
@@ -204,7 +205,7 @@ fun DestinationAlarmModal(
                             Text("🚉", fontSize = 20.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = selectedStation.name,
+                                    text = I18n.stationName(selectedStation.name),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = textPrimary,
@@ -224,7 +225,7 @@ fun DestinationAlarmModal(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Text(
-                            text = if (isStationPickerOpen) "▲ Change" else "▼ Change",
+                            text = (if (isStationPickerOpen) "▲ " else "▼ ") + I18n.t("change"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = RailBluePrimary,
@@ -259,7 +260,7 @@ fun DestinationAlarmModal(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
-                                        Text(stn.name, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, color = textPrimary)
+                                        Text(I18n.stationName(stn.name), fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, color = textPrimary)
                                         Text("${stn.code} • ${stn.distanceKm} km", fontSize = 11.sp, color = textSecondary)
                                     }
                                     if (isCur) {
@@ -280,7 +281,7 @@ fun DestinationAlarmModal(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "WHEN TO WAKE YOU UP",
+                        text = I18n.t("when_to_wake"),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = textSecondary,
@@ -301,7 +302,7 @@ fun DestinationAlarmModal(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                "By Distance",
+                                I18n.t("by_distance"),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (triggerUnit == AlarmTriggerUnit.KILOMETERS) Color.White else textSecondary
@@ -315,7 +316,7 @@ fun DestinationAlarmModal(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                "By Time",
+                                I18n.t("by_time"),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (triggerUnit == AlarmTriggerUnit.MINUTES) Color.White else textSecondary
@@ -384,13 +385,13 @@ fun DestinationAlarmModal(
                             Text("✏️", fontSize = 16.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Custom Distance",
+                                    text = I18n.t("custom_distance"),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isManualDistance) RailBluePrimary else textPrimary
                                 )
                                 Text(
-                                    text = "Enter any distance (1 - 999 km)",
+                                    text = I18n.t("enter_any_distance"),
                                     fontSize = 11.sp,
                                     color = textSecondary
                                 )
@@ -417,7 +418,7 @@ fun DestinationAlarmModal(
                     }
 
                     Text(
-                        "Alarms automatically as soon as the train is ${triggerDistanceKm.toInt()} km away from ${selectedStation.name}",
+                        "${I18n.t("alarm_auto_distance")} ${triggerDistanceKm.toInt()} km ${I18n.t("km_to")} ${I18n.stationName(selectedStation.name)}",
                         fontSize = 11.sp,
                         color = textSecondary
                     )
@@ -480,13 +481,13 @@ fun DestinationAlarmModal(
                             Text("⏱️", fontSize = 16.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Custom Time",
+                                    text = I18n.t("custom_time"),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isManualMinutes) RailBluePrimary else textPrimary
                                 )
                                 Text(
-                                    text = "Enter minutes before arrival",
+                                    text = I18n.t("enter_minutes_before"),
                                     fontSize = 11.sp,
                                     color = textSecondary
                                 )
@@ -513,7 +514,7 @@ fun DestinationAlarmModal(
                     }
 
                     Text(
-                        "Alarms estimated $triggerMinutesBefore minutes before the train pulls into ${selectedStation.name}",
+                        "${I18n.t("alarm_auto_time")} $triggerMinutesBefore min (${I18n.stationName(selectedStation.name)})",
                         fontSize = 11.sp,
                         color = textSecondary
                     )
@@ -523,7 +524,7 @@ fun DestinationAlarmModal(
             // 3. Ringtone & Audio Toggles
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "ALERT SOUND & TONES",
+                    text = I18n.t("alert_sound_tones"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = textSecondary,
@@ -573,8 +574,8 @@ fun DestinationAlarmModal(
                     ) {
                         Text("🗣️", fontSize = 16.sp)
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Station Voice Announcement", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                            Text("IR-style speaker announcement", fontSize = 11.sp, color = textSecondary)
+                            Text(I18n.t("station_voice_announcement"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Text(I18n.t("station_voice_sub"), fontSize = 11.sp, color = textSecondary)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -597,8 +598,8 @@ fun DestinationAlarmModal(
                     ) {
                         Text("📳", fontSize = 16.sp)
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Continuous Vibration", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                            Text("Haptic pulses while phone is in pocket", fontSize = 11.sp, color = textSecondary)
+                            Text(I18n.t("continuous_vibration"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            Text(I18n.t("vibration_sub"), fontSize = 11.sp, color = textSecondary)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -628,7 +629,7 @@ fun DestinationAlarmModal(
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, RailBluePrimary.copy(alpha = 0.45f))
                 ) {
-                    Text("🔊 Test Sound", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                    Text("🔊 " + I18n.t("test_sound"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
                 }
 
                 // Arm / Update Alarm Button
@@ -661,7 +662,7 @@ fun DestinationAlarmModal(
                     colors = ButtonDefaults.buttonColors(containerColor = RailBluePrimary)
                 ) {
                     Text(
-                        if (existingAlarm?.isArmed == true) "Update Alarm" else "Arm Wake-Up Alarm",
+                        if (existingAlarm?.isArmed == true) I18n.t("update_alarm") else I18n.t("arm_wake_up_alarm"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -677,7 +678,7 @@ fun DestinationAlarmModal(
                         .fillMaxWidth()
                         .height(40.dp)
                 ) {
-                    Text("✕ Turn Off Wake-Up Alarm", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailRedDelayed)
+                    Text("✕ " + I18n.t("turn_off_alarm"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RailRedDelayed)
                 }
             } else {
                 Spacer(modifier = Modifier.height(6.dp))

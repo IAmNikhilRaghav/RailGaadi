@@ -300,14 +300,14 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Choose the date",
+                    text = I18n.t("choose_the_date"),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
                 Text(
-                    text = "for departure from $departureName",
+                    text = "${I18n.t("for_departure_from")} ${I18n.stationName(departureName)}",
                     fontSize = 12.sp,
                     color = Color.Gray,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -319,9 +319,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                 val tomorrowDate = travelDates.firstOrNull { it.isTomorrow } ?: travelDates[1]
 
                 val options = listOfNotNull(
-                    yesterdayDate?.let { "Yesterday" to it },
-                    "Today" to todayDate,
-                    "Tomorrow" to tomorrowDate
+                    yesterdayDate?.let { I18n.t("yesterday") to it },
+                    I18n.t("today") to todayDate,
+                    I18n.t("tomorrow") to tomorrowDate
                 )
 
                 options.forEach { (label, date) ->
@@ -360,7 +360,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Choose from Calendar",
+                        text = I18n.t("choose_from_calendar"),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Normal,
                         color = RailBluePrimary
@@ -428,7 +428,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "Search Trains",
+                        text = I18n.t("search_trains"),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -445,8 +445,8 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 isToDropdownOpen = false
                                 validationError = null
                             },
-                            label = { Text("From", fontSize = 12.sp) },
-                            placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
+                            label = { Text(I18n.t("from"), fontSize = 12.sp) },
+                            placeholder = { Text(I18n.t("station_code_or_name"), color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
                                 if (fromTextFieldValue.text.isNotEmpty()) {
                                     IconButton(onClick = {
@@ -509,7 +509,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text(stn.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text(I18n.stationName(stn.name), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                                                 if (stn.city.isNotEmpty()) Text("${stn.city}, ${stn.state}", fontSize = 10.sp, color = Color.Gray)
                                             }
                                             Box(
@@ -578,8 +578,8 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 isFromDropdownOpen = false
                                 validationError = null
                             },
-                            label = { Text("To", fontSize = 12.sp) },
-                            placeholder = { Text("Station name or code", color = Color.Gray, fontSize = 12.sp) },
+                            label = { Text(I18n.t("to"), fontSize = 12.sp) },
+                            placeholder = { Text(I18n.t("station_code_or_name"), color = Color.Gray, fontSize = 12.sp) },
                             trailingIcon = {
                                 if (toTextFieldValue.text.isNotEmpty()) {
                                     IconButton(onClick = {
@@ -640,7 +640,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text(stn.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                Text(I18n.stationName(stn.name), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                                                 if (stn.city.isNotEmpty()) Text("${stn.city}, ${stn.state}", fontSize = 10.sp, color = Color.Gray)
                                             }
                                             Box(
@@ -740,7 +740,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                         ) {
                             Text("🕒", fontSize = 13.sp)
                             Text(
-                                "Recently Searched Trains",
+                                I18n.t("recently_searched_trains"),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
@@ -854,17 +854,17 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("🗺️", fontSize = 32.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Plan Your Train Journey", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(I18n.t("plan_journey_title"), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(5.dp))
                         Text(
-                            "Search from 8,690+ Indian Railway stations. Pick a date and track trains live.",
+                            I18n.t("plan_journey_sub"),
                             fontSize = 11.sp, color = Color.Gray, textAlign = TextAlign.Center, lineHeight = 16.sp
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            FeaturePill(icon = "⚡", label = "Live GPS", modifier = Modifier.weight(1f))
-                            FeaturePill(icon = "⏱️", label = "Delays", modifier = Modifier.weight(1f))
-                            FeaturePill(icon = "📅", label = "Calendar", modifier = Modifier.weight(1f))
+                            FeaturePill(icon = "⚡", label = I18n.t("live_gps"), modifier = Modifier.weight(1f))
+                            FeaturePill(icon = "⏱️", label = I18n.t("delays"), modifier = Modifier.weight(1f))
+                            FeaturePill(icon = "📅", label = I18n.t("calendar"), modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -1624,7 +1624,7 @@ fun SwipeToDeleteRecentTrainItem(
                 }
 
                 Text(
-                    text = "Track →",
+                    text = "${I18n.t("track")} →",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = RailBluePrimary
