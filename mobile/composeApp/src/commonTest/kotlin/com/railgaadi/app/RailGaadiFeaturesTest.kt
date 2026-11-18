@@ -146,6 +146,48 @@ class RailGaadiFeaturesTest {
         assertFalse(farDistKm <= alarm.triggerDistanceKm, "Passenger at 50km should NOT trigger the 10km alarm")
     }
 
+    // ── 6. HINDI & INDIC TRANSLITERATION FOR STATIONS & TRAIN NAMES ──────────
+
+    @Test
+    fun testHindiStationAndTrainTransliteration() {
+        val i18n = com.railgaadi.app.i18n.I18n
+        val translit = com.railgaadi.app.i18n.IndicTransliteration
+
+        // Test English -> Hindi Station Translation
+        assertEquals("नई दिल्ली", translit.stationToHindi("New Delhi"))
+        assertEquals("कानपुर सेंट्रल", translit.stationToHindi("Kanpur Central"))
+        assertEquals("प्रयागराज जं.", translit.stationToHindi("Prayagraj Jn"))
+        assertEquals("सोमना", translit.stationToHindi("Somna"))
+        assertEquals("भदान", translit.stationToHindi("Bhadan"))
+        assertEquals("इटावा जं.", translit.stationToHindi("Etawah Jn"))
+        assertEquals("टूंडला जं.", translit.stationToHindi("Tundla Jn"))
+        assertEquals("फ़िरोज़ाबाद", translit.stationToHindi("Firozabad"))
+
+        // Test Train Names
+        assertEquals(
+            "12404 प्रयागराज सुपरफास्ट एक्सप्रेस",
+            translit.trainToHindi("12404 Prayagraj SF Express")
+        )
+        assertEquals(
+            "22436 वंदे भारत एक्सप्रेस",
+            translit.trainToHindi("22436 Vande Bharat Express")
+        )
+
+        // Test I18n Language Switcher & Formatting
+        i18n.setLanguage("hi")
+        assertEquals("नई दिल्ली", i18n.stationName("New Delhi"))
+        assertEquals("कानपुर सेंट्रल", i18n.stationName("Kanpur Central"))
+        assertEquals("12404 प्रयागराज सुपरफास्ट एक्सप्रेस", i18n.trainName("12404 Prayagraj SF Express"))
+        assertEquals("समय पर", i18n.formatDelay(0))
+        assertTrue(i18n.formatDelay(5).contains("देरी"))
+        assertTrue(i18n.formatCrossingStatus("Somna", true).contains("सोमना"))
+
+        // Switch back to English
+        i18n.setLanguage("en")
+        assertEquals("New Delhi", i18n.stationName("New Delhi"))
+        assertEquals("On Time", i18n.formatDelay(0))
+    }
+
     private fun calculateDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371.0
         val dLat = (lat2 - lat1) * (kotlin.math.PI / 180.0)

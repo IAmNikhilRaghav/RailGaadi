@@ -347,13 +347,13 @@ fun AnalyticsScreen(
 
                                             Column {
                                                 Text(
-                                                    text = train.name,
+                                                    text = I18n.trainName(train.name),
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp,
                                                     color = if (isDark) DarkTextPrimary else LightTextPrimary
                                                 )
                                                 Text(
-                                                    text = "${train.origin.substringBefore(" (")} ➔ ${train.destination.substringBefore(" (")}",
+                                                    text = "${I18n.stationName(train.origin.substringBefore(" ("))} ➔ ${I18n.stationName(train.destination.substringBefore(" ("))}",
                                                     fontSize = 11.sp,
                                                     color = Color.Gray
                                                 )
@@ -1147,19 +1147,18 @@ fun AnalyticsScreen(
                                                                 } else null
 
                                                             val approachingHeader = when {
-                                                                stopDist != null && stopDist <= 0.3 -> "Arrived at ${targetStop?.name ?: "Station"}"
+                                                                stopDist != null && stopDist <= 0.3 -> "Arrived at ${I18n.stationName(targetStop?.name ?: "Station")}"
                                                                 stopDist != null && stopDist <= 8.0 -> {
                                                                     val dist = stopDist.roundToInt().coerceAtLeast(1)
-                                                                    "$dist km to ${targetStop?.name ?: "Next Station"}"
+                                                                    I18n.formatKmRemaining(dist, targetStop?.name ?: "")
                                                                 }
                                                                 else -> {
                                                                     val cur = curStation ?: stations.getOrNull(curIdx)
                                                                     val name = cur?.name ?: ""
                                                                     if (name.isNotBlank()) {
-                                                                        if (cur?.haltMinutes == 0) "Crossing $name"
-                                                                        else "At $name"
+                                                                        I18n.formatCrossingStatus(name, cur?.haltMinutes == 0)
                                                                     } else {
-                                                                        "En Route"
+                                                                        I18n.t("en_route", "En Route")
                                                                     }
                                                                 }
                                                             }
@@ -1193,7 +1192,7 @@ fun AnalyticsScreen(
                                                                         ) {
                                                                             Text("▼", fontSize = 8.sp, color = RailBluePrimary)
                                                                             Text(
-                                                                                text = "$ptCount stations",
+                                                                                text = I18n.formatPassThrough(ptCount),
                                                                                 fontSize = 10.sp,
                                                                                 fontWeight = FontWeight.Bold,
                                                                                 color = RailBluePrimary
@@ -1205,11 +1204,7 @@ fun AnalyticsScreen(
 
                                                             // Line 2: Full width delay text (appears in one line without truncating)
                                                             val delay = liveStatus?.delayMinutes ?: 0
-                                                            val delayText = when {
-                                                                delay == 0 -> "On Time"
-                                                                delay > 0 -> "Delayed by ${formatDelayDuration(delay)}"
-                                                                else -> "${formatDelayDuration(-delay)} Early"
-                                                            }
+                                                            val delayText = I18n.formatDelay(delay)
                                                             Text(
                                                                 text = "((•)) $delayText",
                                                                 fontSize = 10.sp,
@@ -1292,9 +1287,9 @@ fun AnalyticsScreen(
                                                                 )
                                                                 Text(
                                                                     text = if (isExpanded)
-                                                                        "Hide $ptCount pass-through station${if (ptCount > 1) "s" else ""}"
+                                                                        "▲ " + I18n.formatPassThrough(ptCount)
                                                                     else
-                                                                        "$ptCount pass-through station${if (ptCount > 1) "s" else ""}",
+                                                                        "▼ " + I18n.formatPassThrough(ptCount),
                                                                     fontSize = 11.sp,
                                                                     fontWeight = FontWeight.Medium,
                                                                     color = RailBluePrimary.copy(alpha = 0.85f)
@@ -1398,7 +1393,7 @@ fun AnalyticsScreen(
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Text(
-                                                        text = stn.name,
+                                                        text = I18n.stationName(stn.name),
                                                         fontSize = if (isHaltStop) 12.sp else 10.sp,
                                                         fontWeight = if (isCurrent) FontWeight.ExtraBold else if (isHaltStop) FontWeight.SemiBold else FontWeight.Normal,
                                                         color = if (isCurrent) RailBluePrimary
@@ -1419,7 +1414,7 @@ fun AnalyticsScreen(
                                             }
 
                                             Text(
-                                                text = if (isHaltStop) stn.scheduledArr.takeIf { it != "—" } ?: "START" else "—",
+                                                text = if (isHaltStop) stn.scheduledArr.takeIf { it != "—" } ?: I18n.t("start_station", "START") else "—",
                                                 fontSize = 11.sp,
                                                 fontFamily = FontFamily.Monospace,
                                                 color = if (!isHaltStop) Color.Gray.copy(alpha = 0.4f) else if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
@@ -1428,7 +1423,7 @@ fun AnalyticsScreen(
                                             )
 
                                             Text(
-                                                text = if (isHaltStop) stn.scheduledDep.takeIf { it != "—" } ?: "END" else "—",
+                                                text = if (isHaltStop) stn.scheduledDep.takeIf { it != "—" } ?: I18n.t("end_station", "END") else "—",
                                                 fontSize = 11.sp,
                                                 fontFamily = FontFamily.Monospace,
                                                 color = if (!isHaltStop) Color.Gray.copy(alpha = 0.4f) else if (isPassed) Color.Gray else if (isDark) DarkTextPrimary else LightTextPrimary,
@@ -1510,7 +1505,7 @@ fun AnalyticsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Journey Route Profile",
+                                    text = I18n.t("journey_route_profile", "Journey Route Profile"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
                                     color = if (isDark) DarkTextPrimary else LightTextPrimary
@@ -1522,18 +1517,18 @@ fun AnalyticsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 MetricBox(
-                                    title = "Total Route",
-                                    value = "${totalKm.toInt()} km",
+                                    title = I18n.t("total_route", "Total Route"),
+                                    value = "${totalKm.toInt()} ${if (I18n.currentLanguage == "hi") "किमी" else "km"}",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
-                                    title = "Halts",
-                                    value = "${stations.count { it.haltMinutes > 0 }} Stns",
+                                    title = I18n.t("halts", "Halts"),
+                                    value = "${stations.count { it.haltMinutes > 0 }} ${if (I18n.currentLanguage == "hi") "स्टेशन" else "Stns"}",
                                     modifier = Modifier.weight(1f)
                                 )
                                 MetricBox(
-                                    title = "Total Stops",
-                                    value = "${stations.size} Stns",
+                                    title = I18n.t("total_stops", "Total Stops"),
+                                    value = "${stations.size} ${if (I18n.currentLanguage == "hi") "स्टेशन" else "Stns"}",
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -2096,12 +2091,12 @@ private fun WimtInsideTrainBanner(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     val headerText = if (isInside) {
                         when (TrainTrackerState.activeTrackingProvider) {
-                            "Trilateration" -> "Inside ${activeTrain.number} (Trilateration)"
-                            "Cell Tower" -> "Inside ${activeTrain.number} (Cell Tower)"
-                            "GPS" -> "Inside ${activeTrain.number} (GPS)"
-                            else -> "Inside ${activeTrain.number}"
+                            "Trilateration" -> "${if (I18n.currentLanguage == "hi") "ट्रेन में" else "Inside"} ${activeTrain.number}"
+                            "Cell Tower" -> "${if (I18n.currentLanguage == "hi") "ट्रेन में" else "Inside"} ${activeTrain.number}"
+                            "GPS" -> "${if (I18n.currentLanguage == "hi") "ट्रेन में" else "Inside"} ${activeTrain.number}"
+                            else -> "${if (I18n.currentLanguage == "hi") "ट्रेन में" else "Inside"} ${activeTrain.number}"
                         }
-                    } else "Are you inside this train?"
+                    } else I18n.t("are_you_inside", "Are you inside this train?")
 
                     Text(
                         text = headerText,
@@ -2121,7 +2116,7 @@ private fun WimtInsideTrainBanner(
                             else -> "Zero-lag live tracking active • Auto-collapses in 7s"
                         }
                     } else {
-                        "Enable accurate tracking"
+                        I18n.t("enable_accurate_tracking", "Enable accurate tracking")
                     }
                     Text(
                         text = subText,
@@ -2324,7 +2319,7 @@ private fun WimtStationTrackRow(
             verticalArrangement = Arrangement.Center
         ) {
             if (isHaltStop) {
-                val arrTime = station.scheduledArr.takeIf { it != "—" } ?: "START"
+                val arrTime = station.scheduledArr.takeIf { it != "—" } ?: I18n.t("start_station", "START")
                 Text(
                     text = arrTime,
                     fontSize = 12.sp,
@@ -2439,7 +2434,7 @@ private fun WimtStationTrackRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = station.name,
+                    text = I18n.stationName(station.name),
                     fontSize = if (isHaltStop) 13.sp else 11.sp,
                     fontWeight = if (isCurrent) FontWeight.ExtraBold else if (isHaltStop) FontWeight.Bold else FontWeight.Normal,
                     color = if (isCurrent) RailBluePrimary
@@ -2457,7 +2452,7 @@ private fun WimtStationTrackRow(
                     if (isHaltStop) {
                         if (station.platform.isNotBlank()) {
                             Text(
-                                text = if (station.platform.startsWith("PF")) station.platform else "PF ${station.platform}",
+                                text = I18n.formatPlatform(station.platform),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = RailBluePrimary,
@@ -2467,7 +2462,7 @@ private fun WimtStationTrackRow(
                         }
                         if (station.distanceKm > 0) {
                             Text(
-                                text = "• ${station.distanceKm.toInt()} km",
+                                text = "• ${station.distanceKm.toInt()} ${if (I18n.currentLanguage == "hi") "किमी" else "km"}",
                                 fontSize = 10.sp,
                                 color = Color.Gray,
                                 maxLines = 1,
@@ -2476,7 +2471,7 @@ private fun WimtStationTrackRow(
                         }
                         if (station.haltMinutes > 0) {
                             Text(
-                                text = "• Halt ${station.haltMinutes}m",
+                                text = "• ${I18n.formatHalt(station.haltMinutes)}",
                                 fontSize = 10.sp,
                                 color = Color.Gray,
                                 maxLines = 1,
@@ -2525,10 +2520,7 @@ private fun WimtStationTrackRow(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val bubbleTitle = when {
-                                    station.haltMinutes == 0 -> "Crossing ${station.name}"
-                                    else -> "At ${station.name}"
-                                }
+                                val bubbleTitle = I18n.formatCrossingStatus(station.name, station.haltMinutes == 0)
                                 Text(
                                     text = bubbleTitle,
                                     fontSize = 11.sp,
@@ -2536,11 +2528,7 @@ private fun WimtStationTrackRow(
                                     color = RailBluePrimary
                                 )
                             }
-                            val curDelayText = when {
-                                delayMinutes == 0 -> "Running on time"
-                                delayMinutes > 0 -> "Delayed by ${formatDelayDuration(delayMinutes)}"
-                                else -> "${formatDelayDuration(-delayMinutes)} early"
-                            }
+                            val curDelayText = I18n.formatDelay(delayMinutes)
                             Text(
                                 text = curDelayText,
                                 fontSize = 10.sp,
@@ -2562,7 +2550,7 @@ private fun WimtStationTrackRow(
             verticalArrangement = Arrangement.Center
         ) {
             if (isHaltStop) {
-                val depTime = station.scheduledDep.takeIf { it != "—" } ?: "END"
+                val depTime = station.scheduledDep.takeIf { it != "—" } ?: I18n.t("end_station", "END")
                 Text(
                     text = depTime,
                     fontSize = 12.sp,

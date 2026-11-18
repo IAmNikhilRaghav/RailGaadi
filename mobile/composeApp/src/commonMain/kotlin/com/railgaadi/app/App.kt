@@ -429,7 +429,7 @@ fun App() {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            I18n.currentLanguage = lang.code
+                                            I18n.setLanguage(lang.code)
                                             showLanguageModal = false
                                         }
                                 ) {

@@ -586,14 +586,14 @@ fun LiveMapScreen() {
                                                 color = RailBluePrimary
                                             )
                                             Text(
-                                                train.name,
+                                                I18n.trainName(train.name),
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                         Text(
-                                            "${train.origin} → ${train.destination}",
+                                            "${I18n.stationName(train.origin.substringBefore(" ("))} → ${I18n.stationName(train.destination.substringBefore(" ("))}",
                                             fontSize = 11.sp,
                                             color = Color.Gray
                                         )
@@ -981,7 +981,7 @@ fun LiveMapScreen() {
                                     Text("🚆", fontSize = 16.sp)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        "Search for a Train",
+                                        I18n.t("search_train_prompt", "Search for a Train"),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurface,
@@ -989,7 +989,7 @@ fun LiveMapScreen() {
                                     )
                                 }
                                 Text(
-                                    "Tap above to track any train live",
+                                    I18n.t("search_train_subprompt", "Tap above to track any train live"),
                                     fontSize = 11.sp,
                                     color = Color.Gray,
                                     textAlign = TextAlign.Center
@@ -1022,7 +1022,7 @@ fun LiveMapScreen() {
                                     )
                                 }
                                 Text(
-                                    activeTrain.name,
+                                    I18n.trainName(activeTrain.name),
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 15.sp,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -1261,7 +1261,7 @@ fun LiveMapScreen() {
                     ) {
                         Column {
                             Text(
-                                text = selectedStation.name,
+                                text = I18n.stationName(selectedStation.name),
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
