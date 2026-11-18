@@ -276,17 +276,26 @@ object TrainTrackerState {
         // If passenger is inside train and GPS is degraded/offline, let Trilateration/Cell Tower drive the cockpit
         if (isInsideTrain && (currentGpsLocation == null || (currentGpsLocation?.accuracyMeters ?: 999f) > 80f)) {
             if (triResult != null) {
+                // Use last known live speed from API if available, otherwise use trilateration default (65 km/h)
+                val effectiveSpeedKmh = liveStatus?.speedKmh?.takeIf { it > 5 }?.toDouble() ?: 65.0
                 activeTrackingProvider = if (triResult.isMultiTowerLock) "Trilateration" else "Cell Tower"
                 inTrainLocationText = triResult.statusDescription
                 inTrainNextHaltText = triResult.approachingStationName
                 inTrainRemainingKm = triResult.remainingDistanceKm
-                inTrainEstArrivalMinutes = ((triResult.remainingDistanceKm / 60.0) * 60).toInt().coerceAtLeast(1)
+                inTrainEstArrivalMinutes = ((triResult.remainingDistanceKm / effectiveSpeedKmh) * 60).toInt().coerceAtLeast(1)
             } else if (record != null) {
+                // Use last known live speed from API if available, otherwise use cell tower default (58 km/h)
+                val effectiveSpeedKmh = liveStatus?.speedKmh?.takeIf { it > 5 }?.toDouble() ?: 58.0
                 activeTrackingProvider = "Cell Tower"
                 inTrainLocationText = "Near ${record.lineDescription} (${record.distanceToStationKm} km to ${record.stationName})"
                 inTrainNextHaltText = record.stationName
                 inTrainRemainingKm = record.distanceToStationKm
-                inTrainEstArrivalMinutes = ((record.distanceToStationKm / 55.0) * 60).toInt().coerceAtLeast(1)
+                inTrainEstArrivalMinutes = ((record.distanceToStationKm / effectiveSpeedKmh) * 60).toInt().coerceAtLeast(1)
+            } else {
+                // Unmapped / Anonymous route without GPS lock
+                if (inTrainLocationText.isBlank() || inTrainLocationText.contains("Connecting")) {
+                    inTrainLocationText = "Cell tower corridor unmapped • Acquiring GPS satellite..."
+                }
             }
         }
 
@@ -582,7 +591,14 @@ object TrainTrackerState {
                 }
             }
 
-            // Case C: Fallback coordinates when route stations not loaded yet
+            // Case C: Offline Trilateration fallback if targetStation is the approaching station
+            isInsideTrain && currentTrilaterationResult != null &&
+                (alarm.stationCode.equals(currentTrilaterationResult?.approachingStationCode, ignoreCase = true) ||
+                 alarm.stationName.contains(currentTrilaterationResult?.approachingStationName ?: "", ignoreCase = true)) -> {
+                currentTrilaterationResult?.remainingDistanceKm
+            }
+
+            // Case D: Fallback coordinates when route stations not loaded yet
             alarm.stationLat != 0.0 && alarm.stationLon != 0.0 && isInsideTrain && (gpsLoc ?: currentGpsLocation) != null -> {
                 val loc = (gpsLoc ?: currentGpsLocation)!!
                 calculateHaversineDistanceKm(loc.latitude, loc.longitude, alarm.stationLat, alarm.stationLon)

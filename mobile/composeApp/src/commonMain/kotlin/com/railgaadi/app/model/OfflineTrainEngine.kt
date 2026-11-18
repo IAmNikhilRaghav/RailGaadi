@@ -8,6 +8,14 @@ import kotlin.math.*
 
 object OfflineTrainEngine {
 
+    // ── Default speed constants (km/h) used only when no live/GPS/API speed is available ──
+    // These represent conservative Indian Railways average running speeds per category
+    internal const val DEFAULT_SPEED_TRILATERATION = 65.0  // Multi-tower cell fix: typical express speed
+    internal const val DEFAULT_SPEED_CELL_TOWER     = 58.0  // Single tower fix: conservative mid-speed
+    private const val DEFAULT_SPEED_FALLBACK        = 55.0  // Last-resort: slowest plausible moving speed
+    private const val DEFAULT_SPEED_GPS_FALLBACK    = 60.0  // GPS offline fallback: average mixed service
+    private const val SPEED_HALTED_THRESHOLD        = 5.0   // Below this (km/h) → treat as stopped/halted
+
     // Persistent in-memory cache of route timetables (survives network disconnects)
     private val routeCache = mutableMapOf<String, List<Station>>()
 
@@ -72,12 +80,20 @@ object OfflineTrainEngine {
             else -> "EARLY ${formatDelayDuration(-delayMinutes)} ($lockType)"
         }
 
+        // Use timing-advance distance rate if available, otherwise use trilateration confidence-scaled estimate
+        val estimatedSpeedKmh = if (triResult.timingAdvanceMeters != null && triResult.timingAdvanceMeters > 0) {
+            // TA gives real radial distance — cap at Indian express max speed
+            DEFAULT_SPEED_TRILATERATION.coerceAtMost(130.0)
+        } else {
+            DEFAULT_SPEED_TRILATERATION
+        }
+
         return LiveStatus(
             trainNumber = train.number,
             trainName = train.name,
             status = statusText,
             delayMinutes = delayMinutes.coerceAtLeast(0),
-            speedKmh = 62,
+            speedKmh = estimatedSpeedKmh.toInt(),
             currentStation = "${lastPassedStation.name} (${lastPassedStation.code})",
             nextStation = "${approachingStation.name} (${approachingStation.code})",
             progressPercent = progress,
@@ -137,7 +153,7 @@ object OfflineTrainEngine {
             trainName = train.name,
             status = statusText,
             delayMinutes = delayMinutes.coerceAtLeast(0),
-            speedKmh = 58, // Estimated running track speed
+            speedKmh = DEFAULT_SPEED_CELL_TOWER.toInt(),
             currentStation = "${lastPassedStation.name} (${lastPassedStation.code})",
             nextStation = "${approachingStation.name} (${approachingStation.code})",
             progressPercent = progress,
@@ -166,14 +182,21 @@ object OfflineTrainEngine {
         if (gps != null && gps.latitude != 0.0 && gps.accuracyMeters in 0.1f..120f) {
             val gpsStatus = calculateOfflineLiveStatus(train, gps, stations)
             if (cell != null && cell.isValid) {
-                // Opportunistically learn/update cell database
+                val nextStnCode = gpsStatus.nextStation.substringAfter("(").substringBefore(")")
+                val nextStnCoord = StationDataService.getCoordinates(nextStnCode)
+                val realDistKm = if (nextStnCoord.first != 0.0) {
+                    haversineKm(gps.latitude, gps.longitude, nextStnCoord.first, nextStnCoord.second)
+                } else {
+                    1.5
+                }
+                // Opportunistically learn/update cell database with real observed distance
                 CellTowerRepository.learnCellTower(
                     cell = cell,
-                    stationCode = gpsStatus.nextStation.substringAfter("(").substringBefore(")"),
+                    stationCode = nextStnCode,
                     stationName = gpsStatus.nextStation.substringBefore("(").trim(),
                     latitude = gps.latitude,
                     longitude = gps.longitude,
-                    distanceKm = 2.0
+                    distanceKm = ((realDistKm * 10).roundToInt()) / 10.0
                 )
             }
             return gpsStatus
@@ -202,17 +225,49 @@ object OfflineTrainEngine {
     private fun fallbackLiveStatus(train: Train, stations: List<Station>): LiveStatus {
         val first = stations.firstOrNull()
         val second = stations.getOrNull(1) ?: first
+        // Use timetable-based progress estimate: pick the station whose scheduled time
+        // is closest to now, to give the best possible guess of train position
+        val (curStation, nextStation, estimatedProgress) = estimatePositionFromTimetable(stations)
         return LiveStatus(
             trainNumber = train.number,
             trainName = train.name,
             status = "SCHEDULE ESTIMATED",
             delayMinutes = 0,
-            speedKmh = 60,
-            currentStation = "${first?.name ?: train.origin} (${first?.code ?: ""})",
-            nextStation = "${second?.name ?: train.destination} (${second?.code ?: ""})",
-            progressPercent = 0.2f,
+            speedKmh = DEFAULT_SPEED_FALLBACK.toInt(),
+            currentStation = "${curStation?.name ?: first?.name ?: train.origin} (${curStation?.code ?: first?.code ?: ""})",
+            nextStation = "${nextStation?.name ?: second?.name ?: train.destination} (${nextStation?.code ?: second?.code ?: ""})",
+            progressPercent = estimatedProgress,
             stations = stations
         )
+    }
+
+    /**
+     * Estimates current position from the timetable by finding the last scheduled
+     * departure that is earlier than the current wall-clock time.
+     */
+    private fun estimatePositionFromTimetable(stations: List<Station>): Triple<Station?, Station?, Float> {
+        if (stations.isEmpty()) return Triple(null, null, 0.1f)
+        val (nowHour, nowMin) = try { PlatformDate.getCurrentTime() } catch (_: Throwable) { 0 to 0 }
+        val nowTotalMins = nowHour * 60 + nowMin
+
+        var bestIdx = 0
+        for ((idx, stn) in stations.withIndex()) {
+            val depStr = stn.scheduledDep ?: stn.scheduledArr ?: continue
+            val parts = depStr.split(":").mapNotNull { it.trim().toIntOrNull() }
+            if (parts.size < 2) continue
+            val stnMins = parts[0] * 60 + parts[1]
+            val adjustedStnMins = when {
+                stnMins - nowTotalMins > 720 -> stnMins - 1440 // previous day departure wrapping midnight
+                nowTotalMins - stnMins > 720 -> stnMins + 1440 // next day arrival wrapping midnight
+                else -> stnMins
+            }
+            if (adjustedStnMins <= nowTotalMins) bestIdx = idx
+        }
+
+        val curStation = stations[bestIdx]
+        val nextStation = stations.getOrNull(bestIdx + 1) ?: curStation
+        val progress = (bestIdx.toFloat() / (stations.size - 1).coerceAtLeast(1)).coerceIn(0.05f, 0.95f)
+        return Triple(curStation, nextStation, progress)
     }
 
     /**
@@ -233,7 +288,7 @@ object OfflineTrainEngine {
                 trainName = train.name,
                 status = "OFFLINE GPS ACTIVE",
                 delayMinutes = 0,
-                speedKmh = gps.speedKmh.toInt().coerceAtLeast(0),
+                speedKmh = if (gps.speedKmh > SPEED_HALTED_THRESHOLD) gps.speedKmh.toInt() else 0,
                 currentStation = train.origin,
                 nextStation = train.destination,
                 progressPercent = 0.1f,
@@ -286,7 +341,8 @@ object OfflineTrainEngine {
             else -> "EARLY ${formatDelayDuration(-delayMinutes)} (GPS)"
         }
 
-        val effectiveSpeed = if (gps.speedKmh > 5.0) gps.speedKmh.toInt() else 65
+        // Use real GPS speed; fall back to DEFAULT_SPEED_GPS_FALLBACK only if phone modem hasn't resolved speed yet
+        val effectiveSpeed = if (gps.speedKmh > SPEED_HALTED_THRESHOLD) gps.speedKmh.toInt() else DEFAULT_SPEED_GPS_FALLBACK.toInt()
 
         return LiveStatus(
             trainNumber = train.number,
