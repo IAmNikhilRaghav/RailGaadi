@@ -1642,42 +1642,73 @@ fun AnalyticsScreen(
                 ?: kmToUpcoming
                 ?: kmToNext
 
-            // 1. Expandable "Are you inside this train?" Banner
-            // Initiates / expands horizontally from the right (where the button is)
-            AnimatedVisibility(
-                visible = isInsideTrainBannerVisible,
-                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn() + expandHorizontally(expandFrom = Alignment.End),
-                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End),
+            // 1. Expandable "Are you inside this train?" Banner & Floating Button
+            // Anchored directly at bottom-right so the banner initiates and unfolds directly
+            // from the exact footprint of the Train Logo button, instead of flying in from off-screen.
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 80.dp)
-                    .padding(end = 16.dp, start = 16.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.BottomEnd
             ) {
-                WimtInsideTrainBanner(
-                    activeTrain = activeTrain,
-                    isDark = isDark,
-                    onSwitchChanged = { checked ->
-                        TrainTrackerState.toggleInsideTrainMode(checked)
-                        triggerInsideTrainBanner()
+                AnimatedContent(
+                    targetState = isInsideTrainBannerVisible,
+                    transitionSpec = {
+                        if (targetState) {
+                            // Expanding: Unfolds horizontally from the Train Logo button at Alignment.End
+                            (expandHorizontally(
+                                expandFrom = Alignment.End,
+                                animationSpec = spring(
+                                    dampingRatio = 0.82f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeIn(animationSpec = tween(180, delayMillis = 60))).togetherWith(
+                                shrinkHorizontally(
+                                    shrinkTowards = Alignment.End,
+                                    animationSpec = tween(120)
+                                ) + fadeOut(animationSpec = tween(90))
+                            )
+                        } else {
+                            // Collapsing: Smoothly shrinks back into the Train Logo button at Alignment.End
+                            (fadeIn(animationSpec = tween(180, delayMillis = 60)) + expandHorizontally(
+                                expandFrom = Alignment.End,
+                                animationSpec = tween(180, delayMillis = 60)
+                            )).togetherWith(
+                                shrinkHorizontally(
+                                    shrinkTowards = Alignment.End,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.90f,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                ) + fadeOut(animationSpec = tween(120))
+                            )
+                        }
                     },
-                    onDismiss = {
-                        isInsideTrainBannerVisible = false
-                        autoCollapseJob?.cancel()
+                    contentAlignment = Alignment.BottomEnd
+                ) { isExpanded ->
+                    if (isExpanded) {
+                        WimtInsideTrainBanner(
+                            activeTrain = activeTrain,
+                            isDark = isDark,
+                            onSwitchChanged = { checked ->
+                                TrainTrackerState.toggleInsideTrainMode(checked)
+                                triggerInsideTrainBanner()
+                            },
+                            onDismiss = {
+                                isInsideTrainBannerVisible = false
+                                autoCollapseJob?.cancel()
+                            }
+                        )
+                    } else {
+                        WimtFloatingTrainPersonButton(
+                            isInside = TrainTrackerState.isInsideTrain,
+                            isDark = isDark,
+                            onClick = { triggerInsideTrainBanner() }
+                        )
                     }
-                )
-            }
-
-            // 2. Floating Action Train+Person Button (pinned on bottom right)
-            // Replaces the '+' icon with "person sitting inside little train", initiates banner from right
-            if (!isInsideTrainBannerVisible) {
-                WimtFloatingTrainPersonButton(
-                    isInside = TrainTrackerState.isInsideTrain,
-                    isDark = isDark,
-                    onClick = { triggerInsideTrainBanner() },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 80.dp)
-                )
+                }
             }
 
             // 3. Collapsible Floating Refresh Button (pinned at bottom-right, auto-collapses after 7s inactivity)
