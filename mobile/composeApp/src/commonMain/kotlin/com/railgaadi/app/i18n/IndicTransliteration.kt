@@ -259,6 +259,35 @@ object IndicTransliteration {
         }
     }
 
+    private val PLACE_SUFFIXES = listOf(
+        "samudram" to "समुद्रम",
+        "bazaar" to "बाज़ार",
+        "kheda" to "खेड़ा",
+        "khera" to "खेड़ा",
+        "halli" to "हल्ली",
+        "patti" to "पट्टी",
+        "puram" to "पुरम",
+        "nagar" to "नगर",
+        "mandi" to "मंडी",
+        "bazar" to "बाज़ार",
+        "dham" to "धाम",
+        "kund" to "कुंड",
+        "gaon" to "गांव",
+        "ganj" to "गंज",
+        "ghat" to "घाट",
+        "wadi" to "वाड़ी",
+        "garh" to "गढ़",
+        "abad" to "बाद",
+        "road" to "रोड",
+        "halt" to "हाल्ट",
+        "cantt" to "कैंट",
+        "cant" to "कैंट",
+        "city" to "सिटी",
+        "pur" to "पुर",
+        "pet" to "पेट",
+        "sar" to "सर"
+    )
+
     /**
      * Algorithmic phonetic transliteration of an English/Romanized Indian word into Devanagari.
      * Covers consonants, digraphs (kh, gh, ch, chh, jh, th, dh, ph, sh, bh),
@@ -270,10 +299,23 @@ object IndicTransliteration {
         if (word.all { it.isDigit() || !it.isLetter() }) return word
 
         val s = word.lowercase()
+
+        // Check if word ends with a standard Indian place suffix (e.g. -pur, -garh, -abad, -nagar)
+        for ((sfx, hindiSfx) in PLACE_SUFFIXES) {
+            if (s.endsWith(sfx) && s.length > sfx.length + 2) {
+                val root = s.substring(0, s.length - sfx.length)
+                val transliteratedRoot = transliteratePhonetic(root)
+                return transliteratedRoot + hindiSfx
+            }
+        }
+
+        return transliteratePhonetic(s)
+    }
+
+    private fun transliteratePhonetic(s: String): String {
         val sb = StringBuilder()
         var i = 0
         val n = s.length
-
         var hasPreviousConsonant = false
 
         while (i < n) {

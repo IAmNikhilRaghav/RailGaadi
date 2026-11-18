@@ -1289,7 +1289,7 @@ fun TrainCardItem(
                         Text(train.number, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     Text(
-                        train.name,
+                        I18n.trainName(train.name),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 13.5.sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -1385,7 +1385,7 @@ fun TrainCardItem(
             ) {
                 Column {
                     Text(train.departureTime, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                    Text(train.origin.substringBefore(" ("), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(I18n.stationName(train.origin.substringBefore(" (")), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val hrs = train.durationMinutes / 60; val mins = train.durationMinutes % 60
@@ -1400,7 +1400,7 @@ fun TrainCardItem(
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(train.arrivalTime, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                    Text(train.destination.substringBefore(" ("), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(I18n.stationName(train.destination.substringBefore(" (")), fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
 
@@ -1606,7 +1606,7 @@ fun SwipeToDeleteRecentTrainItem(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = train.name,
+                            text = I18n.trainName(train.name),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isDark) DarkTextPrimary else LightTextPrimary,
@@ -1614,7 +1614,7 @@ fun SwipeToDeleteRecentTrainItem(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${train.origin.substringBefore(" (")} ➔ ${train.destination.substringBefore(" (")}",
+                            text = "${I18n.stationName(train.origin.substringBefore(" ("))} ➔ ${I18n.stationName(train.destination.substringBefore(" ("))}",
                             fontSize = 11.sp,
                             color = Color.Gray,
                             maxLines = 1,

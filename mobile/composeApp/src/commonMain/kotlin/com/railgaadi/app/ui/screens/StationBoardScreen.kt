@@ -342,7 +342,7 @@ fun StationBoardScreen(
                                                     )
                                                 }
                                                 Text(
-                                                    station.name,
+                                                    I18n.stationName(station.name),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = if (isDark) DarkTextPrimary else LightTextPrimary
@@ -493,7 +493,7 @@ fun StationBoardScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = currentStationName,
+                                        text = I18n.stationName(currentStationName),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isDark) DarkTextPrimary else LightTextPrimary
@@ -877,7 +877,7 @@ private fun StationBoardTrainCard(
 
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = train.name,
+                            text = I18n.trainName(train.name),
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             maxLines = 1,
@@ -915,7 +915,7 @@ private fun StationBoardTrainCard(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (train.platform.startsWith("PF")) train.platform else "PF ${train.platform}",
+                                text = I18n.formatPlatform(train.platform),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = RailBluePrimary
@@ -931,7 +931,7 @@ private fun StationBoardTrainCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${train.origin} ➔ ${train.destination}",
+                        text = "${I18n.stationName(train.origin.substringBefore(" ("))} ➔ ${I18n.stationName(train.destination.substringBefore(" ("))}",
                         fontSize = 12.sp,
                         color = if (isDark) DarkTextSecondary else LightTextSecondary,
                         maxLines = 1,
