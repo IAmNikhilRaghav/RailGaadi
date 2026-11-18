@@ -1973,56 +1973,67 @@ private fun WimtFloatingTrainPersonButton(
         Color(0xFF0284C7).copy(alpha = 0.40f)
     }
 
+    // OUTER BOX: owns the shaped shadow — stays at natural size, never scaled.
+    // Shadow is computed on THIS box's shape (RoundedCornerShape(16.dp)) so it
+    // is always curvy/rounded regardless of the inner scale animation.
     Box(
         modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .size(48.dp)          // must match inner size so shadow outline matches exactly
             .shadow(
                 elevation = shadowElevation,
                 shape = buttonShape,
                 clip = false,
                 ambientColor = shadowAmbientColor,
                 spotColor = shadowSpotColor
-            )
-            .clip(buttonShape)
-            .background(
-                color = if (isInside) {
-                    if (isDark) Color(0xFF065F46) else Color(0xFFDCFCE7)
-                } else {
-                    if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE)
-                },
-                shape = buttonShape
-            )
-            .border(
-                width = 1.2.dp,
-                color = if (isInside) Color(0xFF10B981) else RailBluePrimary.copy(alpha = 0.35f),
-                shape = buttonShape
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(
-                    bounded = true,
-                    color = if (isInside) Color(0xFF10B981) else RailBluePrimary
-                ),
-                onClick = onClick
-            )
-            .size(48.dp),
+            ),
         contentAlignment = Alignment.Center
     ) {
-        PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
+        // INNER BOX: scales on press, fully clipped to rounded shape.
+        // graphicsLayer is AFTER shadow (in a child), so scale does NOT affect shadow shape.
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(48.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(buttonShape)
+                .background(
+                    color = if (isInside) {
+                        if (isDark) Color(0xFF065F46) else Color(0xFFDCFCE7)
+                    } else {
+                        if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE)
+                    },
+                    shape = buttonShape
+                )
+                .border(
+                    width = 1.2.dp,
+                    color = if (isInside) Color(0xFF10B981) else RailBluePrimary.copy(alpha = 0.35f),
+                    shape = buttonShape
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(
+                        bounded = true,
+                        color = if (isInside) Color(0xFF10B981) else RailBluePrimary
+                    ),
+                    onClick = onClick
+                )
+        ) {
+            PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
 
-        if (isInside) {
-            // Active satellite beacon dot at top right
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(5.dp)
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF10B981))
-            )
+            if (isInside) {
+                // Active satellite beacon dot at top right
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981))
+                )
+            }
         }
     }
 }
