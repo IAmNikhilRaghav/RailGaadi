@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -1940,39 +1942,87 @@ private fun WimtFloatingTrainPersonButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = if (isInside) {
-            if (isDark) Color(0xFF065F46) else Color(0xFFDCFCE7)
-        } else {
-            if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE)
-        },
-        shadowElevation = 6.dp,
-        border = BorderStroke(
-            1.2.dp,
-            if (isInside) Color(0xFF10B981) else RailBluePrimary.copy(alpha = 0.35f)
-        ),
-        modifier = modifier
-            .size(48.dp)
-            .clickable { onClick() }
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
+    val buttonShape = RoundedCornerShape(16.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
 
-            if (isInside) {
-                // Active satellite beacon dot at top right
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF10B981))
-                )
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "trainButtonScale"
+    )
+
+    val shadowElevation by animateDpAsState(
+        targetValue = if (isPressed) 2.dp else 8.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "trainButtonElevation"
+    )
+
+    val shadowAmbientColor = if (isInside) {
+        Color(0xFF10B981).copy(alpha = 0.30f)
+    } else {
+        RailBluePrimary.copy(alpha = 0.30f)
+    }
+
+    val shadowSpotColor = if (isInside) {
+        Color(0xFF059669).copy(alpha = 0.40f)
+    } else {
+        Color(0xFF0284C7).copy(alpha = 0.40f)
+    }
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
             }
+            .shadow(
+                elevation = shadowElevation,
+                shape = buttonShape,
+                clip = false,
+                ambientColor = shadowAmbientColor,
+                spotColor = shadowSpotColor
+            )
+            .clip(buttonShape)
+            .background(
+                color = if (isInside) {
+                    if (isDark) Color(0xFF065F46) else Color(0xFFDCFCE7)
+                } else {
+                    if (isDark) Color(0xFF1E293B) else Color(0xFFE0F2FE)
+                },
+                shape = buttonShape
+            )
+            .border(
+                width = 1.2.dp,
+                color = if (isInside) Color(0xFF10B981) else RailBluePrimary.copy(alpha = 0.35f),
+                shape = buttonShape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(
+                    bounded = true,
+                    color = if (isInside) Color(0xFF10B981) else RailBluePrimary
+                ),
+                onClick = onClick
+            )
+            .size(48.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        PersonInsideTrainIcon(isInside = isInside, isDark = isDark)
+
+        if (isInside) {
+            // Active satellite beacon dot at top right
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF10B981))
+            )
         }
     }
 }
