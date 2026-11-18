@@ -1701,17 +1701,9 @@ fun AnalyticsScreen(
 }
 
 /**
- * Realistic platform-view of an Indian train compartment with seated passenger.
- *
- * Layout (as seen standing on a railway platform):
- *   - Very wide, low coach body (3:1 landscape ratio — real train proportions)
- *   - Upper body panel (body color) with two realistic rectangular windows
- *   - Window sill divider line separating upper from lower panel
- *   - Lower panel (darker shade) below the sill — the solid coach skirt
- *   - Passenger silhouette (head + shoulders) clearly visible inside the window
- *   - Undercarriage chassis bar between body and wheels
- *   - Two large flanged steel bogie wheels sitting on the rail
- *   - Horizontal rail line at the bottom (platform-level view)
+ * Minimal platform-view Indian train compartment icon.
+ * Two passengers — one in each window (first coach & last coach concept).
+ * Canvas: 24×13dp — compact enough for a 48dp floating button or 38dp banner circle.
  */
 @Composable
 private fun PersonInsideTrainIcon(
@@ -1719,61 +1711,58 @@ private fun PersonInsideTrainIcon(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // All blues match RailBluePrimary (#0284C7 = sky-blue 600) — lighter shades, not deep navy
-    val bodyUpper  = if (isInside) Color(0xFF10B981) else RailBluePrimary          // #0284C7 — exact app theme
-    val bodyLower  = if (isInside) Color(0xFF059669) else Color(0xFF0369A1)         // sky-700 — one step darker for skirt
-    val windowBg   = if (isDark)   Color(0xFF0C4A6E) else Color(0xFFE0F2FE)         // sky-50 glass (light) / sky-900 (dark)
-    val winFrame   = if (isInside) Color(0xFF047857) else Color(0xFF0284C7)         // same as bodyUpper for clean look
-    val personHead = if (isDark)   Color(0xFFFFEDD5) else Color(0xFF292524)         // warm skin tone
+    val bodyUpper  = if (isInside) Color(0xFF10B981) else RailBluePrimary
+    val bodyLower  = if (isInside) Color(0xFF059669) else Color(0xFF0369A1)
+    val windowBg   = if (isDark)   Color(0xFF0C4A6E) else Color(0xFFE0F2FE)
+    val winFrame   = if (isInside) Color(0xFF047857) else Color(0xFF0284C7)
+    val personHead = if (isDark)   Color(0xFFFFEDD5) else Color(0xFF292524)
     val personBody = if (isDark)   Color(0xFFD6D3D1) else Color(0xFF44403C)
     val chassisCol = if (isDark)   Color(0xFF334155) else Color(0xFF475569)
     val wheelOuter = if (isDark)   Color(0xFF64748B) else Color(0xFF334155)
     val wheelInner = if (isDark)   Color(0xFF94A3B8) else Color(0xFF64748B)
     val railColor  = if (isDark)   Color(0xFF64748B) else Color(0xFF78716C)
 
-    // Canvas: slightly smaller — same wide-low proportions, less screen real estate
-    Canvas(modifier = modifier.size(width = 30.dp, height = 16.dp)) {
+    Canvas(modifier = modifier.size(width = 24.dp, height = 13.dp)) {
         val w = size.width
         val h = size.height
 
-        // ── 1. COACH PROPORTIONS ──────────────────────────────────────────
+        // ── 1. COACH BODY ─────────────────────────────────────────────────
         val coachL   = w * 0.02f
         val coachR   = w * 0.98f
         val coachTop = h * 0.04f
-        val sillY    = h * 0.60f   // window sill — upper/lower panel divide
-        val skirtBot = h * 0.80f   // bottom of the lower coach skirt
-        val radius   = 2.5.dp.toPx()
+        val sillY    = h * 0.58f
+        val skirtBot = h * 0.76f
+        val radius   = 1.8.dp.toPx()
 
-        // Upper panel (above window sill) — main body color
+        // Upper panel
         drawRoundRect(
             color = bodyUpper,
             topLeft = Offset(coachL, coachTop),
             size = Size(coachR - coachL, sillY - coachTop),
             cornerRadius = CornerRadius(radius, radius)
         )
-
-        // Lower panel / skirt (below sill, above chassis)
+        // Lower skirt panel
         drawRect(
             color = bodyLower,
             topLeft = Offset(coachL, sillY),
             size = Size(coachR - coachL, skirtBot - sillY)
         )
 
-        // ── 2. WINDOWS ───────────────────────────────────────────────────
-        // Two windows: left one has the seated passenger, right one is empty
-        val winTop  = coachTop + 2.5.dp.toPx()
-        val winBot  = sillY    - 2.0.dp.toPx()
+        // ── 2. TWO WINDOWS ────────────────────────────────────────────────
+        val winTop  = coachTop + 1.6.dp.toPx()
+        val winBot  = sillY    - 1.2.dp.toPx()
         val winH    = winBot - winTop
-        val winCorr = 1.5.dp.toPx()
+        val winCorr = 1.0.dp.toPx()
+        val fBorder = 0.6.dp.toPx()   // frame border thickness
 
-        // Left window (the one with the passenger — slightly wider center-left)
-        val win1L = coachL + 4.dp.toPx()
-        val win1R = w * 0.46f
+        // LEFT window (last coach — passenger already sitting)
+        val win1L = coachL + 2.5.dp.toPx()
+        val win1R = w * 0.44f
         drawRoundRect(
             color = winFrame,
-            topLeft = Offset(win1L - 0.8.dp.toPx(), winTop - 0.8.dp.toPx()),
-            size = Size(win1R - win1L + 1.6.dp.toPx(), winH + 1.6.dp.toPx()),
-            cornerRadius = CornerRadius(winCorr + 0.8.dp.toPx(), winCorr + 0.8.dp.toPx())
+            topLeft = Offset(win1L - fBorder, winTop - fBorder),
+            size = Size(win1R - win1L + fBorder * 2, winH + fBorder * 2),
+            cornerRadius = CornerRadius(winCorr + fBorder, winCorr + fBorder)
         )
         drawRoundRect(
             color = windowBg,
@@ -1782,14 +1771,14 @@ private fun PersonInsideTrainIcon(
             cornerRadius = CornerRadius(winCorr, winCorr)
         )
 
-        // Right window (empty — context window next to passenger)
-        val win2L = w * 0.54f
-        val win2R = coachR - 4.dp.toPx()
+        // RIGHT window (first coach — second passenger)
+        val win2L = w * 0.56f
+        val win2R = coachR - 2.5.dp.toPx()
         drawRoundRect(
             color = winFrame,
-            topLeft = Offset(win2L - 0.8.dp.toPx(), winTop - 0.8.dp.toPx()),
-            size = Size(win2R - win2L + 1.6.dp.toPx(), winH + 1.6.dp.toPx()),
-            cornerRadius = CornerRadius(winCorr + 0.8.dp.toPx(), winCorr + 0.8.dp.toPx())
+            topLeft = Offset(win2L - fBorder, winTop - fBorder),
+            size = Size(win2R - win2L + fBorder * 2, winH + fBorder * 2),
+            cornerRadius = CornerRadius(winCorr + fBorder, winCorr + fBorder)
         )
         drawRoundRect(
             color = windowBg,
@@ -1798,65 +1787,52 @@ private fun PersonInsideTrainIcon(
             cornerRadius = CornerRadius(winCorr, winCorr)
         )
 
-        // ── 3. SEATED PASSENGER (visible through left window) ────────────
-        val win1MidX = (win1L + win1R) / 2f
-        val headR    = 1.9.dp.toPx()
-        val headCY   = winTop + headR + 1.2.dp.toPx()
-        // Head
-        drawCircle(color = personHead, center = Offset(win1MidX, headCY), radius = headR)
-        // Neck + shoulders/torso
-        val torsoTop = headCY + headR - 0.3.dp.toPx()
-        val torsoBot = winBot - 1.dp.toPx()
-        if (torsoBot > torsoTop) {
-            drawRoundRect(
-                color = personBody,
-                topLeft = Offset(win1MidX - 2.8.dp.toPx(), torsoTop),
-                size = Size(5.6.dp.toPx(), torsoBot - torsoTop),
-                cornerRadius = CornerRadius(1.2.dp.toPx(), 1.2.dp.toPx())
-            )
+        // ── 3. PASSENGERS — head + shoulders in each window ───────────────
+        val headR  = 1.3.dp.toPx()
+        val headCY = winTop + headR + 0.8.dp.toPx()
+
+        // Helper: draw one passenger silhouette centered at cx
+        fun drawPassenger(cx: Float) {
+            drawCircle(color = personHead, center = Offset(cx, headCY), radius = headR)
+            val tTop = headCY + headR - 0.2.dp.toPx()
+            val tBot = winBot - 0.6.dp.toPx()
+            if (tBot > tTop) {
+                drawRoundRect(
+                    color = personBody,
+                    topLeft = Offset(cx - 1.8.dp.toPx(), tTop),
+                    size = Size(3.6.dp.toPx(), tBot - tTop),
+                    cornerRadius = CornerRadius(0.8.dp.toPx(), 0.8.dp.toPx())
+                )
+            }
         }
 
-        // ── 4. UNDERCARRIAGE / CHASSIS BAR ───────────────────────────────
+        drawPassenger((win1L + win1R) / 2f)   // last coach passenger
+        drawPassenger((win2L + win2R) / 2f)   // first coach passenger
+
+        // ── 4. CHASSIS BAR ────────────────────────────────────────────────
         drawRoundRect(
             color = chassisCol,
             topLeft = Offset(coachL, skirtBot),
-            size = Size(coachR - coachL, 1.6.dp.toPx()),
-            cornerRadius = CornerRadius(0.8.dp.toPx(), 0.8.dp.toPx())
+            size = Size(coachR - coachL, 1.2.dp.toPx()),
+            cornerRadius = CornerRadius(0.6.dp.toPx(), 0.6.dp.toPx())
         )
 
-        // ── 5. WHEEL BOGIES ───────────────────────────────────────────────
-        val wheelR   = 2.4.dp.toPx()
-        val wheelCY  = skirtBot + 1.6.dp.toPx() + wheelR - 0.5.dp.toPx()
-        val bogieXs  = listOf(w * 0.20f, w * 0.36f, w * 0.64f, w * 0.80f)
-        // Bogie axle bar (left pair)
-        drawLine(
-            color = chassisCol,
-            start = Offset(bogieXs[0], wheelCY),
-            end   = Offset(bogieXs[1], wheelCY),
-            strokeWidth = 1.0.dp.toPx()
-        )
-        // Bogie axle bar (right pair)
-        drawLine(
-            color = chassisCol,
-            start = Offset(bogieXs[2], wheelCY),
-            end   = Offset(bogieXs[3], wheelCY),
-            strokeWidth = 1.0.dp.toPx()
-        )
-        // 4 wheels
+        // ── 5. WHEELS (2 bogie pairs) ─────────────────────────────────────
+        val wheelR  = 1.7.dp.toPx()
+        val wheelCY = skirtBot + 1.2.dp.toPx() + wheelR - 0.4.dp.toPx()
+        val bogieXs = listOf(w * 0.19f, w * 0.33f, w * 0.67f, w * 0.81f)
+
+        drawLine(color = chassisCol, start = Offset(bogieXs[0], wheelCY), end = Offset(bogieXs[1], wheelCY), strokeWidth = 0.8.dp.toPx())
+        drawLine(color = chassisCol, start = Offset(bogieXs[2], wheelCY), end = Offset(bogieXs[3], wheelCY), strokeWidth = 0.8.dp.toPx())
+
         for (cx in bogieXs) {
             drawCircle(color = wheelOuter, center = Offset(cx, wheelCY), radius = wheelR)
-            drawCircle(color = wheelInner, center = Offset(cx, wheelCY), radius = wheelR * 0.42f)
+            drawCircle(color = wheelInner, center = Offset(cx, wheelCY), radius = wheelR * 0.4f)
         }
 
-        // ── 6. RAIL LINE (platform ground level) ─────────────────────────
-        val railY = wheelCY + wheelR + 0.6.dp.toPx()
-        drawLine(
-            color = railColor,
-            start = Offset(0f, railY),
-            end   = Offset(w, railY),
-            strokeWidth = 1.6.dp.toPx(),
-            cap = StrokeCap.Round
-        )
+        // ── 6. RAIL LINE ──────────────────────────────────────────────────
+        val railY = wheelCY + wheelR + 0.5.dp.toPx()
+        drawLine(color = railColor, start = Offset(0f, railY), end = Offset(w, railY), strokeWidth = 1.2.dp.toPx(), cap = StrokeCap.Round)
     }
 }
 
