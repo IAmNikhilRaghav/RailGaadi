@@ -1719,19 +1719,20 @@ private fun PersonInsideTrainIcon(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val bodyUpper  = if (isInside) Color(0xFF10B981) else RailBluePrimary
-    val bodyLower  = if (isInside) Color(0xFF059669) else Color(0xFF1E40AF)   // darker skirt below sill
-    val windowBg   = if (isDark) Color(0xFF1E293B) else Color(0xFFBFDBFE)     // slightly tinted blue glass
-    val winFrame   = if (isInside) Color(0xFF047857) else Color(0xFF1D4ED8)   // window border matches body
-    val personHead = if (isDark) Color(0xFFFFEDD5) else Color(0xFF292524)     // warm skin tone
-    val personBody = if (isDark) Color(0xFFD6D3D1) else Color(0xFF44403C)
-    val chassisCol = if (isDark) Color(0xFF334155) else Color(0xFF475569)
-    val wheelOuter = if (isDark) Color(0xFF64748B) else Color(0xFF334155)
-    val wheelInner = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-    val railColor  = if (isDark) Color(0xFF64748B) else Color(0xFF78716C)
+    // All blues match RailBluePrimary (#0284C7 = sky-blue 600) — lighter shades, not deep navy
+    val bodyUpper  = if (isInside) Color(0xFF10B981) else RailBluePrimary          // #0284C7 — exact app theme
+    val bodyLower  = if (isInside) Color(0xFF059669) else Color(0xFF0369A1)         // sky-700 — one step darker for skirt
+    val windowBg   = if (isDark)   Color(0xFF0C4A6E) else Color(0xFFE0F2FE)         // sky-50 glass (light) / sky-900 (dark)
+    val winFrame   = if (isInside) Color(0xFF047857) else Color(0xFF0284C7)         // same as bodyUpper for clean look
+    val personHead = if (isDark)   Color(0xFFFFEDD5) else Color(0xFF292524)         // warm skin tone
+    val personBody = if (isDark)   Color(0xFFD6D3D1) else Color(0xFF44403C)
+    val chassisCol = if (isDark)   Color(0xFF334155) else Color(0xFF475569)
+    val wheelOuter = if (isDark)   Color(0xFF64748B) else Color(0xFF334155)
+    val wheelInner = if (isDark)   Color(0xFF94A3B8) else Color(0xFF64748B)
+    val railColor  = if (isDark)   Color(0xFF64748B) else Color(0xFF78716C)
 
-    // Canvas: wide & low — like actually looking at a train from a platform
-    Canvas(modifier = modifier.size(width = 38.dp, height = 20.dp)) {
+    // Canvas: slightly smaller — same wide-low proportions, less screen real estate
+    Canvas(modifier = modifier.size(width = 30.dp, height = 16.dp)) {
         val w = size.width
         val h = size.height
 
