@@ -2061,7 +2061,7 @@ private fun WimtInsideTrainBanner(
                             else -> "Zero-lag live tracking active • Auto-collapses in 7s"
                         }
                     } else {
-                        "Enable to experience accurate tracking"
+                        "Enable accurate tracking"
                     }
                     Text(
                         text = subText,
