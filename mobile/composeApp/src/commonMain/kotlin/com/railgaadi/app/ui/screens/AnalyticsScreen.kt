@@ -2061,7 +2061,7 @@ private fun WimtInsideTrainBanner(
                             else -> "Zero-lag live tracking active • Auto-collapses in 7s"
                         }
                     } else {
-                        "Turn ON for zero-lag GPS & Multi-Tower tracking"
+                        "Turn ON for accurate tracking"
                     }
                     Text(
                         text = subText,
