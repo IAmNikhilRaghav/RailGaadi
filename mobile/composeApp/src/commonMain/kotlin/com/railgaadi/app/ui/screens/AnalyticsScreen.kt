@@ -377,7 +377,7 @@ fun AnalyticsScreen(
             // =========================================================
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 120.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // -----------------------------------------------------
