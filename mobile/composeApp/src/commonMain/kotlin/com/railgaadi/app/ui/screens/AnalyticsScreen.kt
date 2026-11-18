@@ -1208,9 +1208,8 @@ fun AnalyticsScreen(
                                                                 delay > 0 -> "Delayed by ${formatDelayDuration(delay)}"
                                                                 else -> "${formatDelayDuration(-delay)} Early"
                                                             }
-                                                            val passText = if (activePassThrough != null && activePassThrough.name.isNotBlank()) " • Passing ${activePassThrough.name}" else ""
                                                             Text(
-                                                                text = "((•)) $delayText$passText",
+                                                                text = "((•)) $delayText",
                                                                 fontSize = 10.sp,
                                                                 fontWeight = FontWeight.SemiBold,
                                                                 color = if (delay <= 0) RailGreenOnTime else RailRedDelayed,
