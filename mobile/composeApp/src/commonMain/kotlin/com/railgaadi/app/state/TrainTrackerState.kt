@@ -50,6 +50,7 @@ object TrainTrackerState {
     private const val KEY_RECENT_TRAINS = "saved_recent_trains"
     private const val KEY_ACTIVE_ALARM = "saved_active_alarm"
     private const val KEY_ODOMETER = "saved_odometer"
+    private const val KEY_PNR_HISTORY = "saved_pnr_history"
 
     var searchQuery by mutableStateOf("")
     var isSearchDropdownOpen by mutableStateOf(false)
@@ -95,6 +96,44 @@ object TrainTrackerState {
         try {
             PlatformStorage.remove(KEY_RECENT_TRAINS)
         } catch (_: Throwable) {}
+    }
+
+    // ── PNR History: persisted list of recently checked PNRs ─────────────────
+    @kotlinx.serialization.Serializable
+    data class PnrHistoryEntry(
+        val pnrNumber: String,
+        val trainName: String,
+        val trainNumber: String,
+        val source: String,
+        val destination: String,
+        val journeyDate: String,
+        val lastCheckedAt: Long // epoch millis
+    )
+
+    private fun loadPnrHistory(): List<PnrHistoryEntry> {
+        return try {
+            val raw = PlatformStorage.getString(KEY_PNR_HISTORY)
+            if (!raw.isNullOrBlank()) json.decodeFromString<List<PnrHistoryEntry>>(raw)
+            else emptyList()
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    var recentPnrs by mutableStateOf<List<PnrHistoryEntry>>(loadPnrHistory())
+
+    fun addPnrHistory(entry: PnrHistoryEntry) {
+        val filtered = recentPnrs.filter { it.pnrNumber != entry.pnrNumber }
+        recentPnrs = (listOf(entry) + filtered).take(10)
+        try { PlatformStorage.saveString(KEY_PNR_HISTORY, json.encodeToString(recentPnrs)) } catch (_: Throwable) {}
+    }
+
+    fun removePnrHistory(pnrNumber: String) {
+        recentPnrs = recentPnrs.filter { it.pnrNumber != pnrNumber }
+        try { PlatformStorage.saveString(KEY_PNR_HISTORY, json.encodeToString(recentPnrs)) } catch (_: Throwable) {}
+    }
+
+    fun clearPnrHistory() {
+        recentPnrs = emptyList()
+        try { PlatformStorage.remove(KEY_PNR_HISTORY) } catch (_: Throwable) {}
     }
 
     // No default train pre-loaded; map starts clean
