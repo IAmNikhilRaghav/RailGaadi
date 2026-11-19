@@ -66,7 +66,8 @@ enum class TimelineViewMode {
 
 @Composable
 fun AnalyticsScreen(
-    onViewLiveMap: () -> Unit = {}
+    onViewLiveMap: () -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null
 ) {
     val isDark = TrainTrackerState.isDarkMode
     val scope = rememberCoroutineScope()
@@ -382,6 +383,39 @@ fun AnalyticsScreen(
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Back button — shown only when embedded inside Routes module
+                if (onNavigateBack != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { onNavigateBack() }
+                                    .background(if (isDark) Color(0xFF1E293B) else Color(0xFFE8F0FE))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("←", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                    Text(
+                                        "Back to Search",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = RailBluePrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // -----------------------------------------------------
                 // 1. ACTIVE TRAIN HEADER
                 // -----------------------------------------------------

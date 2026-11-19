@@ -162,6 +162,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     val service = remember { RailRadarService() }
     val coroutineScope = rememberCoroutineScope()
 
+    // ── Inline Analytics overlay: when true, show AnalyticsScreen inside Routes ──
+    var showTrainDetail by remember { mutableStateOf(false) }
+
     var fromTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var toTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     val fromStationQuery = fromTextFieldValue.text
@@ -283,6 +286,16 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             it.name.contains(selectedCategoryFilter, ignoreCase = true)
         }
     }
+
+    // ── Root container: switches between Search UI and inline Analytics ──
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showTrainDetail) {
+            // ── Full Analytics screen embedded in Routes, no tab switch ──
+            AnalyticsScreen(
+                onViewLiveMap = { /* already on the Routes screen overlay — no-op */ },
+                onNavigateBack = { showTrainDetail = false }
+            )
+        } else {
 
     // "Where is my train" style quick date picker bottom sheet
     if (showDateQuickPicker) {
@@ -775,7 +788,10 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 SwipeToDeleteRecentTrainItem(
                                     train = train,
                                     isDark = isDark,
-                                    onTrackTrain = { onTrackTrain(train, train.origin) },
+                                    onTrackTrain = {
+                                        TrainTrackerState.selectTrain(train, train.origin)
+                                        showTrainDetail = true
+                                    },
                                     onDelete = { TrainTrackerState.removeRecentTrain(train.number) }
                                 )
                             }
@@ -898,11 +914,16 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                 TrainCardItem(
                     train = train,
                     selectedDate = selectedTravelDate,
-                    onTrackClick = { onTrackTrain(train, fromStationQuery) }
+                    onTrackClick = {
+                        TrainTrackerState.selectTrain(train, fromStationQuery)
+                        showTrainDetail = true
+                    }
                 )
             }
         }
-    }
+    } // end LazyColumn
+    } // end else (search UI)
+    } // end Box
 }
 
 @Composable
