@@ -1066,7 +1066,7 @@ fun AnalyticsScreen(
 
                                             if (isTrainInThisSegment && !isExpanded) {
                                                 // ─────────────────────────────────────────────────────────────
-                                                // ACTIVE TRAIN ON PLAIN BAR (Pass-Through Corridor)
+                                                // ACTIVE TRAIN ON PLAIN BAR (Pass-Through Corridor) - SEPARATE ROW
                                                 // ─────────────────────────────────────────────────────────────
                                                 Row(
                                                     modifier = Modifier
@@ -1129,10 +1129,10 @@ fun AnalyticsScreen(
                                                             .clickable {
                                                                 expandedSegments.value = expandedSegments.value + segIdx
                                                             }
-                                                            .padding(vertical = 2.dp)
+                                                            .padding(vertical = 4.dp)
                                                     ) {
                                                         Column(
-                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                                                             verticalArrangement = Arrangement.spacedBy(3.dp)
                                                         ) {
                                                             val cardOdometer = TrainTrackerState.liveDistanceOffsetKm
@@ -1163,46 +1163,18 @@ fun AnalyticsScreen(
                                                                 }
                                                             }
 
-                                                            // Line 1: Header + Compact stations expand button
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Text(
-                                                                    text = approachingHeader,
-                                                                    fontSize = 12.sp,
-                                                                    fontWeight = FontWeight.ExtraBold,
-                                                                    color = RailBluePrimary,
-                                                                    maxLines = 1,
-                                                                    overflow = TextOverflow.Ellipsis,
-                                                                    modifier = Modifier.weight(1f, fill = false)
-                                                                )
+                                                            // Line 1: Full-width Header — never truncated or cramped
+                                                            Text(
+                                                                text = approachingHeader,
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                color = RailBluePrimary,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.fillMaxWidth()
+                                                            )
 
-                                                                if (ptCount > 0) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .clip(RoundedCornerShape(20.dp))
-                                                                            .background(RailBluePrimary.copy(alpha = 0.15f))
-                                                                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                                                                    ) {
-                                                                        Row(
-                                                                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                                                            verticalAlignment = Alignment.CenterVertically
-                                                                        ) {
-                                                                            Text("▼", fontSize = 8.sp, color = RailBluePrimary)
-                                                                            Text(
-                                                                                text = I18n.formatPassThrough(ptCount),
-                                                                                fontSize = 10.sp,
-                                                                                fontWeight = FontWeight.Bold,
-                                                                                color = RailBluePrimary
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            // Line 2: Full width delay text (appears in one line without truncating)
+                                                            // Line 2: Full width delay text
                                                             val delay = liveStatus?.delayMinutes ?: 0
                                                             val delayText = I18n.formatDelay(delay)
                                                             Text(
@@ -1217,14 +1189,15 @@ fun AnalyticsScreen(
                                                         }
                                                     }
                                                 }
-                                            } else {
-                                                // Standard Pass-Through Collapse/Expand Pill Row
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(IntrinsicSize.Min),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
+                                            }
+
+                                            // Standard Pass-Through Collapse/Expand Pill Row (Always displayed as separate banner)
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(IntrinsicSize.Min),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                     // LEFT: empty time column
                                                     Spacer(modifier = Modifier.width(62.dp))
 
@@ -1301,7 +1274,6 @@ fun AnalyticsScreen(
                                                     // RIGHT: empty departure column
                                                     Spacer(modifier = Modifier.width(62.dp))
                                                 }
-                                            }
 
                                             // Expanded pass-through station rows
                                             if (isExpanded) {
