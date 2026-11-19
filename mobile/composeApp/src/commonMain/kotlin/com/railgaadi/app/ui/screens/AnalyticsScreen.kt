@@ -1281,32 +1281,20 @@ fun AnalyticsScreen(
                                                                     else
                                                                         expandedSegments.value + segIdx
                                                                 }
-                                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                                .padding(horizontal = 12.dp, vertical = 6.dp)
                                                         ) {
-                                                            Row(
-                                                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Text(
-                                                                    text = if (isExpanded) "▲" else "▼",
-                                                                    fontSize = 8.sp,
-                                                                    color = RailBluePrimary.copy(alpha = 0.7f)
-                                                                )
-                                                                Text(
-                                                                    text = if (isExpanded)
-                                                                        "▲ " + I18n.formatPassThrough(ptCount)
-                                                                    else
-                                                                        "▼ " + I18n.formatPassThrough(ptCount),
-                                                                    fontSize = 11.sp,
-                                                                    fontWeight = FontWeight.Medium,
-                                                                    color = RailBluePrimary.copy(alpha = 0.85f)
-                                                                )
-                                                            }
+                                                            Text(
+                                                                text = "${if (isExpanded) "▲" else "▼"}  ${I18n.formatPassThrough(ptCount)}",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = RailBluePrimary.copy(alpha = 0.85f),
+                                                                maxLines = 1
+                                                            )
                                                         }
                                                     }
 
                                                     // RIGHT: empty departure column
-                                                    Spacer(modifier = Modifier.width(62.dp))
+                                                    Spacer(modifier = Modifier.width(16.dp))
                                                 }
 
                                             // Expanded pass-through station rows
