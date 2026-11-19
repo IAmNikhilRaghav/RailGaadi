@@ -194,6 +194,38 @@ data class RailRadarGeojsonGeometry(
     val coordinates: List<List<Double>>? = null
 )
 
+@Serializable
+data class PnrStatusResponse(
+    val success: Boolean? = true,
+    val data: PnrData? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class PnrData(
+    val pnrNumber: String? = null,
+    val trainNumber: String? = null,
+    val trainName: String? = null,
+    val dateOfJourney: String? = null,
+    val sourceStation: String? = null,
+    val destinationStation: String? = null,
+    val boardingStation: String? = null,
+    val reservedUpto: String? = null,
+    val travelClass: String? = null,
+    val chartStatus: String? = null,
+    val passengers: List<PnrPassenger>? = null
+)
+
+@Serializable
+data class PnrPassenger(
+    val number: Int? = null,
+    val bookingStatus: String? = null,
+    val currentStatus: String? = null,
+    val coach: String? = null,
+    val berth: String? = null,
+    val berthType: String? = null
+)
+
 class RailRadarService(private val client: HttpClient = createHttpClient()) {
 
     companion object {
@@ -966,4 +998,13 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
         Train("12259", "Sealdah Bikaner AC Duronto", "Duronto Express", "Sealdah (SDAH)", "Bikaner Jn (BKN)", "17:00", "13:30", 1230, "12"),
         Train("20901", "Vande Bharat Express", "Vande Bharat", "Mumbai Central (MMCT)", "Gandhinagar (GNC)", "06:10", "12:30", 380, "5")
     )
+
+    suspend fun getPnrStatus(pnr: String): PnrStatusResponse = withContext(Dispatchers.IO) {
+        try {
+            val response: PnrStatusResponse? = resilientGet("/pnr/$pnr")
+            response ?: PnrStatusResponse(success = false, message = "Unable to fetch PNR status. Please try again.")
+        } catch (e: Exception) {
+            PnrStatusResponse(success = false, message = "Unable to fetch PNR status. Please try again.")
+        }
+    }
 }
