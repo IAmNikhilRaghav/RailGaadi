@@ -164,28 +164,28 @@ fun LiveMapScreen() {
     var showRoutePreviewSheet by remember { mutableStateOf(false) }
 
     val uriHandler = LocalUriHandler.current
-    val userLat = 27.8974
-    val userLon = 78.0880
+
+    // Live device GPS location with dynamic fallback
+    val gpsLoc = TrainTrackerState.currentGpsLocation
+    val userLat = gpsLoc?.latitude ?: 20.5937
+    val userLon = gpsLoc?.longitude ?: 78.9629
 
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
+    val hasActiveTrain = activeTrain.number.isNotBlank()
 
-    val trainStations = remember(liveStatus, TrainTrackerState.userBoardingStation) {
-        val baseList = liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: listOf(
-            Station("LGNH", "Lalgarh Jn", 28.0559, 73.2819, scheduledDep = "10:30", scheduledArr = "—", platform = "1", haltMinutes = 0),
-            Station("BKN", "Bikaner Jn", 28.0180, 73.3168, scheduledDep = "10:55", scheduledArr = "10:45", platform = "2", haltMinutes = 10),
-            Station("JP", "Jaipur Jn", 26.9196, 75.7878, scheduledDep = "15:20", scheduledArr = "15:10", platform = "4", haltMinutes = 10),
-            Station("AF", "Agra Fort", 27.1767, 78.0081, scheduledDep = "19:25", scheduledArr = "19:15", platform = "1", haltMinutes = 10),
-            Station("ALJN", "Aligarh Jn", 27.8974, 78.0880, scheduledDep = "20:15", scheduledArr = "20:10", platform = "2", haltMinutes = 5),
-            Station("CNB", "Kanpur Central", 26.4547, 80.3507, scheduledDep = "00:45", scheduledArr = "00:35", platform = "7", haltMinutes = 10),
-            Station("PRYJ", "Prayagraj Jn", 25.4358, 81.8463, scheduledDep = "—", scheduledArr = "04:45", platform = "2", haltMinutes = 0)
-        )
-
-        val boarding = TrainTrackerState.userBoardingStation
-        if (boarding != null && baseList.none { it.code.equals(boarding.code, ignoreCase = true) }) {
-            listOf(boarding) + baseList
+    // Real-time train stations: only populate when a train is tracked
+    val trainStations = remember(liveStatus, TrainTrackerState.userBoardingStation, hasActiveTrain) {
+        if (!hasActiveTrain) {
+            emptyList()
         } else {
-            baseList
+            val baseList = liveStatus?.stations?.takeIf { it.isNotEmpty() } ?: emptyList()
+            val boarding = TrainTrackerState.userBoardingStation
+            if (boarding != null && baseList.none { it.code.equals(boarding.code, ignoreCase = true) }) {
+                listOf(boarding) + baseList
+            } else {
+                baseList
+            }
         }
     }
 
@@ -193,7 +193,12 @@ fun LiveMapScreen() {
     var selectedStation by remember(TrainTrackerState.userBoardingStation, trainStations) {
         val target = TrainTrackerState.userBoardingStation
         val matched = trainStations.find { it.code.equals(target?.code, ignoreCase = true) }
-        mutableStateOf(matched ?: target ?: trainStations.firstOrNull() ?: Station("NDLS", "New Delhi", 28.6139, 77.2090))
+        mutableStateOf(matched ?: target ?: trainStations.firstOrNull() ?: Station("", "", 0.0, 0.0))
+    }
+
+    // Start live GPS tracking when entering LiveMap
+    LaunchedEffect(Unit) {
+        TrainTrackerState.ensureGpsTracking()
     }
 
     // Sync when tracking a new train or when user changes boarding station
@@ -260,7 +265,7 @@ fun LiveMapScreen() {
             destLon = if (selectedStation.longitude != 0.0) selectedStation.longitude else StationDataService.getCoordinates(selectedStation.code).second,
             stationName = selectedStation.name,
             trainNumber = activeTrain.number,
-            trainProgress = liveStatus?.progressPercent ?: 0.65f,
+            trainProgress = if (hasActiveTrain) (liveStatus?.progressPercent ?: 0f) else 0f,
             stations = trainStations,
             is3DMode = is3DMode,
             followTrain = followTrain,
@@ -738,8 +743,11 @@ fun LiveMapScreen() {
                         // GPS Find Nearest Station
                         MinimalMapToolButton(
                             onClick = {
-                                selectedStation = trainStations.first()
-                                showRoutePreviewSheet = true
+                                val target = trainStations.firstOrNull() ?: TrainTrackerState.userBoardingStation
+                                if (target != null) {
+                                    selectedStation = target
+                                    showRoutePreviewSheet = true
+                                }
                             }
                         ) {
                             VectorGpsIcon()
@@ -882,8 +890,11 @@ fun LiveMapScreen() {
 
                         // GPS
                         MinimalMapToolButton(onClick = {
-                            selectedStation = trainStations.first()
-                            showRoutePreviewSheet = true
+                            val target = trainStations.firstOrNull() ?: TrainTrackerState.userBoardingStation
+                            if (target != null) {
+                                selectedStation = target
+                                showRoutePreviewSheet = true
+                            }
                             isFullscreenToolsExpanded = false
                         }) {
                             VectorGpsIcon()

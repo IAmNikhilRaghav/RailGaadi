@@ -311,104 +311,120 @@ object MapHtmlGenerator {
                         });
                     });
             } else {
-                // TRAIN TRACK MODE
-                const defaultTrack = [
-                    { code: "LGNH", name: "Lalgarh Jn", lat: 28.0559, lon: 73.2819, dep: "10:30", arr: "—", pf: "1", halt: 0 },
-                    { code: "BKN",  name: "Bikaner Jn", lat: 28.0180, lon: 73.3168, dep: "10:55", arr: "10:45", pf: "2", halt: 10 },
-                    { code: "JP",   name: "Jaipur Jn", lat: 26.9196, lon: 75.7878, dep: "15:20", arr: "15:10", pf: "4", halt: 10 },
-                    { code: "BTE",  name: "Bharatpur Jn", lat: 27.2152, lon: 77.4930, dep: "18:15", arr: "18:10", pf: "3", halt: 5 },
-                    { code: "AF",   name: "Agra Fort", lat: 27.1767, lon: 78.0081, dep: "19:25", arr: "19:15", pf: "1", halt: 10 },
-                    { code: "TDL",  name: "Tundla Jn", lat: 27.2064, lon: 78.2415, dep: "20:40", arr: "20:35", pf: "5", halt: 5 },
-                    { code: "CNB",  name: "Kanpur Central", lat: 26.4547, lon: 80.3507, dep: "00:45", arr: "00:35", pf: "7", halt: 10 },
-                    { code: "PRYJ", name: "Prayagraj Jn", lat: 25.4358, lon: 81.8463, dep: "—", arr: "04:45", pf: "2", halt: 0 }
-                ];
+                // TRAIN TRACK MODE: Only render when real-time stations exist
+                const stationsToRender = (inputStations && Array.isArray(inputStations) && inputStations.length > 0) ? inputStations : [];
 
-                const stationsToRender = (inputStations && inputStations.length > 0) ? inputStations : defaultTrack;
-                const trackCoords = stationsToRender.map(s => [s.longitude || s.lon, s.latitude || s.lat]);
+                if (stationsToRender.length > 0) {
+                    const trackCoords = stationsToRender
+                        .filter(s => (s.latitude || s.lat) && (s.longitude || s.lon))
+                        .map(s => [s.longitude || s.lon, s.latitude || s.lat]);
 
-                map.addSource('rail-track', {
-                    type: 'geojson',
-                    data: {
-                        type: 'Feature',
-                        geometry: { type: 'LineString', coordinates: trackCoords }
+                    if (trackCoords.length > 1) {
+                        map.addSource('rail-track', {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature',
+                                geometry: { type: 'LineString', coordinates: trackCoords }
+                            }
+                        });
+
+                        map.addLayer({
+                            id: 'rail-casing',
+                            type: 'line',
+                            source: 'rail-track',
+                            paint: { 'line-color': '#0f172a', 'line-width': 7 }
+                        });
+
+                        map.addLayer({
+                            id: 'rail-dashed',
+                            type: 'line',
+                            source: 'rail-track',
+                            paint: {
+                                'line-color': '#38bdf8',
+                                'line-width': 3.5,
+                                'line-dasharray': [2, 2]
+                            }
+                        });
                     }
-                });
 
-                map.addLayer({
-                    id: 'rail-casing',
-                    type: 'line',
-                    source: 'rail-track',
-                    paint: { 'line-color': '#0f172a', 'line-width': 7 }
-                });
+                    stationsToRender.forEach(st => {
+                        const stLat = st.latitude || st.lat;
+                        const stLon = st.longitude || st.lon;
+                        if (!stLat || !stLon) return;
 
-                map.addLayer({
-                    id: 'rail-dashed',
-                    type: 'line',
-                    source: 'rail-track',
-                    paint: {
-                        'line-color': '#38bdf8',
-                        'line-width': 3.5,
-                        'line-dasharray': [2, 2]
-                    }
-                });
+                        const el = document.createElement('div');
+                        el.className = 'station-pin';
 
-                stationsToRender.forEach(st => {
-                    const el = document.createElement('div');
-                    el.className = 'station-pin';
+                        const popupHtml = `
+                            <div class="popup-title">🚉 ` + (st.name || st.code) + ` (` + st.code + `)</div>
+                            <div class="popup-row">⏱️ Arr: ` + (st.scheduledArr || st.arr || "—") + ` | Dep: ` + (st.scheduledDep || st.dep || "—") + `</div>
+                            <div class="popup-row">🚉 Platform: PF ` + (st.platform || "1") + ` | Halt: ` + (st.haltMinutes || st.halt || 2) + ` min</div>
+                            <button class="popup-nav-btn" onclick="triggerNav('` + st.code + `','` + (st.name || st.code) + `',` + stLat + `,` + stLon + `)">🧭 Directions to this Station</button>
+                        `;
 
-                    const popupHtml = `
-                        <div class="popup-title">🚉 ` + st.name + ` (` + st.code + `)</div>
-                        <div class="popup-row">⏱️ Arr: ` + (st.scheduledArr || st.arr || "—") + ` | Dep: ` + (st.scheduledDep || st.dep || "—") + `</div>
-                        <div class="popup-row">🚉 Platform: PF ` + (st.platform || "1") + ` | Halt: ` + (st.haltMinutes || st.halt || 2) + ` min</div>
-                        <button class="popup-nav-btn" onclick="triggerNav('` + st.code + `','` + st.name + `',` + (st.latitude || st.lat) + `,` + (st.longitude || st.lon) + `)">🧭 Directions to this Station</button>
-                    `;
+                        const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
 
-                    const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
+                        new maplibregl.Marker({ element: el })
+                            .setLngLat([stLon, stLat])
+                            .setPopup(popup)
+                            .addTo(map);
 
-                    new maplibregl.Marker({ element: el })
-                        .setLngLat([st.longitude || st.lon, st.latitude || st.lat])
-                        .setPopup(popup)
-                        .addTo(map);
-
-                    el.addEventListener('click', () => {
-                        if (window.RailBridge && window.RailBridge.onStationClick) {
-                            window.RailBridge.onStationClick(
-                                st.code, st.name,
-                                st.latitude || st.lat, st.longitude || st.lon,
-                                st.scheduledDep || st.dep || "—",
-                                st.scheduledArr || st.arr || "—",
-                                st.platform || "1",
-                                st.haltMinutes || st.halt || 2
-                            );
-                        }
+                        el.addEventListener('click', () => {
+                            if (window.RailBridge && window.RailBridge.onStationClick) {
+                                window.RailBridge.onStationClick(
+                                    st.code, st.name || st.code,
+                                    stLat, stLon,
+                                    st.scheduledDep || st.dep || "—",
+                                    st.scheduledArr || st.arr || "—",
+                                    st.platform || "1",
+                                    st.haltMinutes || st.halt || 2
+                                );
+                            }
+                        });
                     });
-                });
 
-                const trainEl = document.createElement('div');
-                trainEl.className = 'train-marker';
-                trainEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="2"/><line x1="4" y1="11" x2="20" y2="11"/><circle cx="8" cy="15" r="1.5" fill="#38bdf8"/><circle cx="16" cy="15" r="1.5" fill="#38bdf8"/><line x1="8" y1="19" x2="6" y2="22"/><line x1="16" y1="19" x2="18" y2="22"/></svg>';
+                    if (trainNo && trainNo.trim() !== '' && trackCoords.length > 1) {
+                        const trainEl = document.createElement('div');
+                        trainEl.className = 'train-marker';
+                        trainEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="2"/><line x1="4" y1="11" x2="20" y2="11"/><circle cx="8" cy="15" r="1.5" fill="#38bdf8"/><circle cx="16" cy="15" r="1.5" fill="#38bdf8"/><line x1="8" y1="19" x2="6" y2="22"/><line x1="16" y1="19" x2="18" y2="22"/></svg>';
 
-                const progressClamped = Math.max(0, Math.min(1, ${progress}));
-                const totalSegments = trackCoords.length - 1;
-                const exactIdx = progressClamped * totalSegments;
-                const baseIdx = Math.min(Math.floor(exactIdx), totalSegments - 1);
-                const frac = exactIdx - baseIdx;
+                        const progressClamped = Math.max(0, Math.min(1, ${progress}));
+                        const totalSegments = trackCoords.length - 1;
+                        const exactIdx = progressClamped * totalSegments;
+                        const baseIdx = Math.min(Math.floor(exactIdx), totalSegments - 1);
+                        const frac = exactIdx - baseIdx;
 
-                const p1 = trackCoords[baseIdx];
-                const p2 = trackCoords[baseIdx + 1];
-                const trainLon = p1[0] + (p2[0] - p1[0]) * frac;
-                const trainLat = p1[1] + (p2[1] - p1[1]) * frac;
+                        const p1 = trackCoords[baseIdx];
+                        const p2 = trackCoords[baseIdx + 1];
+                        const trainLon = p1[0] + (p2[0] - p1[0]) * frac;
+                        const trainLat = p1[1] + (p2[1] - p1[1]) * frac;
 
-                new maplibregl.Marker({ element: trainEl }).setLngLat([trainLon, trainLat]).addTo(map);
+                        new maplibregl.Marker({ element: trainEl }).setLngLat([trainLon, trainLat]).addTo(map);
 
-                if (followTrain) {
-                    map.easeTo({ center: [trainLon, trainLat], zoom: 8.5, duration: 1500 });
-                } else if (trackCoords && trackCoords.length > 1) {
-                    const bounds = new maplibregl.LngLatBounds();
-                    trackCoords.forEach(c => bounds.extend(c));
-                    map.fitBounds(bounds, { padding: 80, duration: 1200 });
+                        if (followTrain) {
+                            map.easeTo({ center: [trainLon, trainLat], zoom: 8.5, duration: 1500 });
+                        } else if (trackCoords.length > 1) {
+                            const bounds = new maplibregl.LngLatBounds();
+                            trackCoords.forEach(c => bounds.extend(c));
+                            map.fitBounds(bounds, { padding: 80, duration: 1200 });
+                        } else {
+                            map.flyTo({ center: [trainLon, trainLat], zoom: 7, duration: 1200 });
+                        }
+                    } else if (trackCoords.length > 1) {
+                        const bounds = new maplibregl.LngLatBounds();
+                        trackCoords.forEach(c => bounds.extend(c));
+                        map.fitBounds(bounds, { padding: 80, duration: 1200 });
+                    }
                 } else {
-                    map.flyTo({ center: [trainLon, trainLat], zoom: 7, duration: 1200 });
+                    // Clean live map view when no train is tracked
+                    if (uLat && uLon && (uLat !== 0 || uLon !== 0)) {
+                        const userEl = document.createElement('div');
+                        userEl.className = 'user-marker';
+                        new maplibregl.Marker({ element: userEl }).setLngLat([uLon, uLat]).addTo(map);
+                        map.flyTo({ center: [uLon, uLat], zoom: 9.5, duration: 1200 });
+                    } else {
+                        map.flyTo({ center: [78.9629, 20.5937], zoom: 4.8, duration: 1000 });
+                    }
                 }
             }
         });
