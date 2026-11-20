@@ -200,8 +200,8 @@ data class Landmark(
 }
 
 enum class TabItem(val id: String, val icon: String, val i18nKey: String) {
-    LIVE_MAP("map", "🗺️", "tab_live_map"),
     ROUTES("routes", "🚆", "tab_routes"),
+    LIVE_MAP("map", "🗺️", "tab_live_map"),
     PNR("pnr", "🎟️", "tab_pnr"),
     WEATHER("weather", "⛅", "tab_weather"),
     STATION("station", "🚉", "tab_station")

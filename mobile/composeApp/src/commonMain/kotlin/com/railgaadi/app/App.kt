@@ -67,7 +67,7 @@ private val BOTTOM_BAR_CONTENT_HEIGHT = 62.dp
 @Composable
 fun App() {
     val isDarkMode = TrainTrackerState.isDarkMode
-    var selectedTab by remember { mutableStateOf(TabItem.LIVE_MAP) }
+    var selectedTab by remember { mutableStateOf(TabItem.ROUTES) }
     var showLanguageModal by remember { mutableStateOf(false) }
     var showPreferencesDrawer by remember { mutableStateOf(false) }
 

@@ -32,7 +32,7 @@ class Store {
       /* navigation */
       activeTrainId:   trainFromUrl,
       activeDate:      params.get("date") || new Date().toISOString().split("T")[0],
-      activeTab:       "tracking",
+      activeTab:       "routes",
 
       /* live data — populated by trackerService */
       liveStatus:      null,   // TrainStatus object

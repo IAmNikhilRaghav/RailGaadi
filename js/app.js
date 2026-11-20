@@ -26,14 +26,14 @@ import { t } from "./i18n/index.js";
 
 const TABS = [
   {
-    id: "tracking",
-    label: "Live Map",
-    icon: `<rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>`,
-  },
-  {
     id: "routes",
     label: "Routes",
     icon: `<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-8a3.5 3.5 0 0 1 0-7H12"/>`,
+  },
+  {
+    id: "tracking",
+    label: "Live Map",
+    icon: `<rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/>`,
   },
   {
     id: "analytics",
