@@ -54,6 +54,7 @@ import com.railgaadi.app.ui.components.LiveAutoRefreshPill
 import com.railgaadi.app.ui.components.MetricBox
 import com.railgaadi.app.ui.components.VectorCoachIcon
 import com.railgaadi.app.ui.components.DestinationAlarmModal
+import com.railgaadi.app.ui.components.JunctionNavigatorModal
 import com.railgaadi.app.ui.components.AlarmRingingDialog
 import com.railgaadi.app.ui.components.InTrainCockpitBanner
 import com.railgaadi.app.util.formatDelayDuration
@@ -89,6 +90,10 @@ fun AnalyticsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<Train>>(emptyList()) }
     var isSearchingTrains by remember { mutableStateOf(false) }
+
+    // Phase 5: Junction Platform & Foot-Over-Bridge Navigator modal
+    var showJunctionNavigatorModal by remember { mutableStateOf(false) }
+    var selectedJunctionStation by remember { mutableStateOf<Station?>(null) }
 
     // Floating Inside-the-Train banner state with 7-second auto-collapse timer (Where Is My Train style)
     var isInsideTrainBannerVisible by remember { mutableStateOf(false) }
@@ -606,19 +611,49 @@ fun AnalyticsScreen(
                                     }
                                 }
 
-                                if (kmToNext != null) {
-                                    val displayKm = kmToNext.toInt().coerceAtLeast(1)
-                                    Box(
-                                        modifier = Modifier
-                                            .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (kmToNext <= 0.0) "Arrived" else "$displayKm km away",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = RailBluePrimary
-                                        )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (nextStation != null) {
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(RailBluePrimary.copy(alpha = 0.12f))
+                                                .border(1.dp, RailBluePrimary.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedJunctionStation = nextStation
+                                                    showJunctionNavigatorModal = true
+                                                }
+                                                .padding(horizontal = 7.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Text("🧭", fontSize = 11.sp)
+                                            val pfLabel = if (nextStation.platform.isNotBlank()) "PF ${nextStation.platform}" else "Map"
+                                            Text(
+                                                text = pfLabel,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = RailBluePrimary
+                                            )
+                                        }
+                                    }
+
+                                    if (kmToNext != null) {
+                                        val displayKm = kmToNext.toInt().coerceAtLeast(1)
+                                        Box(
+                                            modifier = Modifier
+                                                .background(RailBluePrimary.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (kmToNext <= 0.0) "Arrived" else "$displayKm km away",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = RailBluePrimary
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1059,7 +1094,8 @@ fun AnalyticsScreen(
                                             delayMinutes = liveStatus?.delayMinutes ?: 0,
                                             speedKmh = liveStatus?.speedKmh ?: 0,
                                             isDark = isDark,
-                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
+                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true),
+                                            onStationPlatformClick = { selectedJunctionStation = it; showJunctionNavigatorModal = true }
                                         )
                                     }
 
@@ -1085,7 +1121,8 @@ fun AnalyticsScreen(
                                             delayMinutes = liveStatus?.delayMinutes ?: 0,
                                             speedKmh = liveStatus?.speedKmh ?: 0,
                                             isDark = isDark,
-                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
+                                            isEnRoute = isCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true),
+                                            onStationPlatformClick = { selectedJunctionStation = it; showJunctionNavigatorModal = true }
                                         )
 
                                         // If there are pass-through stations after this halt stop, show collapse pill / active train bar
@@ -1315,7 +1352,8 @@ fun AnalyticsScreen(
                                                         delayMinutes = liveStatus?.delayMinutes ?: 0,
                                                         speedKmh = liveStatus?.speedKmh ?: 0,
                                                         isDark = isDark,
-                                                        isEnRoute = ptCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true)
+                                                        isEnRoute = ptCurrent && (liveStatus?.status?.contains("AT-STATION", ignoreCase = true) != true),
+                                                        onStationPlatformClick = { selectedJunctionStation = it; showJunctionNavigatorModal = true }
                                                     )
                                                 }
                                             }
@@ -1716,6 +1754,25 @@ fun AnalyticsScreen(
         if (TrainTrackerState.showAlarmSetupModal) {
             DestinationAlarmModal(
                 onDismiss = { TrainTrackerState.closeAlarmSetup() }
+            )
+        }
+
+        // Phase 5: Junction Platform & Foot-Over-Bridge Navigator BottomSheet
+        if (showJunctionNavigatorModal && selectedJunctionStation != null) {
+            val station = selectedJunctionStation!!
+            val pfNum = station.platform.filter { it.isDigit() }.toIntOrNull() ?: 1
+            JunctionNavigatorModal(
+                stationCode = station.code.ifBlank { "STN" },
+                stationName = station.name,
+                targetPlatform = pfNum,
+                targetCoachCode = TrainTrackerState.selectedCoachCode.ifBlank { null },
+                trainNumber = activeTrain.number.ifBlank { null },
+                trainName = activeTrain.name.ifBlank { null },
+                isDark = isDark,
+                onDismiss = {
+                    showJunctionNavigatorModal = false
+                    selectedJunctionStation = null
+                }
             )
         }
     }
@@ -2286,7 +2343,8 @@ private fun WimtStationTrackRow(
     delayMinutes: Int,
     speedKmh: Int,
     isDark: Boolean,
-    isEnRoute: Boolean = false  // true = train departed this station and is now between stops
+    isEnRoute: Boolean = false,  // true = train departed this station and is now between stops
+    onStationPlatformClick: ((Station) -> Unit)? = null
 ) {
     val isHaltStop = station.haltMinutes > 0  // true = scheduled halt; false = pass-through
 
@@ -2445,14 +2503,28 @@ private fun WimtStationTrackRow(
                 ) {
                     if (isHaltStop) {
                         if (station.platform.isNotBlank()) {
-                            Text(
-                                text = I18n.formatPlatform(station.platform),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = RailBluePrimary,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(RailBluePrimary.copy(alpha = 0.10f))
+                                    .clickable { onStationPlatformClick?.invoke(station) }
+                                    .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = I18n.formatPlatform(station.platform),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RailBluePrimary,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text(
+                                    text = "🧭",
+                                    fontSize = 9.sp
+                                )
+                            }
                         }
                         if (station.distanceKm > 0) {
                             Text(
