@@ -217,6 +217,26 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var hasSearchedOnce by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
+    // ── Pan-India Train Search Dialog (Direct Search Ticker) ──
+    var showPanIndiaTrainSearch by remember { mutableStateOf(false) }
+    var panIndiaSearchQuery by remember { mutableStateOf("") }
+    var panIndiaSearchResults by remember { mutableStateOf<List<Train>>(emptyList()) }
+    var isSearchingPanIndia by remember { mutableStateOf(false) }
+
+    LaunchedEffect(panIndiaSearchQuery) {
+        val q = panIndiaSearchQuery.trim()
+        if (q.length >= 2) {
+            isSearchingPanIndia = true
+            delay(200)
+            val results = service.searchTrains(q)
+            panIndiaSearchResults = results
+            isSearchingPanIndia = false
+        } else {
+            panIndiaSearchResults = emptyList()
+            isSearchingPanIndia = false
+        }
+    }
+
     fun triggerSearch(fromText: String, toText: String) {
         val cleanFrom = fromText.trim()
         val cleanTo = toText.trim()
@@ -321,7 +341,12 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         if (showTrainDetail) {
             // ── Full Analytics screen embedded in Routes, no tab switch ──
             AnalyticsScreen(
-                onViewLiveMap = { /* already on the Routes screen overlay — no-op */ },
+                onViewLiveMap = {
+                    val currentTrain = TrainTrackerState.activeTrain
+                    if (currentTrain.number.isNotBlank()) {
+                        onTrackTrain(currentTrain, fromStationQuery)
+                    }
+                },
                 onNavigateBack = { showTrainDetail = false }
             )
         } else {
@@ -441,6 +466,106 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             onDateSelected = { date ->
                 selectedTravelDate = date
                 showCalendarDialog = false
+            }
+        )
+    }
+
+    // ── Pan-India Live Train Search Dialog (Direct Search Ticker) ──
+    if (showPanIndiaTrainSearch) {
+        AlertDialog(
+            onDismissRequest = {
+                showPanIndiaTrainSearch = false
+                panIndiaSearchQuery = ""
+            },
+            title = {
+                Text(
+                    text = "Track Any Train Pan-India",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = panIndiaSearchQuery,
+                        onValueChange = { panIndiaSearchQuery = it },
+                        placeholder = { Text("Search train (e.g. 20490, Gomti, 12420)...", fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                    )
+
+                    if (isSearchingPanIndia) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = RailBluePrimary)
+                        }
+                    } else if (panIndiaSearchResults.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp)
+                        ) {
+                            items(panIndiaSearchResults) { train ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            TrainTrackerState.selectTrain(train, train.origin)
+                                            showTrainDetail = true
+                                            showPanIndiaTrainSearch = false
+                                            panIndiaSearchQuery = ""
+                                        }
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "${train.number} - ${train.name}",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${StationDataService.cleanStationName(train.origin)} ➔ ${StationDataService.cleanStationName(train.destination)}",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    Text("Track →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RailBluePrimary)
+                                }
+                                HorizontalDivider(thickness = 0.5.dp)
+                            }
+                        }
+                    } else if (panIndiaSearchQuery.length >= 2) {
+                        Text(
+                            text = "No trains found for '$panIndiaSearchQuery'.",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    } else {
+                        Text(
+                            text = "Enter 2+ characters to search all live trains across India.",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = {
+                    showPanIndiaTrainSearch = false
+                    panIndiaSearchQuery = ""
+                }) {
+                    Text("Cancel", color = RailBluePrimary)
+                }
             }
         )
     }
@@ -613,7 +738,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             selectedDate = selectedTravelDate,
                             onTrackClick = {
                                 TrainTrackerState.selectTrain(train, fromStationQuery)
-                                onTrackTrain(train, fromStationQuery)
+                                showTrainDetail = true
                             }
                         )
                     }
@@ -928,7 +1053,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                     DirectTrainSearchStrip(
                         isDark = isDark,
                         onClick = {
-                            // Focus or direct search
+                            showPanIndiaTrainSearch = true
                         }
                     )
                 }
@@ -1007,7 +1132,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                             isDark = isDark,
                                             onTrackTrain = {
                                                 TrainTrackerState.selectTrain(train, train.origin)
-                                                onTrackTrain(train, train.origin)
+                                                showTrainDetail = true
                                             },
                                             onDelete = { TrainTrackerState.removeRecentTrain(train.number) }
                                         )
