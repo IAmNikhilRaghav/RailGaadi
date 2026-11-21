@@ -956,6 +956,14 @@ class RailRadarService(private val client: HttpClient = createHttpClient()) {
         val f = fromCode.uppercase().trim()
         val t = toCode.uppercase().trim()
 
+        if ((f == "MTJ" || f == "MATHURA") && (t == "BME" || t == "BARMER")) {
+            return listOf(
+                Train("20490", "Barmer Superfast Express", "Superfast Express", "Mathura Jn (MTJ)", "Barmer (BME)", "15:45", "08:20", 995, "5", listOf(false, true, false, true, false, false, true)),
+                Train("14887", "Kalka Barmer Express", "Mail/Express", "Mathura Jn (MTJ)", "Barmer (BME)", "19:15", "13:30", 1095, "2", List(7) { true }),
+                Train("20488", "Malani Superfast Express", "Superfast Express", "Mathura Jn (MTJ)", "Barmer (BME)", "22:30", "15:40", 1030, "3", listOf(true, false, true, false, true, false, false))
+            )
+        }
+
         if ((f == "MTJ" || f == "MATHURA") && (t == "JP" || t == "JAIPUR")) {
             return listOf(
                 Train("12403", "Lalgarh SF Express", "Superfast Express", "Mathura Jn (MTJ)", "Jaipur Jn (JP)", "07:00", "12:20", 320, "2", List(7) { true }),

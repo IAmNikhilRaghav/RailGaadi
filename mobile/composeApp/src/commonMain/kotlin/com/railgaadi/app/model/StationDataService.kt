@@ -253,6 +253,12 @@ object StationDataService {
         ).take(15)
     }
 
+    fun cleanStationName(name: String): String {
+        return name.replace(Regex("""\s*\([A-Z0-9]+\)\s*$"""), "")
+            .replace(Regex("""\bJn\b""", RegexOption.IGNORE_CASE), "Junction")
+            .trim()
+    }
+
     fun resolveStationCode(input: String): String {
         val clean = input.trim()
         // If formatted as "Station Name (CODE)"
@@ -269,8 +275,13 @@ object StationDataService {
             return cleanUpper
         }
 
+        val normalizedJn = clean.replace(Regex("""\bJunction\b""", RegexOption.IGNORE_CASE), "Jn")
         val nameMatch = (dynamicCache.values + allStations).find {
-            it.name.contains(clean, ignoreCase = true) || it.city.contains(clean, ignoreCase = true)
+            it.name.contains(clean, ignoreCase = true) ||
+            it.name.contains(normalizedJn, ignoreCase = true) ||
+            clean.contains(it.name, ignoreCase = true) ||
+            normalizedJn.contains(it.name, ignoreCase = true) ||
+            it.city.contains(clean, ignoreCase = true)
         }
         if (nameMatch != null) return nameMatch.code
 
