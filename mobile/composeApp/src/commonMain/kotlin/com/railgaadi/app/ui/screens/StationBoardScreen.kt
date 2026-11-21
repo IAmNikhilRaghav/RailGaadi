@@ -100,6 +100,7 @@ fun StationBoardScreen(
     var navigatorTargetPlatform by remember { mutableStateOf(1) }
     var navigatorTargetTrainNumber by remember { mutableStateOf<String?>(null) }
     var navigatorTargetTrainName by remember { mutableStateOf<String?>(null) }
+    var navigatorTargetTrainType by remember { mutableStateOf<String?>(null) }
 
     // Function to load station board data
     fun loadBoardForStation(code: String, name: String) {
@@ -555,6 +556,7 @@ fun StationBoardScreen(
                                         navigatorTargetPlatform = 1
                                         navigatorTargetTrainNumber = null
                                         navigatorTargetTrainName = null
+                                        navigatorTargetTrainType = null
                                         showJunctionNavigatorModal = true
                                     }
                                     .padding(horizontal = 7.dp, vertical = 3.dp),
@@ -809,6 +811,7 @@ fun StationBoardScreen(
                             navigatorTargetPlatform = pfNum
                             navigatorTargetTrainNumber = trainNum
                             navigatorTargetTrainName = trainNm
+                            navigatorTargetTrainType = train.type
                             showJunctionNavigatorModal = true
                         }
                     )
@@ -826,6 +829,7 @@ fun StationBoardScreen(
             targetCoachCode = TrainTrackerState.selectedCoachCode.ifBlank { null },
             trainNumber = navigatorTargetTrainNumber,
             trainName = navigatorTargetTrainName,
+            trainType = navigatorTargetTrainType,
             isDark = isDark,
             onDismiss = { showJunctionNavigatorModal = false }
         )

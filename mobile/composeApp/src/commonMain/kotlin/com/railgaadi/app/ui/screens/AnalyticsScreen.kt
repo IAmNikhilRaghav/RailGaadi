@@ -1768,6 +1768,7 @@ fun AnalyticsScreen(
                 targetCoachCode = TrainTrackerState.selectedCoachCode.ifBlank { null },
                 trainNumber = activeTrain.number.ifBlank { null },
                 trainName = activeTrain.name.ifBlank { null },
+                trainType = activeTrain.type.ifBlank { null },
                 isDark = isDark,
                 onDismiss = {
                     showJunctionNavigatorModal = false
