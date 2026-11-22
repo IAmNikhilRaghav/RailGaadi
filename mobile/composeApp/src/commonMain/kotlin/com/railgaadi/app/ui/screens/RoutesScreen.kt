@@ -1,11 +1,7 @@
 package com.railgaadi.app.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -169,24 +165,8 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     var showTrainDetail by remember { mutableStateOf(false) }
     var showAvailableTrains by remember { mutableStateOf(false) }
 
-    var fromTextFieldValue by remember {
-        mutableStateOf(
-            TextFieldValue(
-                text = if (TrainTrackerState.recentTrains.isNotEmpty()) {
-                    StationDataService.cleanStationName(TrainTrackerState.recentTrains.first().origin)
-                } else "Mathura Junction"
-            )
-        )
-    }
-    var toTextFieldValue by remember {
-        mutableStateOf(
-            TextFieldValue(
-                text = if (TrainTrackerState.recentTrains.isNotEmpty()) {
-                    StationDataService.cleanStationName(TrainTrackerState.recentTrains.first().destination)
-                } else "Barmer"
-            )
-        )
-    }
+    var fromTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var toTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     val fromStationQuery = fromTextFieldValue.text
     val toStationQuery = toTextFieldValue.text
 
@@ -259,15 +239,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (searchResults.isEmpty() && fromTextFieldValue.text.isNotBlank() && toTextFieldValue.text.isNotBlank()) {
-            val fCode = StationDataService.resolveStationCode(fromTextFieldValue.text)
-            val tCode = StationDataService.resolveStationCode(toTextFieldValue.text)
-            val results = service.searchTrainsBetweenStations(fCode, tCode)
-            searchResults = results
-            hasSearchedOnce = true
-        }
-    }
+
 
     fun selectFromStation(stationText: String) {
         val clean = StationDataService.cleanStationName(stationText)
@@ -648,7 +620,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = StationDataService.cleanStationName(fromStationQuery.ifBlank { "Mathura Junction" }),
+                                    text = StationDataService.cleanStationName(fromStationQuery.ifBlank { "Origin" }),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -662,7 +634,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                                     color = RailBluePrimary
                                 )
                                 Text(
-                                    text = StationDataService.cleanStationName(toStationQuery.ifBlank { "Barmer" }),
+                                    text = StationDataService.cleanStationName(toStationQuery.ifBlank { "Destination" }),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -1215,6 +1187,16 @@ fun DirectTrainSearchStrip(
     val borderColor = if (isDark) Color(0xFF0284C7).copy(alpha = 0.50f) else Color(0xFF38BDF8)
     val bgColor = if (isDark) Color(0xFF1E293B) else Color.White
 
+    val infiniteTransition = rememberInfiniteTransition()
+    val tickerTranslationX by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -750f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 18000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1242,81 +1224,101 @@ fun DirectTrainSearchStrip(
                 Text("🔍", fontSize = 12.sp)
             }
 
-            // Search prompt & sample train pills (clipped within bar)
-            Row(
+            // Continuously moving search ticker strip with sample trains
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clipToBounds(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .clipToBounds()
             ) {
-                Text(
-                    text = "Search trains by name and number:",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
-                )
-
-                // Train 1: 20490 Barmer Superfast Express
                 Row(
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .graphicsLayer {
+                            translationX = tickerTranslationX
+                        },
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .background(if (isDark) Color(0xFF0C4A6E) else Color(0xFFE0F2FE), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "20490",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
-                        )
-                    }
-                    Text(
-                        text = "Barmer Superfast Express",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) DarkTextPrimary else Color(0xFF1E293B)
-                    )
-                }
-
-                Text(
-                    text = "•",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF94A3B8)
-                )
-
-                // Train 2: 12420 Gomti Express
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(if (isDark) Color(0xFF0C4A6E) else Color(0xFFE0F2FE), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "12420",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
-                        )
-                    }
-                    Text(
-                        text = "Gomti Express",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) DarkTextPrimary else Color(0xFF1E293B)
-                    )
+                    TrainSearchTickerSampleGroup(isDark)
+                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                    TrainSearchTickerSampleGroup(isDark)
+                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                    TrainSearchTickerSampleGroup(isDark)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TrainSearchTickerSampleGroup(isDark: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = "Search trains by name and number:",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+        )
+
+        // Train 1: 20490 Barmer Superfast Express
+        TrainSearchTickerPill(
+            number = "20490",
+            name = "Barmer Superfast Express",
+            isDark = isDark
+        )
+
+        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+
+        // Train 2: 12420 Gomti Express
+        TrainSearchTickerPill(
+            number = "12420",
+            name = "Gomti Express",
+            isDark = isDark
+        )
+
+        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+
+        // Train 3: 22436 Vande Bharat
+        TrainSearchTickerPill(
+            number = "22436",
+            name = "Vande Bharat Express",
+            isDark = isDark
+        )
+    }
+}
+
+@Composable
+private fun TrainSearchTickerPill(
+    number: String,
+    name: String,
+    isDark: Boolean
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(if (isDark) Color(0xFF0C4A6E) else Color(0xFFE0F2FE), RoundedCornerShape(4.dp))
+                .padding(horizontal = 5.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = number,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+            )
+        }
+        Text(
+            text = name,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isDark) DarkTextPrimary else Color(0xFF1E293B)
+        )
     }
 }
 

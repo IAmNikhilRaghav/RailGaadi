@@ -150,7 +150,7 @@ fun StationLayoutVisualizer(
         color = bgCol,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 540.dp, max = 740.dp)
+            .height(660.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -329,29 +329,11 @@ fun StationLayoutVisualizer(
                     .fillMaxWidth()
                     .weight(1f)
                     .background(Color(0xFF090E1A))
-                    .pointerInput(rake, trainOffsetPx) {
-                        // Drag gesture to scroll train horizontally
+                    .pointerInput(rake) {
+                        // Drag gesture to scroll train horizontally along platform
                         detectDragGestures { change, dragAmount ->
                             change.consume()
                             trainOffsetPx += dragAmount.x
-                        }
-                    }
-                    .pointerInput(rake, trainOffsetPx) {
-                        // Tap gesture to select and inspect tapped coach
-                        detectTapGestures { tapOffset ->
-                            val trackY = 280f
-                            val coachH = 46f
-                            if (tapOffset.y in (trackY - 20f)..(trackY + coachH + 20f)) {
-                                var currX = trainOffsetPx + 40f
-                                for (coach in rake) {
-                                    val cW = coach.widthDp * 2.2f
-                                    if (tapOffset.x in currX..(currX + cW)) {
-                                        inspectedCoachCode = coach.code
-                                        break
-                                    }
-                                    currX += cW + 12f
-                                }
-                            }
                         }
                     }
             ) {
@@ -519,13 +501,13 @@ private fun DrawScope.drawActualUnifiedYardCanvas(
     drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, 12f), size = Size(W - 32f, gate1H))
     drawText(
         textMeasurer = textMeasurer,
-        text = "🏛️ MAIN CONCOURSE • GATE 1 (CITY SIDE) • PARKING & TICKETS",
+        text = "MAIN CONCOURSE • GATE 1 (CITY SIDE) • PARKING & TICKETS",
         topLeft = Offset(26f, 18f),
         style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
     )
     drawText(
         textMeasurer = textMeasurer,
-        text = "📍 MAIN ENTRY POINT",
+        text = "MAIN ENTRY POINT",
         topLeft = Offset(26f, 38f),
         style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
     )
@@ -566,7 +548,7 @@ private fun DrawScope.drawActualUnifiedYardCanvas(
     )
     drawText(
         textMeasurer = textMeasurer,
-        text = "🚉 PLATFORM 3 (DEPARTURE TRACK)",
+        text = "PLATFORM 3 (DEPARTURE TRACK)",
         topLeft = Offset(48f, pf3Y + 18f),
         style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
     )
@@ -598,13 +580,13 @@ private fun DrawScope.drawActualUnifiedYardCanvas(
     drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, gate2Y), size = Size(W - 32f, 42f))
     drawText(
         textMeasurer = textMeasurer,
-        text = "🚗 SECONDARY ENTRY • GATE 2 (CANTT / COLONY SIDE)",
+        text = "SECONDARY ENTRY • GATE 2 (CANTT / COLONY SIDE)",
         topLeft = Offset(26f, gate2Y + 6f),
         style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
     )
     drawText(
         textMeasurer = textMeasurer,
-        text = "📍 REAR STATION ENTRY",
+        text = "REAR STATION ENTRY",
         topLeft = Offset(26f, gate2Y + 24f),
         style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
     )
@@ -817,9 +799,9 @@ private fun DrawScope.drawActualUnifiedYardCanvas(
     )
     drawText(
         textMeasurer = textMeasurer,
-        text = "🛗",
-        topLeft = Offset(centralFobX + centralFobW + 7f, pf3Y + 18f),
-        style = TextStyle(fontSize = 12.sp)
+        text = "LIFT",
+        topLeft = Offset(centralFobX + centralFobW + 4f, pf3Y + 21f),
+        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 8.5.sp, fontWeight = FontWeight.Black)
     )
 
     // North Overbridge (Stairs)
@@ -898,9 +880,9 @@ private fun DrawScope.drawActualUnifiedYardCanvas(
         // Beacon Text
         drawText(
             textMeasurer = textMeasurer,
-            text = "🎯 YOUR COACH",
-            topLeft = Offset(pinX - 42f, pinY - 7f),
-            style = TextStyle(color = Color(0xFF022C22), fontSize = 9.5.sp, fontWeight = FontWeight.Black)
+            text = "YOUR COACH",
+            topLeft = Offset(pinX - 34f, pinY - 7f),
+            style = TextStyle(color = Color(0xFF022C22), fontSize = 9.sp, fontWeight = FontWeight.Black)
         )
     }
 }

@@ -3,6 +3,7 @@ package com.railgaadi.app.ui.components
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -18,11 +19,14 @@ fun JunctionNavigatorModal(
     isDark: Boolean = false,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = androidx.compose.ui.graphics.Color(if (isDark) 0xFF0F172A else 0xFFF1F5F9),
+        sheetState = sheetState,
+        containerColor = Color(if (isDark) 0xFF080C16 else 0xFFF1F5F9),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = null
+        dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         StationLayoutVisualizer(
             stationCode = stationCode,
