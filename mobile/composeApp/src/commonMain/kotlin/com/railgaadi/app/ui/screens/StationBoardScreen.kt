@@ -39,7 +39,6 @@ import com.railgaadi.app.model.StationInfo
 import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
-import com.railgaadi.app.ui.components.JunctionNavigatorModal
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.util.formatDelayDuration
 import kotlinx.coroutines.delay
@@ -94,13 +93,6 @@ fun StationBoardScreen(
     // Data state
     var allTrains by remember { mutableStateOf<List<StationBoardTrain>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-
-    // Junction Platform & Bridge Navigator modal state
-    var showJunctionNavigatorModal by remember { mutableStateOf(false) }
-    var navigatorTargetPlatform by remember { mutableStateOf(1) }
-    var navigatorTargetTrainNumber by remember { mutableStateOf<String?>(null) }
-    var navigatorTargetTrainName by remember { mutableStateOf<String?>(null) }
-    var navigatorTargetTrainType by remember { mutableStateOf<String?>(null) }
 
     // Function to load station board data
     fun loadBoardForStation(code: String, name: String) {
@@ -542,40 +534,17 @@ fun StationBoardScreen(
                             }
                         }
 
-                        // Summary pill & Station Layout Guide
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(RailBluePrimary.copy(alpha = 0.12f))
-                                    .border(1.dp, RailBluePrimary.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        navigatorTargetPlatform = 1
-                                        navigatorTargetTrainNumber = null
-                                        navigatorTargetTrainName = null
-                                        navigatorTargetTrainType = null
-                                        showJunctionNavigatorModal = true
-                                    }
-                                    .padding(horizontal = 7.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                Text("🧭", fontSize = 11.sp)
-                                Text(
-                                    text = "Station Map",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RailBluePrimary
-                                )
-                            }
-
+                        // Summary pill
+                        Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "${filteredTrains.size} Trains ${if (boardMode == StationBoardMode.DEPARTURES) "Departing" else "Arriving"}",
+                                text = "${filteredTrains.size} Trains",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RailBluePrimary
+                            )
+                            Text(
+                                text = if (boardMode == StationBoardMode.DEPARTURES) "Departing" else "Arriving",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
                                 color = Color.Gray
                             )
                         }
@@ -805,34 +774,11 @@ fun StationBoardScreen(
                         train = train,
                         boardMode = boardMode,
                         isDark = isDark,
-                        onTrackTrain = onTrackTrain,
-                        onPlatformClick = { pf, trainNum, trainNm ->
-                            val pfNum = pf.filter { it.isDigit() }.toIntOrNull() ?: 1
-                            navigatorTargetPlatform = pfNum
-                            navigatorTargetTrainNumber = trainNum
-                            navigatorTargetTrainName = trainNm
-                            navigatorTargetTrainType = train.type
-                            showJunctionNavigatorModal = true
-                        }
+                        onTrackTrain = onTrackTrain
                     )
                 }
             }
         }
-    }
-
-    // Junction Platform & Bridge Navigator BottomSheet
-    if (showJunctionNavigatorModal) {
-        JunctionNavigatorModal(
-            stationCode = currentStationCode,
-            stationName = currentStationName,
-            targetPlatform = navigatorTargetPlatform,
-            targetCoachCode = TrainTrackerState.selectedCoachCode.ifBlank { null },
-            trainNumber = navigatorTargetTrainNumber,
-            trainName = navigatorTargetTrainName,
-            trainType = navigatorTargetTrainType,
-            isDark = isDark,
-            onDismiss = { showJunctionNavigatorModal = false }
-        )
     }
 }
 
@@ -844,8 +790,7 @@ private fun StationBoardTrainCard(
     train: StationBoardTrain,
     boardMode: StationBoardMode,
     isDark: Boolean,
-    onTrackTrain: (Train) -> Unit,
-    onPlatformClick: ((platform: String, trainNumber: String, trainName: String) -> Unit)? = null
+    onTrackTrain: (Train) -> Unit
 ) {
     // Train type accent color matching official IR categories
     val typeColor = when {
@@ -966,24 +911,15 @@ private fun StationBoardTrainCard(
                                     color = RailBluePrimary.copy(alpha = 0.3f),
                                     shape = RoundedCornerShape(6.dp)
                                 )
-                                .clickable {
-                                    onPlatformClick?.invoke(train.platform, train.number, train.name)
-                                }
-                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = I18n.formatPlatform(train.platform),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RailBluePrimary
-                                )
-                                Text("🧭", fontSize = 9.sp)
-                            }
+                            Text(
+                                text = I18n.formatPlatform(train.platform),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RailBluePrimary
+                            )
                         }
                     }
                 }

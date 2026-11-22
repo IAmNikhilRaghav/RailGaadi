@@ -142,7 +142,6 @@ object TrainTrackerState {
     )
     var liveStatus by mutableStateOf<LiveStatus?>(null)
     var isLoadingStatus by mutableStateOf(false)
-    var selectedCoachCode by mutableStateOf("")
 
     // Weather & AQI state for WeatherScreen
     var weatherData by mutableStateOf<com.railgaadi.app.model.StationWeatherData?>(null)
