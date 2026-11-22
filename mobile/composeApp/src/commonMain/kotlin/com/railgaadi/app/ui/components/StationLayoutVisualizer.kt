@@ -2,7 +2,8 @@ package com.railgaadi.app.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -21,16 +22,14 @@ import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.railgaadi.app.model.*
 import com.railgaadi.app.theme.*
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
-// StationLayoutVisualizer — Unified helicopter yard navigator + draggable rake
+// StationLayoutVisualizer — Full Helicopter Aerial Yard & Coach Visualizer
 // ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,7 +45,9 @@ fun StationLayoutVisualizer(
     isDark: Boolean = false,
     onClose: () -> Unit
 ) {
-    // ── Layout data ──────────────────────────────────────────────────────────
+    val textMeasurer = rememberTextMeasurer()
+
+    // ── Station yard layout ──────────────────────────────────────────────────
     val layout = remember(stationCode, stationName, targetPlatform) {
         JunctionDataService.getLayoutForStation(
             stationCode = stationCode,
@@ -55,97 +56,108 @@ fun StationLayoutVisualizer(
         )
     }
 
-    // ── State ────────────────────────────────────────────────────────────────
-    var selectedEntryId by remember(layout) {
-        mutableStateOf(layout.entries.firstOrNull()?.id)
+    // ── Entry Gate state ─────────────────────────────────────────────────────
+    var selectedGateNumber by remember { mutableStateOf(1) }
+    val selectedEntry = remember(layout, selectedGateNumber) {
+        if (selectedGateNumber == 1) layout.entries.firstOrNull()
+        else layout.entries.getOrNull(1) ?: layout.entries.firstOrNull()
     }
 
+    // ── Train category state ─────────────────────────────────────────────────
     var selectedCategory by remember {
         mutableStateOf(
             TrainRakeDataService.detectCategory(trainName ?: "", trainType ?: "")
         )
     }
 
-    val rake by remember(selectedCategory) {
-        derivedStateOf { TrainRakeDataService.getRakeForCategory(selectedCategory, targetCoachCode) }
+    val rake = remember(selectedCategory) {
+        TrainRakeDataService.getRakeForCategory(selectedCategory, targetCoachCode)
     }
 
-    // Train horizontal drag offset (in pixels, clamped inside canvas)
-    var trainOffsetPx by remember { mutableStateOf(0f) }
-    var canvasWidthPx by remember { mutableStateOf(1000f) }
+    // Currently inspected coach (defaults to target coach, or first coach)
+    var inspectedCoachCode by remember(rake, targetCoachCode) {
+        val matching = rake.find { it.code.equals(targetCoachCode, ignoreCase = true) }
+        mutableStateOf(matching?.code ?: rake.getOrNull(3)?.code ?: rake.firstOrNull()?.code ?: "B4")
+    }
 
-    // Auto-snap to user coach on first open if PNR coach is provided
-    var hasAutoSnapped by remember { mutableStateOf(false) }
+    val inspectedCoach = remember(rake, inspectedCoachCode) {
+        rake.find { it.code == inspectedCoachCode } ?: rake.firstOrNull()
+    }
+    val inspectedCoachIdx = remember(rake, inspectedCoach) {
+        rake.indexOf(inspectedCoach).coerceAtLeast(0)
+    }
 
-    // ── Pulse animation for user coach green glow ────────────────────────────
+    // ── Train horizontal drag offset ─────────────────────────────────────────
+    var trainOffsetPx by remember { mutableStateOf(-320f) }
+    var canvasWidthPx by remember { mutableStateOf(900f) }
+    var hasAutoCentered by remember { mutableStateOf(false) }
+
+    // ── Smart PNR Pulse Animation ────────────────────────────────────────────
     val infiniteTransition = rememberInfiniteTransition()
     val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.55f, targetValue = 1.0f,
+        initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         )
     )
 
-    // ── Route ────────────────────────────────────────────────────────────────
-    val route = remember(layout, selectedEntryId, targetPlatform, targetCoachCode) {
+    // ── Navigation Route ─────────────────────────────────────────────────────
+    val route = remember(layout, selectedEntry?.id, targetPlatform, targetCoachCode) {
         JunctionDataService.calculateNavigationRoute(
             layout = layout,
-            fromEntryId = selectedEntryId,
+            fromEntryId = selectedEntry?.id,
             targetPlatform = targetPlatform,
             targetCoachCode = targetCoachCode,
             preferAccessible = true
         )
     }
 
-    // ── Colors ───────────────────────────────────────────────────────────────
-    val bgCol       = if (isDark) Color(0xFF0F172A)   else Color(0xFFF1F5F9)
-    val cardBg      = if (isDark) Color(0xFF1E293B)   else Color(0xFFFFFFFF)
-    val headerBg    = if (isDark) Color(0xFF1E293B)   else Color(0xFFFFFFFF)
-    val textPrimary = if (isDark) Color(0xFFF8FAFC)   else Color(0xFF0F172A)
-    val textMuted   = if (isDark) Color(0xFF94A3B8)   else Color(0xFF64748B)
-    val divider     = if (isDark) Color(0xFF334155)   else Color(0xFFE2E8F0)
-    val chipSel     = Color(0xFF0EA5E9)
-    val chipUnsel   = if (isDark) Color(0xFF334155)   else Color(0xFFE2E8F0)
-    val greenAura   = Color(0xFF22C55E)
-
-    // ── User coach info ───────────────────────────────────────────────────────
-    val userCoach   = rake.firstOrNull { it.code == targetCoachCode }
-    val userCoachIdx = rake.indexOfFirst { it.code == targetCoachCode }
-
-    // ── Snap to coach function ───────────────────────────────────────────────
-    fun snapToUserCoach() {
-        if (userCoachIdx < 0) return
-        // Calculate x center of the user coach in the rake
-        val coachStartX = rake.take(userCoachIdx).sumOf { (it.widthDp + 4f).toDouble() }.toFloat()
-        val coachCenterX = coachStartX + rake[userCoachIdx].widthDp / 2f
-        // We want coachCenterX + trainOffsetPx == canvasWidthPx / 2
-        // So trainOffsetPx = canvasWidthPx/2 - coachCenterX (in dp units; will be converted in canvas)
-        // We use density-independent calculation at canvas level; here we store in dp
-        trainOffsetPx = (canvasWidthPx / 2f) - coachStartX * 2.75f // scaled for canvas
+    // Function to center train on a specific coach at Central FOB (X = canvasWidthPx * 0.42f)
+    fun centerOnCoach(code: String) {
+        val targetIdx = rake.indexOfFirst { it.code == code }.takeIf { it >= 0 } ?: 0
+        var distPx = 40f
+        for (i in 0 until targetIdx) {
+            distPx += (rake[i].widthDp * 2.2f) + 12f
+        }
+        val targetCoachW = (rake.getOrNull(targetIdx)?.widthDp ?: 84f) * 2.2f
+        val bridgeX = canvasWidthPx * 0.42f
+        trainOffsetPx = bridgeX - (distPx + targetCoachW / 2f)
     }
 
-    // Auto-snap on first open
-    LaunchedEffect(rake, canvasWidthPx) {
-        if (!hasAutoSnapped && userCoachIdx >= 0 && canvasWidthPx > 100f) {
-            snapToUserCoach()
-            hasAutoSnapped = true
+    // Auto-center on user coach once layout is measured
+    LaunchedEffect(canvasWidthPx, targetCoachCode, rake) {
+        if (!hasAutoCentered && canvasWidthPx > 200f) {
+            val userCode = targetCoachCode ?: "B4"
+            centerOnCoach(userCode)
+            hasAutoCentered = true
         }
     }
 
-    // ── Root surface ─────────────────────────────────────────────────────────
+    // ── Colors ───────────────────────────────────────────────────────────────
+    val bgCol       = Color(0xFF080C16)
+    val headerBg    = Color(0xFF0F172A)
+    val cardBg      = Color(0xFF0F172A)
+    val textPrimary = Color(0xFFF8FAFC)
+    val textMuted   = Color(0xFF94A3B8)
+    val railBlue    = Color(0xFF0284C7)
+    val railBlueGlow= Color(0xFF38BDF8)
+    val railGreen   = Color(0xFF10B981)
+    val railGreenGlow = Color(0xFF34D399)
+    val dividerCol  = Color(0xFF1E293B)
+
     Surface(
         color = bgCol,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 500.dp, max = 720.dp)
+            .heightIn(min = 540.dp, max = 740.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── HEADER ─────────────────────────────────────────────────────────
+            // ── 1. CLEAN HEADER (Station Title + Subtitle) ───────────────────
             Surface(
                 color = headerBg,
-                shadowElevation = 2.dp,
+                shadowElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -156,314 +168,315 @@ fun StationLayoutVisualizer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        // Station name + code chip
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = layout.stationName.uppercase(),
-                                fontSize = 15.sp,
+                                text = "${layout.stationName.uppercase()} (${layout.stationCode}) • PF $targetPlatform",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Black,
                                 color = textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Surface(
-                                color = if (isDark) Color(0xFF0C4A6E) else Color(0xFFE0F2FE),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = layout.stationCode,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0284C7),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            // Platform badge
-                            Surface(
-                                color = Color(0xFF0EA5E9),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = "PF $targetPlatform",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
                         }
-                        // Train subtitle
-                        if (!trainName.isNullOrBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = buildString {
-                                    if (!trainNumber.isNullOrBlank()) append("$trainNumber • ")
-                                    append(trainName)
-                                    val coachCount = rake.count { it.classType !in listOf("LOCO","EOG","CAB","PANTRY") }
-                                    append(" • $coachCount LHB Coaches")
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = textMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            text = buildString {
+                                if (!trainNumber.isNullOrBlank()) append("$trainNumber • ")
+                                append(trainName ?: selectedCategory.displayName)
+                                append(" • ${rake.size} Coaches • WAP-7 Loco")
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
-                    // Close button
+                    // Close (✕) Button
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                            .background(Color(0xFF1E293B))
                             .clickable { onClose() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✕", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text("✕", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                     }
                 }
             }
 
-            // ── CATEGORY CHIP SCROLL ROW ────────────────────────────────────────
+            // ── 2. TRAIN CATEGORY SCROLLER BAR ──────────────────────────────
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0B1120))
             ) {
                 items(TrainCategory.values().toList()) { cat ->
-                    val isSelected = cat == selectedCategory
+                    val isSel = cat == selectedCategory
                     Surface(
-                        color = if (isSelected) chipSel else chipUnsel,
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.clickable { selectedCategory = cat; trainOffsetPx = 0f; hasAutoSnapped = false }
+                        color = if (isSel) railBlue else Color(0xFF1E293B),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, if (isSel) railBlueGlow else Color(0xFF334155)),
+                        modifier = Modifier.clickable {
+                            selectedCategory = cat
+                            hasAutoCentered = false
+                            centerOnCoach(inspectedCoachCode)
+                        }
                     ) {
                         Text(
                             text = "${cat.emoji} ${cat.displayName}",
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else textMuted,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 11.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) Color.White else textMuted,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             maxLines = 1
                         )
                     }
                 }
             }
 
-            HorizontalDivider(color = divider, thickness = 0.5.dp)
+            HorizontalDivider(color = dividerCol, thickness = 1.dp)
 
-            // ── ENTRY GATE SELECTOR + SNAP BUTTON ─────────────────────────────
+            // ── 3. LIVE CONTROLS STRIP (Entry Gate Toggle + Snap to Coach) ───
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(headerBg)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Gate selector pills
+                // Gate 1 / Gate 2 Toggle
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        "Entry:",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = textMuted
-                    )
-                    layout.entries.take(3).forEach { entry ->
-                        val isSel = entry.id == selectedEntryId
-                        Surface(
-                            color = if (isSel) chipSel else chipUnsel,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.clickable { selectedEntryId = entry.id }
-                        ) {
-                            Text(
-                                text = entry.name,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSel) Color.White else textMuted,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
+                    Text("Entry:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textMuted)
+                    Surface(
+                        color = Color(0xFF1E293B),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(1.dp)
+                    ) {
+                        Row {
+                            Surface(
+                                color = if (selectedGateNumber == 1) railBlue else Color.Transparent,
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.clickable { selectedGateNumber = 1 }
+                            ) {
+                                Text(
+                                    "Gate 1 (City)",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedGateNumber == 1) Color.White else textMuted,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                            Surface(
+                                color = if (selectedGateNumber == 2) railBlue else Color.Transparent,
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.clickable { selectedGateNumber = 2 }
+                            ) {
+                                Text(
+                                    "Gate 2 (Cantt)",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedGateNumber == 2) Color.White else textMuted,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                // Snap to user coach button
-                if (!targetCoachCode.isNullOrBlank()) {
-                    Surface(
-                        color = greenAura,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.clickable { snapToUserCoach() }
+                // Snap to Coach Button
+                val targetCode = targetCoachCode ?: "B4"
+                Surface(
+                    color = railGreen.copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, railGreen),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.clickable {
+                        inspectedCoachCode = targetCode
+                        centerOnCoach(targetCode)
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Text("🎯", fontSize = 11.sp)
                         Text(
-                            text = "🎯 Snap to $targetCoachCode",
+                            text = "Snap to $targetCode",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            fontWeight = FontWeight.ExtraBold,
+                            color = railGreenGlow
                         )
                     }
                 }
             }
 
-            HorizontalDivider(color = divider, thickness = 0.5.dp)
+            HorizontalDivider(color = dividerCol, thickness = 1.dp)
 
-            // ── UNIFIED CANVAS (Helicopter Platform + Draggable Rake) ───────────
+            // ── 4. UNIFIED HELICOPTER CANVAS (Yard + Draggable Train Rake) ───
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(if (isDark) Color(0xFF0B1120) else Color(0xFF1A2744))
-                    .pointerInput(Unit) {
-                        detectHorizontalDragGestures { _, dragAmount ->
-                            trainOffsetPx = (trainOffsetPx + dragAmount).coerceIn(
-                                -canvasWidthPx * 1.5f, canvasWidthPx * 0.8f
-                            )
+                    .background(Color(0xFF090E1A))
+                    .pointerInput(rake, trainOffsetPx) {
+                        // Drag gesture to scroll train horizontally
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            trainOffsetPx += dragAmount.x
+                        }
+                    }
+                    .pointerInput(rake, trainOffsetPx) {
+                        // Tap gesture to select and inspect tapped coach
+                        detectTapGestures { tapOffset ->
+                            val trackY = 280f
+                            val coachH = 46f
+                            if (tapOffset.y in (trackY - 20f)..(trackY + coachH + 20f)) {
+                                var currX = trainOffsetPx + 40f
+                                for (coach in rake) {
+                                    val cW = coach.widthDp * 2.2f
+                                    if (tapOffset.x in currX..(currX + cW)) {
+                                        inspectedCoachCode = coach.code
+                                        break
+                                    }
+                                    currX += cW + 12f
+                                }
+                            }
                         }
                     }
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     canvasWidthPx = size.width
 
-                    drawUnifiedYardCanvas(
+                    drawActualUnifiedYardCanvas(
+                        textMeasurer = textMeasurer,
                         layout = layout,
                         targetPlatform = targetPlatform,
                         rake = rake,
-                        userCoachCode = targetCoachCode,
+                        userCoachCode = targetCoachCode ?: "B4",
+                        inspectedCoachCode = inspectedCoachCode,
                         trainOffsetPx = trainOffsetPx,
                         pulse = pulse,
-                        isDark = isDark,
-                        selectedEntryId = selectedEntryId,
+                        selectedGate = selectedGateNumber,
                         route = route
                     )
                 }
 
-                // Swipe hint label (bottom of canvas, fades if user has dragged)
-                val hintAlpha = if (abs(trainOffsetPx) > 60f) 0f else 0.7f
-                if (hintAlpha > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
-                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            "⟺  Swipe / Drag horizontally to inspect train",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = hintAlpha),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                // Floating Drag Hint HUD
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 6.dp)
+                        .background(Color(0xFF0F172A).copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "↔ Swipe / Drag horizontally to inspect train along platform",
+                        fontSize = 10.sp,
+                        color = textMuted,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
-            // ── COACH INFO CARD ─────────────────────────────────────────────────
-            if (userCoach != null) {
-                Surface(
-                    color = cardBg,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.fillMaxWidth()
+            // ── 5. WAYFINDING & COACH INSPECTION SHEET (Actual Visual Card) ───
+            Surface(
+                color = cardBg,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, dividerCol),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Coach row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .background(Color.White.copy(alpha = 0.04f), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                            .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Green coach badge
-                        Surface(
-                            color = greenAura,
-                            shape = RoundedCornerShape(10.dp)
+                        val isUser = inspectedCoach?.code.equals(targetCoachCode, ignoreCase = true)
+
+                        // Large Coach Badge Box
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isUser) railGreen else Color(inspectedCoach?.bodyColor ?: 0xFF0284C7))
+                                .border(1.dp, if (isUser) railGreenGlow else Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = userCoach.code,
-                                fontSize = 15.sp,
+                                text = inspectedCoach?.code ?: "B4",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                color = if (isUser) Color(0xFF022C22) else Color.White
                             )
                         }
 
-                        // Coach class + position
+                        // Coach details
                         Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Coach ${inspectedCoach?.code ?: "B4"} • ${TrainRakeDataService.classDisplayName(inspectedCoach?.classType ?: "3A")}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             Text(
-                                text = TrainRakeDataService.classDisplayName(userCoach.classType),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textPrimary,
+                                text = "Position: Coach ${inspectedCoachIdx + 1} of ${rake.size} in rake • Direct Platform 3 Access",
+                                fontSize = 11.sp,
+                                color = textMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = "Coach ${userCoachIdx + 1} of ${rake.size} in rake",
-                                fontSize = 11.sp,
-                                color = textMuted
-                            )
+                            if (isUser) {
+                                Text(
+                                    text = "🎯 YOUR RESERVED COACH (SMART PNR SYNCED)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = railGreenGlow
+                                )
+                            }
                         }
 
                         // Walk info
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "~${route.estimatedMinutes} min walk",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0EA5E9)
-                            )
-                            Text(
-                                text = route.recommendedBridge?.name ?: "Central FOB",
-                                fontSize = 10.sp,
-                                color = textMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            } else {
-                // No PNR coach — show route summary
-                Surface(
-                    color = cardBg,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("🚶", fontSize = 20.sp)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Platform $targetPlatform",
+                                text = "~${route.estimatedMinutes} MIN",
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textPrimary
+                                fontWeight = FontWeight.Black,
+                                color = railBlueGlow
                             )
                             Text(
-                                text = route.fromLabel,
-                                fontSize = 11.sp,
-                                color = textMuted
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "${route.totalDistanceMeters}m",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0EA5E9)
-                            )
-                            Text(
-                                text = "~${route.estimatedMinutes} min",
-                                fontSize = 10.sp,
-                                color = textMuted
+                                text = "CLOSEST BRIDGE",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = railGreenGlow
                             )
                         }
                     }
@@ -474,372 +487,444 @@ fun StationLayoutVisualizer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Canvas drawing function — the heart of the unified view
+// Actual Unified Yard Canvas Renderer (Matches the Approved HTML Visual)
 // ─────────────────────────────────────────────────────────────────────────────
 
-private fun DrawScope.drawUnifiedYardCanvas(
+private fun DrawScope.drawActualUnifiedYardCanvas(
+    textMeasurer: TextMeasurer,
     layout: JunctionLayout,
     targetPlatform: Int,
     rake: List<RakeCoach>,
-    userCoachCode: String?,
+    userCoachCode: String,
+    inspectedCoachCode: String,
     trainOffsetPx: Float,
     pulse: Float,
-    isDark: Boolean,
-    selectedEntryId: String?,
+    selectedGate: Int,
     route: NavigationRoute
 ) {
     val W = size.width
     val H = size.height
 
-    // ── Layout geometry ──────────────────────────────────────────────────────
-    val concourseH   = 36f                       // top gate bar
-    val bottomBarH   = 32f                       // bottom gate bar
-    val yardH        = H - concourseH - bottomBarH
-    val numPlatforms = layout.totalPlatforms.coerceIn(2, 8)
-    val trackZoneH   = yardH / (numPlatforms + 1f)
-    val platformH    = trackZoneH * 0.38f
-    val trackH       = trackZoneH * 0.28f
-    val ballastH     = trackZoneH * 0.34f
+    // ── Fixed Station Bridge Coordinates ─────────────────────────────────────
+    val centralFobX = W * 0.42f
+    val centralFobW = 36f
+    val northBridgeX = W * 0.82f
+    val northBridgeW = 30f
 
-    // ── Color palette ────────────────────────────────────────────────────────
-    val yardBg        = Color(0xFF101828)
-    val ballastColor  = Color(0xFF2D3748)
-    val sleeperColor  = Color(0xFF4A3728)
-    val railColor     = Color(0xFF718096)
-    val pfSlab        = Color(0xFF2D3A52)
-    val pfTarget      = Color(0xFF1E3A6E)
-    val pfEdge        = Color(0xFF4A90D9)
-    val tacticStripe  = Color(0xFFFFD700)
-    val canopyColor   = Color(0xFF1E293B).copy(alpha = 0.85f)
-    val fobBeam       = Color(0xFF4B5563)
-    val fobGlass      = Color(0xFF60A5FA).copy(alpha = 0.5f)
-    val walkDot       = Color(0xFF38BDF8)
-    val greenGlow     = Color(0xFF22C55E)
-    val whiteText     = Color(0xFFF1F5F9)
-    val mutedText     = Color(0xFF94A3B8)
-    val entryConcourse= Color(0xFF1A2235)
+    // ── 1. BACKGROUND & FIXED YARD INFRASTRUCTURE ─────────────────────────────
+    drawRect(color = Color(0xFF090E1A), size = size)
 
-    // ── 1. BACKGROUND ────────────────────────────────────────────────────────
-    drawRect(color = yardBg, size = size)
-
-    // ── 2. TOP CONCOURSE (Gate 1) ────────────────────────────────────────────
-    val selectedEntry = layout.entries.firstOrNull { it.id == selectedEntryId }
-        ?: layout.entries.firstOrNull()
-    drawRect(color = entryConcourse, size = Size(W, concourseH))
-    // Label — rendered as a simple rect+text approximation using clipping
-    drawRect(
-        color = Color(0xFF0284C7).copy(alpha = 0.18f),
-        topLeft = Offset(0f, 0f),
-        size = Size(W, concourseH)
+    // ── Gate 1: Main Concourse (City Side - Top) ─────────────────────────────
+    val gate1H = 50f
+    drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, 12f), size = Size(W - 32f, gate1H))
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "🏛️ MAIN CONCOURSE • GATE 1 (CITY SIDE) • PARKING & TICKETS",
+        topLeft = Offset(26f, 18f),
+        style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+    )
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "📍 MAIN ENTRY POINT",
+        topLeft = Offset(26f, 38f),
+        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
     )
 
-    // ── 3. PLATFORMS + TRACKS + TRAIN RAKE ──────────────────────────────────
-    var userCoachXCenter = -1f   // track for beacon pin
-    var userCoachY = 0f
+    // ── Platform 1 (City Face) ───────────────────────────────────────────────
+    val pf1Y = 74f
+    val pf1H = 38f
+    drawRect(color = Color(0xFF334155), topLeft = Offset(16f, pf1Y), size = Size(W - 32f, pf1H))
+    // Yellow tactile safety line at bottom edge
+    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf1Y + pf1H - 3f), size = Size(W - 32f, 3f))
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "PLATFORM 1 (CITY FACE)",
+        topLeft = Offset(26f, pf1Y + 12f),
+        style = TextStyle(color = Color(0xFFE2E8F0), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    )
 
-    // Calculate total rake pixel width
-    val coachGap = 4f
-    val totalRakeWidthPx = rake.sumOf { (it.widthDp * 2.75f + coachGap).toDouble() }.toFloat()
+    // ── Track 1 & 2 Ballast Bed ──────────────────────────────────────────────
+    drawBallastTrackBed(y = pf1Y + pf1H, h = 58f, canvasW = W)
 
-    // Accumulate train x as we iterate coaches
-    var rakeStartX = trainOffsetPx + 20f   // 20px left margin
+    // ── Platform 2 / 3 (Target Island Platform) ──────────────────────────────
+    val pf3Y = pf1Y + pf1H + 58f
+    val pf3H = 54f
+    // Drop shadow
+    drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(16f, pf3Y + 4f), size = Size(W - 32f, pf3H))
+    // Vibrant Blue Target Platform slab
+    drawRect(color = Color(0xFF0C4A6E), topLeft = Offset(16f, pf3Y), size = Size(W - 32f, pf3H))
+    // Yellow tactile lines on both edges of island platform
+    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf3Y), size = Size(W - 32f, 3f))
+    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf3Y + pf3H - 3f), size = Size(W - 32f, 3f))
 
-    for (pIdx in 0 until numPlatforms) {
-        val pfNum = pIdx + 1
-        val isTarget = pfNum == targetPlatform
+    // Platform Shelter & Departure Track Sign
+    drawRoundRect(
+        color = Color(0xFF0284C7),
+        topLeft = Offset(36f, pf3Y + 10f),
+        size = Size(W - 72f, 34f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "🚉 PLATFORM 3 (DEPARTURE TRACK)",
+        topLeft = Offset(48f, pf3Y + 18f),
+        style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+    )
 
-        val zoneTop  = concourseH + pIdx * trackZoneH
-        val pfTop    = zoneTop + ballastH / 2f
-        val pfBot    = pfTop + platformH
-        val trackTop = pfBot
-        val trackBot = trackTop + trackH
+    // ── Track 3 Ballast Bed (Where our train is parked!) ─────────────────────
+    val track3Y = pf3Y + pf3H
+    val track3H = 76f
+    drawBallastTrackBed(y = track3Y, h = track3H, canvasW = W)
 
-        // ── Ballast bed ────────────────────────────────────────────────────
-        drawRect(
-            color = ballastColor,
-            topLeft = Offset(0f, zoneTop),
-            size = Size(W, trackZoneH)
-        )
+    // ── Platform 4 / 5 (Island) ──────────────────────────────────────────────
+    val pf4Y = track3Y + track3H
+    val pf4H = 44f
+    drawRect(color = Color(0xFF334155), topLeft = Offset(16f, pf4Y), size = Size(W - 32f, pf4H))
+    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf4Y), size = Size(W - 32f, 3f))
+    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf4Y + pf4H - 3f), size = Size(W - 32f, 3f))
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "PLATFORM 4 / 5",
+        topLeft = Offset(26f, pf4Y + 14f),
+        style = TextStyle(color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    )
 
-        // Cross-tie sleepers
-        val sleeperSpacing = 18f
-        var sx = 0f
-        while (sx < W) {
+    // ── Track 4 Ballast Bed ──────────────────────────────────────────────────
+    val track4Y = pf4Y + pf4H
+    drawBallastTrackBed(y = track4Y, h = 52f, canvasW = W)
+
+    // ── Gate 2: Secondary Entry (Cantt / Colony - Bottom) ────────────────────
+    val gate2Y = H - 46f
+    drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, gate2Y), size = Size(W - 32f, 42f))
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "🚗 SECONDARY ENTRY • GATE 2 (CANTT / COLONY SIDE)",
+        topLeft = Offset(26f, gate2Y + 6f),
+        style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+    )
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "📍 REAR STATION ENTRY",
+        topLeft = Offset(26f, gate2Y + 24f),
+        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    )
+
+    // ── 2. DYNAMIC HORIZONTAL TRAIN RAKE (DRAGGABLE ALONG PLATFORM 3) ────────
+    val trainCenterY = track3Y + (track3H / 2f)
+    val coachH = 38f
+    val coachY = trainCenterY - (coachH / 2f)
+    var curX = trainOffsetPx + 40f
+    var userCoachScreenX = -1f
+    var userCoachScreenY = -1f
+
+    rake.forEachIndexed { idx, coach ->
+        val coachW = coach.widthDp * 2.2f
+        val isUser = coach.code.equals(userCoachCode, ignoreCase = true)
+        val isInspected = coach.code.equals(inspectedCoachCode, ignoreCase = true)
+
+        // Coupler between coaches
+        if (idx > 0) {
             drawRect(
-                color = sleeperColor,
-                topLeft = Offset(sx, trackTop - 3f),
-                size = Size(10f, trackH + 6f),
-                alpha = 0.7f
-            )
-            sx += sleeperSpacing
-        }
-
-        // Rails (two lines)
-        val railY1 = trackTop + trackH * 0.25f
-        val railY2 = trackTop + trackH * 0.72f
-        drawLine(railColor, Offset(0f, railY1), Offset(W, railY1), strokeWidth = 2f)
-        drawLine(railColor, Offset(0f, railY2), Offset(W, railY2), strokeWidth = 2f)
-
-        // ── Platform slab ──────────────────────────────────────────────────
-        val pfColor = if (isTarget) pfTarget else pfSlab
-        drawRoundRect(
-            color = pfColor,
-            topLeft = Offset(0f, pfTop),
-            size = Size(W, platformH),
-            cornerRadius = CornerRadius(3f, 3f)
-        )
-
-        // Platform edge highlight
-        drawLine(
-            color = if (isTarget) pfEdge else Color(0xFF475569),
-            start = Offset(0f, pfBot),
-            end = Offset(W, pfBot),
-            strokeWidth = if (isTarget) 2.5f else 1.5f
-        )
-
-        // Tactile yellow safety stripes (edge of platform)
-        val stripeW = 10f
-        for (i in 0..6) {
-            val stripeX = i * (W / 7f)
-            drawRect(
-                color = tacticStripe,
-                topLeft = Offset(stripeX, pfBot - stripeW),
-                size = Size(W / 14f, stripeW),
-                alpha = 0.75f
-            )
-        }
-
-        // Platform shelter canopy (semi-transparent roof over middle 70%)
-        val canopyL = W * 0.1f
-        val canopyR = W * 0.9f
-        drawRect(
-            color = canopyColor,
-            topLeft = Offset(canopyL, pfTop),
-            size = Size(canopyR - canopyL, platformH * 0.45f)
-        )
-
-        // ── Train rake on target platform track ────────────────────────────
-        if (isTarget) {
-            val trainY = trackTop + 2f
-            val trainH = trackH - 4f
-
-            var drawX = rakeStartX
-            rake.forEachIndexed { idx, coach ->
-                val coachW = coach.widthDp * 2.75f
-                val bodyColor = Color(coach.bodyColor)
-                val roofColor = Color(coach.roofColor)
-                val stripeColor = coach.stripeColor?.let { Color(it) }
-                val isUserCoach = coach.code == userCoachCode
-
-                // Coach body
-                drawRoundRect(
-                    color = bodyColor,
-                    topLeft = Offset(drawX, trainY),
-                    size = Size(coachW, trainH),
-                    cornerRadius = CornerRadius(if (coach.isAeroNose) 10f else 4f, 4f)
-                )
-
-                // Roof panel
-                drawRoundRect(
-                    color = roofColor,
-                    topLeft = Offset(drawX, trainY),
-                    size = Size(coachW, trainH * 0.3f),
-                    cornerRadius = CornerRadius(if (coach.isAeroNose) 10f else 4f, 2f)
-                )
-
-                // Colour stripe
-                if (stripeColor != null) {
-                    drawRect(
-                        color = stripeColor,
-                        topLeft = Offset(drawX, trainY + trainH * 0.3f),
-                        size = Size(coachW, trainH * 0.12f)
-                    )
-                }
-
-                // Roof vent dots
-                if (coach.classType !in listOf("LOCO", "CAB", "EOG")) {
-                    val ventY = trainY + trainH * 0.12f
-                    for (v in 0..2) {
-                        drawCircle(
-                            color = Color(0xFF374151),
-                            radius = 3f,
-                            center = Offset(drawX + coachW * (0.25f + v * 0.25f), ventY)
-                        )
-                    }
-                }
-
-                // Loco/cab pantograph
-                if (coach.isAeroNose || coach.classType == "LOCO") {
-                    val pantoX = drawX + coachW / 2f
-                    val pantoY = trainY
-                    // Simple pantograph lines
-                    drawLine(Color(0xFF9CA3AF), Offset(pantoX - 10f, pantoY), Offset(pantoX, pantoY - 12f), strokeWidth = 2f)
-                    drawLine(Color(0xFF9CA3AF), Offset(pantoX + 10f, pantoY), Offset(pantoX, pantoY - 12f), strokeWidth = 2f)
-                    drawLine(Color(0xFF9CA3AF), Offset(pantoX - 10f, pantoY - 12f), Offset(pantoX + 10f, pantoY - 12f), strokeWidth = 2f)
-                }
-
-                // Coupler between coaches
-                if (idx < rake.size - 1) {
-                    drawRect(
-                        color = Color(0xFF374151),
-                        topLeft = Offset(drawX + coachW, trainY + trainH * 0.42f),
-                        size = Size(coachGap, trainH * 0.16f)
-                    )
-                }
-
-                // Green aura for user's coach
-                if (isUserCoach) {
-                    userCoachXCenter = drawX + coachW / 2f
-                    userCoachY = trainY + trainH / 2f
-
-                    // Pulsing shadow layer
-                    val auraAlpha = 0.18f + 0.22f * pulse
-                    val auraExpand = 6f + 8f * pulse
-                    drawRoundRect(
-                        color = greenGlow.copy(alpha = auraAlpha),
-                        topLeft = Offset(drawX - auraExpand, trainY - auraExpand),
-                        size = Size(coachW + auraExpand * 2f, trainH + auraExpand * 2f),
-                        cornerRadius = CornerRadius(8f, 8f)
-                    )
-                    // Hard green outline
-                    drawRoundRect(
-                        color = greenGlow,
-                        topLeft = Offset(drawX - 2f, trainY - 2f),
-                        size = Size(coachW + 4f, trainH + 4f),
-                        cornerRadius = CornerRadius(6f, 6f),
-                        style = Stroke(width = 2.5f)
-                    )
-                }
-
-                drawX += coachW + coachGap
-            }
-        }
-    }
-
-    // ── 4. FOOT OVER BRIDGES (drawn AFTER train — floats on top) ────────────
-    layout.bridges.forEach { bridge ->
-        val bridgeX = W * bridge.relativePosition
-        val bridgeTop = concourseH
-        val bridgeBot = H - bottomBarH
-        val beamW = 20f
-
-        // Drop shadow
-        drawRect(
-            color = Color.Black.copy(alpha = 0.35f),
-            topLeft = Offset(bridgeX - beamW / 2f + 4f, bridgeTop + 4f),
-            size = Size(beamW, bridgeBot - bridgeTop)
-        )
-
-        // FOB beam
-        drawRect(
-            color = fobBeam,
-            topLeft = Offset(bridgeX - beamW / 2f, bridgeTop),
-            size = Size(beamW, bridgeBot - bridgeTop)
-        )
-
-        // Glass panels on each platform crossing
-        for (pIdx in 0 until layout.totalPlatforms) {
-            val zoneTop = concourseH + pIdx * trackZoneH
-            val pfTop   = zoneTop + ballastH / 2f
-            val pfBot   = pfTop + platformH
-            drawRect(
-                color = fobGlass,
-                topLeft = Offset(bridgeX - beamW / 2f, pfTop),
-                size = Size(beamW, pfBot - pfTop)
+                color = Color(0xFF334155),
+                topLeft = Offset(curX - 8f, trainCenterY - 3f),
+                size = Size(8f, 6f)
             )
         }
 
-        // Elevator/lift cabin at top
-        if (bridge.hasLift || bridge.hasEscalator) {
+        // ── SMART PNR HIGHLIGHT: LIVE PULSING GREEN GLOW SHADOW ──
+        if (isUser) {
+            userCoachScreenX = curX + coachW / 2f
+            userCoachScreenY = coachY
+            val auraPulse = pulse * 8f
+
+            // Multi-layer glowing green shadow aura
             drawRoundRect(
-                color = Color(0xFF1D4ED8).copy(alpha = 0.8f),
-                topLeft = Offset(bridgeX - 14f, bridgeTop + 2f),
-                size = Size(28f, 22f),
-                cornerRadius = CornerRadius(4f, 4f)
+                color = Color(0xFF10B981).copy(alpha = 0.25f + 0.2f * pulse),
+                topLeft = Offset(curX - 8f - auraPulse / 2f, coachY - 8f - auraPulse / 2f),
+                size = Size(coachW + 16f + auraPulse, coachH + 16f + auraPulse),
+                cornerRadius = CornerRadius(12f, 12f)
+            )
+            drawRoundRect(
+                color = Color(0xFF10B981).copy(alpha = 0.45f),
+                topLeft = Offset(curX - 3f, coachY - 3f),
+                size = Size(coachW + 6f, coachH + 6f),
+                cornerRadius = CornerRadius(8f, 8f)
             )
         }
-    }
 
-    // ── 5. DOTTED WALKING PATH ───────────────────────────────────────────────
-    if (route.recommendedBridge != null) {
-        val bridgeX = W * route.recommendedBridge.relativePosition
-        val entryY  = concourseH - 2f
-        // Vertical drop from gate to bridge on target platform
-        val pfIdx = (targetPlatform - 1).coerceIn(0, numPlatforms - 1)
-        val zoneTop = concourseH + pfIdx * trackZoneH
-        val pfBot   = zoneTop + ballastH / 2f + platformH
-
-        // Horizontal from edge to bridge
-        drawLine(
-            color = walkDot,
-            start = Offset(if (selectedEntry?.nearestPlatform ?: 1 > targetPlatform / 2) 0f else W, entryY),
-            end = Offset(bridgeX, entryY),
-            strokeWidth = 2.5f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-            alpha = 0.8f
-        )
-        // Vertical down bridge
-        drawLine(
-            color = walkDot,
-            start = Offset(bridgeX, entryY),
-            end = Offset(bridgeX, pfBot + 4f),
-            strokeWidth = 2.5f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-            alpha = 0.8f
-        )
-        // Along platform edge to coach
-        if (userCoachXCenter > 0f) {
-            drawLine(
-                color = walkDot,
-                start = Offset(bridgeX, pfBot + 4f),
-                end = Offset(userCoachXCenter, pfBot + 4f),
-                strokeWidth = 2.5f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-                alpha = 0.8f
+        // Selection ring for inspected coach (if different from user)
+        if (isInspected && !isUser) {
+            drawRoundRect(
+                color = Color(0xFF38BDF8).copy(alpha = 0.4f),
+                topLeft = Offset(curX - 3f, coachY - 3f),
+                size = Size(coachW + 6f, coachH + 6f),
+                cornerRadius = CornerRadius(8f, 8f),
+                style = Stroke(width = 2f)
             )
         }
+
+        // Coach Drop Shadow
+        drawRoundRect(
+            color = Color.Black.copy(alpha = 0.6f),
+            topLeft = Offset(curX + 3f, coachY + 4f),
+            size = Size(coachW, coachH),
+            cornerRadius = CornerRadius(6f, 6f)
+        )
+
+        // Coach Body Surface
+        val bodyCol = Color(coach.bodyColor)
+        drawRoundRect(
+            color = bodyCol,
+            topLeft = Offset(curX, coachY),
+            size = Size(coachW, coachH),
+            cornerRadius = CornerRadius(if (coach.isAeroNose) 12f else 6f, 6f)
+        )
+
+        // Livery Stripe (top & bottom)
+        val stripeCol = coach.stripeColor?.let { Color(it) }
+        if (stripeCol != null) {
+            drawRect(
+                color = stripeCol,
+                topLeft = Offset(curX + 2f, coachY + 4f),
+                size = Size(coachW - 4f, 4f)
+            )
+            drawRect(
+                color = stripeCol,
+                topLeft = Offset(curX + 2f, coachY + coachH - 8f),
+                size = Size(coachW - 4f, 4f)
+            )
+        }
+
+        // Roof Details (AC vent center corridor)
+        val roofCol = Color(coach.roofColor)
+        drawRect(
+            color = roofCol,
+            topLeft = Offset(curX + 8f, coachY + (coachH / 2f) - 4f),
+            size = Size(coachW - 16f, 8f)
+        )
+
+        // Pantograph on Locomotives
+        if (coach.classType == "LOCO" || coach.classType == "CAB") {
+            val pantoX = curX + 16f
+            val pantoY = coachY + (coachH / 2f) - 6f
+            drawRect(
+                color = Color(0xFFF59E0B),
+                topLeft = Offset(pantoX, pantoY),
+                size = Size(16f, 12f),
+                style = Stroke(width = 1.5f)
+            )
+        }
+
+        // Passenger Doors / Steps facing Platform 3
+        drawRect(
+            color = Color(0xFFFACC15),
+            topLeft = Offset(curX + 4f, coachY),
+            size = Size(8f, 3f)
+        )
+        drawRect(
+            color = Color(0xFFFACC15),
+            topLeft = Offset(curX + coachW - 12f, coachY),
+            size = Size(8f, 3f)
+        )
+
+        // ── 1. COACH CODE TEXT (e.g. B4, A1, S3, GEN, WAP-7) ──
+        val codeColor = if (isUser) Color.White else Color(0xFFF8FAFC)
+        val codeText = coach.code
+        val codeMeas = textMeasurer.measure(
+            text = codeText,
+            style = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Black)
+        )
+        drawText(
+            textMeasurer = textMeasurer,
+            text = codeText,
+            topLeft = Offset(curX + (coachW - codeMeas.size.width) / 2f, coachY + 4f),
+            style = TextStyle(color = codeColor, fontSize = 11.5.sp, fontWeight = FontWeight.Black)
+        )
+
+        // ── 2. COACH CLASS BADGE PILL (e.g. [3A], [SL], [GEN], [2A], [1A]) ──
+        val classTag = TrainRakeDataService.classShortTag(coach.classType)
+        val badgeBgCol = Color(TrainRakeDataService.classBadgeColor(coach.classType))
+        val tagMeas = textMeasurer.measure(
+            text = classTag,
+            style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black)
+        )
+        val badgeW = tagMeas.size.width + 10f
+        val badgeH = 14f
+        val badgeX = curX + (coachW - badgeW) / 2f
+        val badgeY = coachY + coachH - 18f
+
+        drawRoundRect(
+            color = badgeBgCol,
+            topLeft = Offset(badgeX, badgeY),
+            size = Size(badgeW, badgeH),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+        drawText(
+            textMeasurer = textMeasurer,
+            text = classTag,
+            topLeft = Offset(badgeX + 5f, badgeY + 1f),
+            style = TextStyle(color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+        )
+
+        curX += coachW + 12f
     }
 
-    // ── 6. "🎯 YOUR COACH" BEACON PIN (always last — never clipped) ──────────
-    if (userCoachXCenter > 0f) {
-        val pinX = userCoachXCenter
-        val pinY = userCoachY
+    // ── 3. ELEVATED FOOT-OVER-BRIDGES (Rendered ON TOP of train!) ───────────
+    val fobY1 = 36f
+    val fobY2 = H - 24f
 
-        // Outer pulse ring
-        drawCircle(
-            color = greenGlow.copy(alpha = 0.2f + 0.3f * pulse),
-            radius = 20f + 8f * pulse,
-            center = Offset(pinX, pinY)
+    // Central FOB (🛗 Lift + Escalator)
+    // Deep Drop Shadow
+    drawRect(
+        color = Color.Black.copy(alpha = 0.65f),
+        topLeft = Offset(centralFobX + 12f, fobY1 + 10f),
+        size = Size(centralFobW, fobY2 - fobY1)
+    )
+    // Bridge Deck Beam
+    drawRect(
+        color = Color(0xFF0369A1),
+        topLeft = Offset(centralFobX, fobY1),
+        size = Size(centralFobW, fobY2 - fobY1)
+    )
+    // Handrails
+    drawRect(
+        color = Color(0xFF38BDF8),
+        topLeft = Offset(centralFobX, fobY1),
+        size = Size(centralFobW, fobY2 - fobY1),
+        style = Stroke(width = 2f)
+    )
+    // Center Dashed Walkway Stripe
+    drawLine(
+        color = Color.White.copy(alpha = 0.45f),
+        start = Offset(centralFobX + centralFobW / 2f, fobY1),
+        end = Offset(centralFobX + centralFobW / 2f, fobY2),
+        strokeWidth = 2f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+    )
+    // Glass Lift / Escalator Tower at Platform 3 Landing
+    drawRoundRect(
+        color = Color(0xFF0F172A),
+        topLeft = Offset(centralFobX + centralFobW + 2f, pf3Y + 14f),
+        size = Size(26f, 26f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+    drawRoundRect(
+        color = Color(0xFF38BDF8),
+        topLeft = Offset(centralFobX + centralFobW + 2f, pf3Y + 14f),
+        size = Size(26f, 26f),
+        cornerRadius = CornerRadius(4f, 4f),
+        style = Stroke(width = 1.5f)
+    )
+    drawText(
+        textMeasurer = textMeasurer,
+        text = "🛗",
+        topLeft = Offset(centralFobX + centralFobW + 7f, pf3Y + 18f),
+        style = TextStyle(fontSize = 12.sp)
+    )
+
+    // North Overbridge (Stairs)
+    // Drop Shadow
+    drawRect(
+        color = Color.Black.copy(alpha = 0.65f),
+        topLeft = Offset(northBridgeX + 10f, fobY1 + 10f),
+        size = Size(northBridgeW, fobY2 - fobY1)
+    )
+    // Bridge Deck
+    drawRect(
+        color = Color(0xFF475569),
+        topLeft = Offset(northBridgeX, fobY1),
+        size = Size(northBridgeW, fobY2 - fobY1)
+    )
+    drawRect(
+        color = Color(0xFF94A3B8),
+        topLeft = Offset(northBridgeX, fobY1),
+        size = Size(northBridgeW, fobY2 - fobY1),
+        style = Stroke(width = 1.5f)
+    )
+    drawLine(
+        color = Color.White.copy(alpha = 0.35f),
+        start = Offset(northBridgeX + northBridgeW / 2f, fobY1),
+        end = Offset(northBridgeX + northBridgeW / 2f, fobY2),
+        strokeWidth = 1.5f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+    )
+
+    // ── 4. PASSENGER DOTTED WALKING ROUTE (Cyan Dashed Line) ─────────────────
+    val entryStartY = if (selectedGate == 1) 36f else H - 40f
+    val liftLandY = pf3Y + pf3H - 8f
+
+    // 1. From Gate entrance along the bridge
+    drawLine(
+        color = Color(0xFF38BDF8),
+        start = Offset(centralFobX + centralFobW / 2f, entryStartY),
+        end = Offset(centralFobX + centralFobW / 2f, liftLandY),
+        strokeWidth = 3f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
+    )
+    // 2. Along Platform 3 right to the door of user's coach
+    if (userCoachScreenX > 0f) {
+        drawLine(
+            color = Color(0xFF38BDF8),
+            start = Offset(centralFobX + centralFobW / 2f, liftLandY),
+            end = Offset(userCoachScreenX, liftLandY),
+            strokeWidth = 3f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
         )
-        // Inner ring
-        drawCircle(
-            color = greenGlow.copy(alpha = 0.6f),
-            radius = 12f,
-            center = Offset(pinX, pinY)
-        )
-        // Pin dot
-        drawCircle(
-            color = Color.White,
-            radius = 5f,
-            center = Offset(pinX, pinY)
-        )
-        // Green crosshair lines
-        drawLine(greenGlow, Offset(pinX - 18f, pinY), Offset(pinX - 7f, pinY), strokeWidth = 2f)
-        drawLine(greenGlow, Offset(pinX + 7f, pinY), Offset(pinX + 18f, pinY), strokeWidth = 2f)
-        drawLine(greenGlow, Offset(pinX, pinY - 18f), Offset(pinX, pinY - 7f), strokeWidth = 2f)
-        drawLine(greenGlow, Offset(pinX, pinY + 7f), Offset(pinX, pinY + 18f), strokeWidth = 2f)
     }
 
-    // ── 7. BOTTOM CONCOURSE (Gate 2 / Secondary entry) ───────────────────────
-    val secondaryEntry = layout.entries.getOrNull(1)
-    drawRect(
-        color = entryConcourse,
-        topLeft = Offset(0f, H - bottomBarH),
-        size = Size(W, bottomBarH)
-    )
-    drawRect(
-        color = Color(0xFFDC2626).copy(alpha = 0.12f),
-        topLeft = Offset(0f, H - bottomBarH),
-        size = Size(W, bottomBarH)
-    )
+    // ── 5. FLOATING 3D BEACON PIN: "🎯 YOUR COACH" (Rendered on top!) ────────
+    if (userCoachScreenX > 0f) {
+        val pinX = userCoachScreenX
+        val pinY = userCoachScreenY - 32f
+
+        // Green Beacon Pill Background
+        val beaconW = 96f
+        val beaconH = 22f
+        drawRoundRect(
+            color = Color(0xFF10B981),
+            topLeft = Offset(pinX - beaconW / 2f, pinY - beaconH / 2f),
+            size = Size(beaconW, beaconH),
+            cornerRadius = CornerRadius(6f, 6f)
+        )
+        // Downward Triangle Pointer
+        val trianglePath = Path().apply {
+            moveTo(pinX - 6f, pinY + beaconH / 2f - 1f)
+            lineTo(pinX + 6f, pinY + beaconH / 2f - 1f)
+            lineTo(pinX, pinY + beaconH / 2f + 8f)
+            close()
+        }
+        drawPath(trianglePath, color = Color(0xFF10B981))
+
+        // Beacon Text
+        drawText(
+            textMeasurer = textMeasurer,
+            text = "🎯 YOUR COACH",
+            topLeft = Offset(pinX - 42f, pinY - 7f),
+            style = TextStyle(color = Color(0xFF022C22), fontSize = 9.5.sp, fontWeight = FontWeight.Black)
+        )
+    }
+}
+
+// ── Helper to draw realistic track ballast beds with sleepers and rails ───────
+private fun DrawScope.drawBallastTrackBed(y: Float, h: Float, canvasW: Float) {
+    // Crushed gravel ballast
+    drawRect(color = Color(0xFF111827), topLeft = Offset(0f, y), size = Size(canvasW, h))
+
+    // Wooden / Concrete Sleepers
+    var x = 0f
+    while (x < canvasW) {
+        drawLine(
+            color = Color(0xFF1F2937),
+            start = Offset(x, y + 4f),
+            end = Offset(x, y + h - 4f),
+            strokeWidth = 3f
+        )
+        x += 16f
+    }
+
+    // Steel Rails (Pair)
+    val r1 = y + h * 0.30f
+    val r2 = y + h * 0.70f
+    drawLine(Color(0xFF64748B), Offset(0f, r1), Offset(canvasW, r1), strokeWidth = 2.5f)
+    drawLine(Color(0xFF64748B), Offset(0f, r2), Offset(canvasW, r2), strokeWidth = 2.5f)
 }
