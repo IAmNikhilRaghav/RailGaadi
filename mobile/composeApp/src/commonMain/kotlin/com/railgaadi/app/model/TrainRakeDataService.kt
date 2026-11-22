@@ -102,7 +102,47 @@ private object CoachColors {
 // ─────────────────────────────────────────────────────────────────────────────
 object TrainRakeDataService {
 
-    fun getRakeForCategory(category: TrainCategory, userCoachCode: String?): List<RakeCoach> {
+    fun getRakeForCategory(
+        category: TrainCategory,
+        userCoachCode: String?,
+        trainNumber: String? = null,
+        trainName: String? = null,
+        trainType: String? = null
+    ): List<RakeCoach> {
+        val effectiveNo = trainNumber?.trim().orEmpty()
+        val effectiveName = if (!trainName.isNullOrBlank()) trainName else category.displayName
+        val effectiveType = if (!trainType.isNullOrBlank()) trainType else category.displayName
+
+        val comp = CoachDataService.getRakeComposition(effectiveNo, effectiveName, effectiveType)
+        if (comp.coaches.isNotEmpty()) {
+            return comp.coaches.map { pos ->
+                val classTag = when (pos.coachClass) {
+                    CoachClass.FIRST_AC -> "1A"
+                    CoachClass.SECOND_AC -> "2A"
+                    CoachClass.THIRD_AC -> "3A"
+                    CoachClass.THIRD_AC_ECONOMY -> "3E"
+                    CoachClass.EXECUTIVE_CHAIR_CAR -> "EC"
+                    CoachClass.AC_CHAIR_CAR -> "CC"
+                    CoachClass.SLEEPER -> "SL"
+                    CoachClass.SECOND_SITTING -> "2S"
+                    CoachClass.GENERAL_UNRESERVED -> "UR"
+                    CoachClass.PANTRY_CAR -> "PANTRY"
+                    CoachClass.LUGGAGE_BRAKE_VAN, CoachClass.GENERATOR_CAR -> "GEN"
+                    CoachClass.LOCOMOTIVE -> "LOCO"
+                    else -> pos.coachClass.shortName
+                }
+                RakeCoach(
+                    code = pos.coachCode,
+                    classType = if (pos.isLocomotive) "LOCO" else classTag,
+                    bodyColor = pos.primaryColor.value.toLong(),
+                    roofColor = (pos.secondaryColor ?: pos.primaryColor).value.toLong(),
+                    stripeColor = pos.secondaryColor?.value?.toLong(),
+                    widthDp = if (pos.isLocomotive) 92f else 80f,
+                    isAeroNose = pos.isLocomotive
+                )
+            }
+        }
+
         return when (category) {
             TrainCategory.RAJDHANI_TEJAS   -> rajdhaniRake()
             TrainCategory.VANDE_BHARAT     -> vandeBharatRake()

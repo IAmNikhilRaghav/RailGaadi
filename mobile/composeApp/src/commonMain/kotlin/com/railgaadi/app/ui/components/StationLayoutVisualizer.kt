@@ -57,14 +57,24 @@ fun StationLayoutVisualizer(
     }
 
     // ── Train category state ─────────────────────────────────────────────────
-    var selectedCategory by remember {
-        mutableStateOf(
-            TrainRakeDataService.detectCategory(trainName ?: "", trainType ?: "")
-        )
+    val initialCategory = remember(trainName, trainType) {
+        TrainRakeDataService.detectCategory(trainName ?: "", trainType ?: "")
     }
 
-    val rake = remember(selectedCategory) {
-        TrainRakeDataService.getRakeForCategory(selectedCategory, targetCoachCode)
+    var selectedCategory by remember(initialCategory) {
+        mutableStateOf(initialCategory)
+    }
+
+    val isDefaultCategory = selectedCategory == initialCategory
+
+    val rake = remember(selectedCategory, trainNumber, trainName, trainType, isDefaultCategory) {
+        TrainRakeDataService.getRakeForCategory(
+            category = selectedCategory,
+            userCoachCode = targetCoachCode,
+            trainNumber = if (isDefaultCategory) trainNumber else "",
+            trainName = if (isDefaultCategory) trainName else selectedCategory.displayName,
+            trainType = if (isDefaultCategory) trainType else selectedCategory.displayName
+        )
     }
 
     // Currently inspected coach (defaults to target coach, or first coach)
@@ -110,12 +120,13 @@ fun StationLayoutVisualizer(
         val targetIdx = rake.indexOfFirst { it.code.equals(code, ignoreCase = true) }.takeIf { it >= 0 } ?: 0
         var distDp = 40f
         for (i in 0 until targetIdx) {
-            distDp += rake[i].widthDp + 8f
+            distDp += rake[i].widthDp + 6f
         }
-        val targetCoachW = rake.getOrNull(targetIdx)?.widthDp ?: 84f
-        // Position at ~40% across viewport (near central FOB)
+        val targetCoachW = rake.getOrNull(targetIdx)?.widthDp ?: 80f
         val targetCenterDp = distDp + (targetCoachW / 2f)
-        trainOffsetPx = (160f - targetCenterDp) * 2.5f
+        val desiredOffset = (150f - targetCenterDp) * 2.5f
+        val maxPanLeft = -((rake.size * 90f) - 260f).coerceAtLeast(0f)
+        trainOffsetPx = desiredOffset.coerceIn(maxPanLeft, 40f)
     }
 
     // Auto-center on user coach once layout is displayed
@@ -143,11 +154,11 @@ fun StationLayoutVisualizer(
         color = bgCol,
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight()
+            .fillMaxHeight()
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
 
@@ -180,8 +191,8 @@ fun StationLayoutVisualizer(
                         }
                         Text(
                             text = buildString {
-                                if (!trainNumber.isNullOrBlank()) append("$trainNumber • ")
-                                append(trainName ?: selectedCategory.displayName)
+                                if (isDefaultCategory && !trainNumber.isNullOrBlank()) append("$trainNumber • ")
+                                append(if (isDefaultCategory) (trainName ?: selectedCategory.displayName) else selectedCategory.displayName)
                                 append(" • ${rake.size} Coaches • WAP-7 Loco")
                             },
                             fontSize = 11.5.sp,
@@ -406,11 +417,13 @@ fun StationLayoutVisualizer(
                         // Train Rake Row
                         Row(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxHeight()
+                                .wrapContentWidth(align = Alignment.Start, unbounded = true)
                                 .pointerInput(rake) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
-                                        trainOffsetPx += dragAmount.x
+                                        val maxPanLeft = -((rake.size * 88f) - 240f).coerceAtLeast(0f)
+                                        trainOffsetPx = (trainOffsetPx + dragAmount.x).coerceIn(maxPanLeft, 40f)
                                     }
                                 }
                                 .graphicsLayer { translationX = trainOffsetPx },
@@ -688,6 +701,12 @@ private fun CoachVisualCard(
     val classTag = TrainRakeDataService.classShortTag(coach.classType)
     val badgeBgCol = Color(TrainRakeDataService.classBadgeColor(coach.classType))
 
+    val r = ((coach.bodyColor shr 16) and 0xFF) / 255f
+    val g = ((coach.bodyColor shr 8) and 0xFF) / 255f
+    val b = (coach.bodyColor and 0xFF) / 255f
+    val isLightBody = (0.299f * r + 0.587f * g + 0.114f * b) > 0.65f
+    val coachCodeColor = if (isUser) Color.White else if (isLightBody) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable { onClick() }
@@ -743,7 +762,7 @@ private fun CoachVisualCard(
                     text = coach.code,
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Black,
-                    color = if (isUser) Color.White else Color(0xFFF8FAFC),
+                    color = coachCodeColor,
                     maxLines = 1
                 )
 
