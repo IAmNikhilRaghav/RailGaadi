@@ -10,7 +10,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -27,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -1242,16 +1242,13 @@ fun DirectTrainSearchStrip(
                 Text("🔍", fontSize = 12.sp)
             }
 
-            // Marquee Track with only 2 trains smoothly scrolling
+            // Search prompt & sample train pills (clipped within bar)
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .basicMarquee(
-                        iterations = Int.MAX_VALUE,
-                        velocity = 40.dp
-                    ),
+                    .clipToBounds(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Search trains by name and number:",
