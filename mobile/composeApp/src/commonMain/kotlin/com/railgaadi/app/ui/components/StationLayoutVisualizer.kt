@@ -3,7 +3,6 @@ package com.railgaadi.app.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -14,25 +13,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.*
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.railgaadi.app.model.*
 import com.railgaadi.app.theme.*
-import kotlin.math.abs
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StationLayoutVisualizer — Full Helicopter Aerial Yard & Coach Visualizer
+// 100% Native Compose UI — Zero Canvas drawText / Zero Skia HarfBuzz crashes
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StationLayoutVisualizer(
     stationCode: String,
@@ -45,8 +40,6 @@ fun StationLayoutVisualizer(
     isDark: Boolean = false,
     onClose: () -> Unit
 ) {
-    val textMeasurer = rememberTextMeasurer()
-
     // ── Station yard layout ──────────────────────────────────────────────────
     val layout = remember(stationCode, stationName, targetPlatform) {
         JunctionDataService.getLayoutForStation(
@@ -88,8 +81,7 @@ fun StationLayoutVisualizer(
     }
 
     // ── Train horizontal drag offset ─────────────────────────────────────────
-    var trainOffsetPx by remember { mutableStateOf(-320f) }
-    var canvasWidthPx by remember { mutableStateOf(900f) }
+    var trainOffsetPx by remember { mutableStateOf(-280f) }
     var hasAutoCentered by remember { mutableStateOf(false) }
 
     // ── Smart PNR Pulse Animation ────────────────────────────────────────────
@@ -113,21 +105,22 @@ fun StationLayoutVisualizer(
         )
     }
 
-    // Function to center train on a specific coach at Central FOB (X = canvasWidthPx * 0.42f)
+    // Center train on a specific coach
     fun centerOnCoach(code: String) {
-        val targetIdx = rake.indexOfFirst { it.code == code }.takeIf { it >= 0 } ?: 0
-        var distPx = 40f
+        val targetIdx = rake.indexOfFirst { it.code.equals(code, ignoreCase = true) }.takeIf { it >= 0 } ?: 0
+        var distDp = 40f
         for (i in 0 until targetIdx) {
-            distPx += (rake[i].widthDp * 2.2f) + 12f
+            distDp += rake[i].widthDp + 8f
         }
-        val targetCoachW = (rake.getOrNull(targetIdx)?.widthDp ?: 84f) * 2.2f
-        val bridgeX = canvasWidthPx * 0.42f
-        trainOffsetPx = bridgeX - (distPx + targetCoachW / 2f)
+        val targetCoachW = rake.getOrNull(targetIdx)?.widthDp ?: 84f
+        // Position at ~40% across viewport (near central FOB)
+        val targetCenterDp = distDp + (targetCoachW / 2f)
+        trainOffsetPx = (160f - targetCenterDp) * 2.5f
     }
 
-    // Auto-center on user coach once layout is measured
-    LaunchedEffect(canvasWidthPx, targetCoachCode, rake) {
-        if (!hasAutoCentered && canvasWidthPx > 200f) {
+    // Auto-center on user coach once layout is displayed
+    LaunchedEffect(targetCoachCode, rake) {
+        if (!hasAutoCentered) {
             val userCode = targetCoachCode ?: "B4"
             centerOnCoach(userCode)
             hasAutoCentered = true
@@ -150,9 +143,13 @@ fun StationLayoutVisualizer(
         color = bgCol,
         modifier = Modifier
             .fillMaxWidth()
-            .height(660.dp)
+            .wrapContentHeight()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
 
             // ── 1. CLEAN HEADER (Station Title + Subtitle) ───────────────────
             Surface(
@@ -323,44 +320,219 @@ fun StationLayoutVisualizer(
 
             HorizontalDivider(color = dividerCol, thickness = 1.dp)
 
-            // ── 4. UNIFIED HELICOPTER CANVAS (Yard + Draggable Train Rake) ───
+            // ── 4. UNIFIED HELICOPTER YARD VIEWPORT ───────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .height(340.dp)
                     .background(Color(0xFF090E1A))
-                    .pointerInput(rake) {
-                        // Drag gesture to scroll train horizontally along platform
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            trainOffsetPx += dragAmount.x
+            ) {
+                // Yard Elements Column
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // 1. Gate 1 Concourse (City Side)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 3.dp)
+                            .background(Color(0xFF1E293B), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "🏛️ MAIN CONCOURSE • GATE 1 (CITY SIDE) • PARKING & TICKETS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFF8FAFC),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "📍 MAIN ENTRY POINT",
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8)
+                            )
                         }
                     }
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    canvasWidthPx = size.width
 
-                    drawActualUnifiedYardCanvas(
-                        textMeasurer = textMeasurer,
-                        layout = layout,
-                        targetPlatform = targetPlatform,
-                        rake = rake,
-                        userCoachCode = targetCoachCode ?: "B4",
-                        inspectedCoachCode = inspectedCoachCode,
-                        trainOffsetPx = trainOffsetPx,
-                        pulse = pulse,
-                        selectedGate = selectedGateNumber,
-                        route = route
-                    )
+                    // 2. Platform 1 (City Face)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .background(Color(0xFF334155), RoundedCornerShape(4.dp))
+                            .border(width = 2.dp, color = Color(0xFFFACC15), shape = RoundedCornerShape(4.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "PLATFORM 1 (CITY FACE)",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E8F0)
+                        )
+                    }
+
+                    // 3. Track 1 & 2 Ballast Bed
+                    TrackBallastView(heightDp = 24.dp)
+
+                    // 4. Platform 3 (Target Island Platform)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .background(Color(0xFF0C4A6E), RoundedCornerShape(6.dp))
+                            .border(width = 1.5.dp, color = Color(0xFF0284C7), shape = RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = "🚉 PLATFORM 3 (DEPARTURE TRACK)",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
+
+                    // 5. Track 3 Ballast Bed + HORIZONTALLY DRAGGABLE TRAIN RAKE
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(88.dp)
+                    ) {
+                        // Background rails and gravel
+                        TrackBallastView(heightDp = 88.dp)
+
+                        // Train Rake Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(rake) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        trainOffsetPx += dragAmount.x
+                                    }
+                                }
+                                .graphicsLayer { translationX = trainOffsetPx },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(modifier = Modifier.width(30.dp))
+
+                            rake.forEachIndexed { idx, coach ->
+                                val isUser = coach.code.equals(targetCoachCode ?: "B4", ignoreCase = true)
+                                val isInspected = coach.code.equals(inspectedCoachCode, ignoreCase = true)
+
+                                if (idx > 0) {
+                                    // Coupler between coaches
+                                    Box(
+                                        modifier = Modifier
+                                            .width(6.dp)
+                                            .height(5.dp)
+                                            .background(Color(0xFF475569), RoundedCornerShape(1.dp))
+                                    )
+                                }
+
+                                CoachVisualCard(
+                                    coach = coach,
+                                    isUser = isUser,
+                                    isInspected = isInspected,
+                                    pulse = pulse,
+                                    onClick = { inspectedCoachCode = coach.code }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(50.dp))
+                        }
+                    }
+
+                    // 6. Platform 4 / 5 (Island)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .background(Color(0xFF334155), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "PLATFORM 4 / 5",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+
+                    // 7. Track 4 Ballast Bed
+                    TrackBallastView(heightDp = 20.dp)
+
+                    // 8. Gate 2 Concourse (Cantt / Colony Side)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 3.dp)
+                            .background(Color(0xFF1E293B), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "🚗 SECONDARY ENTRY • GATE 2 (CANTT / COLONY SIDE)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFF8FAFC),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "📍 REAR STATION ENTRY",
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8)
+                            )
+                        }
+                    }
                 }
 
-                // Floating Drag Hint HUD
+                // ── OVERLAID ELEVATED FOOT-OVER-BRIDGES ─────────────────────────
+                // Central FOB (Lift + Escalator) at 42% horizontal position
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(32.dp)
+                        .align(Alignment.CenterStart)
+                        .offset(x = 150.dp)
+                        .background(Color(0xFF0369A1).copy(alpha = 0.88f))
+                        .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.90f))
+                ) {
+                    // Glass Lift Icon at Platform 3 Landing
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .align(Alignment.Center)
+                            .background(Color(0xFF0F172A), RoundedCornerShape(4.dp))
+                            .border(1.dp, Color(0xFF38BDF8), RoundedCornerShape(4.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🛗", fontSize = 11.sp)
+                    }
+                }
+
+                // North Overbridge (Stairs) at 80% horizontal position
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(26.dp)
+                        .align(Alignment.CenterStart)
+                        .offset(x = 300.dp)
+                        .background(Color(0xFF475569).copy(alpha = 0.82f))
+                        .border(1.dp, Color(0xFF94A3B8).copy(alpha = 0.70f))
+                )
+
+                // Floating Drag Instruction Hint HUD
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 6.dp)
-                        .background(Color(0xFF0F172A).copy(alpha = 0.85f), RoundedCornerShape(14.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.88f), RoundedCornerShape(14.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -372,7 +544,7 @@ fun StationLayoutVisualizer(
                 }
             }
 
-            // ── 5. WAYFINDING & COACH INSPECTION SHEET (Actual Visual Card) ───
+            // ── 5. WAYFINDING & COACH INSPECTION SHEET ────────────────────────
             Surface(
                 color = cardBg,
                 shadowElevation = 8.dp,
@@ -416,19 +588,14 @@ fun StationLayoutVisualizer(
 
                         // Coach details
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Coach ${inspectedCoach?.code ?: "B4"} • ${TrainRakeDataService.classDisplayName(inspectedCoach?.classType ?: "3A")}",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                            Text(
+                                text = "Coach ${inspectedCoach?.code ?: "B4"} • ${TrainRakeDataService.classDisplayName(inspectedCoach?.classType ?: "3A")}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                             Text(
                                 text = "Position: Coach ${inspectedCoachIdx + 1} of ${rake.size} in rake • Direct Platform 3 Access",
                                 fontSize = 11.sp,
@@ -468,445 +635,133 @@ fun StationLayoutVisualizer(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Actual Unified Yard Canvas Renderer (Matches the Approved HTML Visual)
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * High-performance pure vector ballast track renderer (zero text, zero font shaper calls)
+ */
+@Composable
+private fun TrackBallastView(heightDp: Dp) {
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(heightDp)
+    ) {
+        val w = size.width
+        val h = size.height
 
-private fun DrawScope.drawActualUnifiedYardCanvas(
-    textMeasurer: TextMeasurer,
-    layout: JunctionLayout,
-    targetPlatform: Int,
-    rake: List<RakeCoach>,
-    userCoachCode: String,
-    inspectedCoachCode: String,
-    trainOffsetPx: Float,
-    pulse: Float,
-    selectedGate: Int,
-    route: NavigationRoute
-) {
-    val W = size.width
-    val H = size.height
+        // Crushed dark gravel bed
+        drawRect(color = Color(0xFF111827), size = size)
 
-    // ── Fixed Station Bridge Coordinates ─────────────────────────────────────
-    val centralFobX = W * 0.42f
-    val centralFobW = 36f
-    val northBridgeX = W * 0.82f
-    val northBridgeW = 30f
-
-    // ── 1. BACKGROUND & FIXED YARD INFRASTRUCTURE ─────────────────────────────
-    drawRect(color = Color(0xFF090E1A), size = size)
-
-    // ── Gate 1: Main Concourse (City Side - Top) ─────────────────────────────
-    val gate1H = 50f
-    drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, 12f), size = Size(W - 32f, gate1H))
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "MAIN CONCOURSE • GATE 1 (CITY SIDE) • PARKING & TICKETS",
-        topLeft = Offset(26f, 18f),
-        style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-    )
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "MAIN ENTRY POINT",
-        topLeft = Offset(26f, 38f),
-        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
-    )
-
-    // ── Platform 1 (City Face) ───────────────────────────────────────────────
-    val pf1Y = 74f
-    val pf1H = 38f
-    drawRect(color = Color(0xFF334155), topLeft = Offset(16f, pf1Y), size = Size(W - 32f, pf1H))
-    // Yellow tactile safety line at bottom edge
-    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf1Y + pf1H - 3f), size = Size(W - 32f, 3f))
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "PLATFORM 1 (CITY FACE)",
-        topLeft = Offset(26f, pf1Y + 12f),
-        style = TextStyle(color = Color(0xFFE2E8F0), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    )
-
-    // ── Track 1 & 2 Ballast Bed ──────────────────────────────────────────────
-    drawBallastTrackBed(y = pf1Y + pf1H, h = 58f, canvasW = W)
-
-    // ── Platform 2 / 3 (Target Island Platform) ──────────────────────────────
-    val pf3Y = pf1Y + pf1H + 58f
-    val pf3H = 54f
-    // Drop shadow
-    drawRect(color = Color.Black.copy(alpha = 0.5f), topLeft = Offset(16f, pf3Y + 4f), size = Size(W - 32f, pf3H))
-    // Vibrant Blue Target Platform slab
-    drawRect(color = Color(0xFF0C4A6E), topLeft = Offset(16f, pf3Y), size = Size(W - 32f, pf3H))
-    // Yellow tactile lines on both edges of island platform
-    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf3Y), size = Size(W - 32f, 3f))
-    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf3Y + pf3H - 3f), size = Size(W - 32f, 3f))
-
-    // Platform Shelter & Departure Track Sign
-    drawRoundRect(
-        color = Color(0xFF0284C7),
-        topLeft = Offset(36f, pf3Y + 10f),
-        size = Size(W - 72f, 34f),
-        cornerRadius = CornerRadius(4f, 4f)
-    )
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "PLATFORM 3 (DEPARTURE TRACK)",
-        topLeft = Offset(48f, pf3Y + 18f),
-        style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
-    )
-
-    // ── Track 3 Ballast Bed (Where our train is parked!) ─────────────────────
-    val track3Y = pf3Y + pf3H
-    val track3H = 76f
-    drawBallastTrackBed(y = track3Y, h = track3H, canvasW = W)
-
-    // ── Platform 4 / 5 (Island) ──────────────────────────────────────────────
-    val pf4Y = track3Y + track3H
-    val pf4H = 44f
-    drawRect(color = Color(0xFF334155), topLeft = Offset(16f, pf4Y), size = Size(W - 32f, pf4H))
-    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf4Y), size = Size(W - 32f, 3f))
-    drawRect(color = Color(0xFFFACC15), topLeft = Offset(16f, pf4Y + pf4H - 3f), size = Size(W - 32f, 3f))
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "PLATFORM 4 / 5",
-        topLeft = Offset(26f, pf4Y + 14f),
-        style = TextStyle(color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    )
-
-    // ── Track 4 Ballast Bed ──────────────────────────────────────────────────
-    val track4Y = pf4Y + pf4H
-    drawBallastTrackBed(y = track4Y, h = 52f, canvasW = W)
-
-    // ── Gate 2: Secondary Entry (Cantt / Colony - Bottom) ────────────────────
-    val gate2Y = H - 46f
-    drawRect(color = Color(0xFF1E293B), topLeft = Offset(16f, gate2Y), size = Size(W - 32f, 42f))
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "SECONDARY ENTRY • GATE 2 (CANTT / COLONY SIDE)",
-        topLeft = Offset(26f, gate2Y + 6f),
-        style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
-    )
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "REAR STATION ENTRY",
-        topLeft = Offset(26f, gate2Y + 24f),
-        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-    )
-
-    // ── 2. DYNAMIC HORIZONTAL TRAIN RAKE (DRAGGABLE ALONG PLATFORM 3) ────────
-    val trainCenterY = track3Y + (track3H / 2f)
-    val coachH = 38f
-    val coachY = trainCenterY - (coachH / 2f)
-    var curX = trainOffsetPx + 40f
-    var userCoachScreenX = -1f
-    var userCoachScreenY = -1f
-
-    rake.forEachIndexed { idx, coach ->
-        val coachW = coach.widthDp * 2.2f
-        val isUser = coach.code.equals(userCoachCode, ignoreCase = true)
-        val isInspected = coach.code.equals(inspectedCoachCode, ignoreCase = true)
-
-        // Coupler between coaches
-        if (idx > 0) {
-            drawRect(
-                color = Color(0xFF334155),
-                topLeft = Offset(curX - 8f, trainCenterY - 3f),
-                size = Size(8f, 6f)
+        // Sleepers (Cross ties)
+        var x = 0f
+        while (x < w) {
+            drawLine(
+                color = Color(0xFF1F2937),
+                start = Offset(x, 2f),
+                end = Offset(x, h - 2f),
+                strokeWidth = 3f
             )
+            x += 16f
         }
 
-        // ── SMART PNR HIGHLIGHT: LIVE PULSING GREEN GLOW SHADOW ──
-        if (isUser) {
-            userCoachScreenX = curX + coachW / 2f
-            userCoachScreenY = coachY
-            val auraPulse = pulse * 8f
-
-            // Multi-layer glowing green shadow aura
-            drawRoundRect(
-                color = Color(0xFF10B981).copy(alpha = 0.25f + 0.2f * pulse),
-                topLeft = Offset(curX - 8f - auraPulse / 2f, coachY - 8f - auraPulse / 2f),
-                size = Size(coachW + 16f + auraPulse, coachH + 16f + auraPulse),
-                cornerRadius = CornerRadius(12f, 12f)
-            )
-            drawRoundRect(
-                color = Color(0xFF10B981).copy(alpha = 0.45f),
-                topLeft = Offset(curX - 3f, coachY - 3f),
-                size = Size(coachW + 6f, coachH + 6f),
-                cornerRadius = CornerRadius(8f, 8f)
-            )
-        }
-
-        // Selection ring for inspected coach (if different from user)
-        if (isInspected && !isUser) {
-            drawRoundRect(
-                color = Color(0xFF38BDF8).copy(alpha = 0.4f),
-                topLeft = Offset(curX - 3f, coachY - 3f),
-                size = Size(coachW + 6f, coachH + 6f),
-                cornerRadius = CornerRadius(8f, 8f),
-                style = Stroke(width = 2f)
-            )
-        }
-
-        // Coach Drop Shadow
-        drawRoundRect(
-            color = Color.Black.copy(alpha = 0.6f),
-            topLeft = Offset(curX + 3f, coachY + 4f),
-            size = Size(coachW, coachH),
-            cornerRadius = CornerRadius(6f, 6f)
-        )
-
-        // Coach Body Surface
-        val bodyCol = Color(coach.bodyColor)
-        drawRoundRect(
-            color = bodyCol,
-            topLeft = Offset(curX, coachY),
-            size = Size(coachW, coachH),
-            cornerRadius = CornerRadius(if (coach.isAeroNose) 12f else 6f, 6f)
-        )
-
-        // Livery Stripe (top & bottom)
-        val stripeCol = coach.stripeColor?.let { Color(it) }
-        if (stripeCol != null) {
-            drawRect(
-                color = stripeCol,
-                topLeft = Offset(curX + 2f, coachY + 4f),
-                size = Size(coachW - 4f, 4f)
-            )
-            drawRect(
-                color = stripeCol,
-                topLeft = Offset(curX + 2f, coachY + coachH - 8f),
-                size = Size(coachW - 4f, 4f)
-            )
-        }
-
-        // Roof Details (AC vent center corridor)
-        val roofCol = Color(coach.roofColor)
-        drawRect(
-            color = roofCol,
-            topLeft = Offset(curX + 8f, coachY + (coachH / 2f) - 4f),
-            size = Size(coachW - 16f, 8f)
-        )
-
-        // Pantograph on Locomotives
-        if (coach.classType == "LOCO" || coach.classType == "CAB") {
-            val pantoX = curX + 16f
-            val pantoY = coachY + (coachH / 2f) - 6f
-            drawRect(
-                color = Color(0xFFF59E0B),
-                topLeft = Offset(pantoX, pantoY),
-                size = Size(16f, 12f),
-                style = Stroke(width = 1.5f)
-            )
-        }
-
-        // Passenger Doors / Steps facing Platform 3
-        drawRect(
-            color = Color(0xFFFACC15),
-            topLeft = Offset(curX + 4f, coachY),
-            size = Size(8f, 3f)
-        )
-        drawRect(
-            color = Color(0xFFFACC15),
-            topLeft = Offset(curX + coachW - 12f, coachY),
-            size = Size(8f, 3f)
-        )
-
-        // ── 1. COACH CODE TEXT (e.g. B4, A1, S3, GEN, WAP-7) ──
-        val codeColor = if (isUser) Color.White else Color(0xFFF8FAFC)
-        val codeText = coach.code
-        val codeMeas = textMeasurer.measure(
-            text = codeText,
-            style = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Black)
-        )
-        drawText(
-            textMeasurer = textMeasurer,
-            text = codeText,
-            topLeft = Offset(curX + (coachW - codeMeas.size.width) / 2f, coachY + 4f),
-            style = TextStyle(color = codeColor, fontSize = 11.5.sp, fontWeight = FontWeight.Black)
-        )
-
-        // ── 2. COACH CLASS BADGE PILL (e.g. [3A], [SL], [GEN], [2A], [1A]) ──
-        val classTag = TrainRakeDataService.classShortTag(coach.classType)
-        val badgeBgCol = Color(TrainRakeDataService.classBadgeColor(coach.classType))
-        val tagMeas = textMeasurer.measure(
-            text = classTag,
-            style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Black)
-        )
-        val badgeW = tagMeas.size.width + 10f
-        val badgeH = 14f
-        val badgeX = curX + (coachW - badgeW) / 2f
-        val badgeY = coachY + coachH - 18f
-
-        drawRoundRect(
-            color = badgeBgCol,
-            topLeft = Offset(badgeX, badgeY),
-            size = Size(badgeW, badgeH),
-            cornerRadius = CornerRadius(4f, 4f)
-        )
-        drawText(
-            textMeasurer = textMeasurer,
-            text = classTag,
-            topLeft = Offset(badgeX + 5f, badgeY + 1f),
-            style = TextStyle(color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
-        )
-
-        curX += coachW + 12f
-    }
-
-    // ── 3. ELEVATED FOOT-OVER-BRIDGES (Rendered ON TOP of train!) ───────────
-    val fobY1 = 36f
-    val fobY2 = H - 24f
-
-    // Central FOB (🛗 Lift + Escalator)
-    // Deep Drop Shadow
-    drawRect(
-        color = Color.Black.copy(alpha = 0.65f),
-        topLeft = Offset(centralFobX + 12f, fobY1 + 10f),
-        size = Size(centralFobW, fobY2 - fobY1)
-    )
-    // Bridge Deck Beam
-    drawRect(
-        color = Color(0xFF0369A1),
-        topLeft = Offset(centralFobX, fobY1),
-        size = Size(centralFobW, fobY2 - fobY1)
-    )
-    // Handrails
-    drawRect(
-        color = Color(0xFF38BDF8),
-        topLeft = Offset(centralFobX, fobY1),
-        size = Size(centralFobW, fobY2 - fobY1),
-        style = Stroke(width = 2f)
-    )
-    // Center Dashed Walkway Stripe
-    drawLine(
-        color = Color.White.copy(alpha = 0.45f),
-        start = Offset(centralFobX + centralFobW / 2f, fobY1),
-        end = Offset(centralFobX + centralFobW / 2f, fobY2),
-        strokeWidth = 2f,
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
-    )
-    // Glass Lift / Escalator Tower at Platform 3 Landing
-    drawRoundRect(
-        color = Color(0xFF0F172A),
-        topLeft = Offset(centralFobX + centralFobW + 2f, pf3Y + 14f),
-        size = Size(26f, 26f),
-        cornerRadius = CornerRadius(4f, 4f)
-    )
-    drawRoundRect(
-        color = Color(0xFF38BDF8),
-        topLeft = Offset(centralFobX + centralFobW + 2f, pf3Y + 14f),
-        size = Size(26f, 26f),
-        cornerRadius = CornerRadius(4f, 4f),
-        style = Stroke(width = 1.5f)
-    )
-    drawText(
-        textMeasurer = textMeasurer,
-        text = "LIFT",
-        topLeft = Offset(centralFobX + centralFobW + 4f, pf3Y + 21f),
-        style = TextStyle(color = Color(0xFF38BDF8), fontSize = 8.5.sp, fontWeight = FontWeight.Black)
-    )
-
-    // North Overbridge (Stairs)
-    // Drop Shadow
-    drawRect(
-        color = Color.Black.copy(alpha = 0.65f),
-        topLeft = Offset(northBridgeX + 10f, fobY1 + 10f),
-        size = Size(northBridgeW, fobY2 - fobY1)
-    )
-    // Bridge Deck
-    drawRect(
-        color = Color(0xFF475569),
-        topLeft = Offset(northBridgeX, fobY1),
-        size = Size(northBridgeW, fobY2 - fobY1)
-    )
-    drawRect(
-        color = Color(0xFF94A3B8),
-        topLeft = Offset(northBridgeX, fobY1),
-        size = Size(northBridgeW, fobY2 - fobY1),
-        style = Stroke(width = 1.5f)
-    )
-    drawLine(
-        color = Color.White.copy(alpha = 0.35f),
-        start = Offset(northBridgeX + northBridgeW / 2f, fobY1),
-        end = Offset(northBridgeX + northBridgeW / 2f, fobY2),
-        strokeWidth = 1.5f,
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
-    )
-
-    // ── 4. PASSENGER DOTTED WALKING ROUTE (Cyan Dashed Line) ─────────────────
-    val entryStartY = if (selectedGate == 1) 36f else H - 40f
-    val liftLandY = pf3Y + pf3H - 8f
-
-    // 1. From Gate entrance along the bridge
-    drawLine(
-        color = Color(0xFF38BDF8),
-        start = Offset(centralFobX + centralFobW / 2f, entryStartY),
-        end = Offset(centralFobX + centralFobW / 2f, liftLandY),
-        strokeWidth = 3f,
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
-    )
-    // 2. Along Platform 3 right to the door of user's coach
-    if (userCoachScreenX > 0f) {
-        drawLine(
-            color = Color(0xFF38BDF8),
-            start = Offset(centralFobX + centralFobW / 2f, liftLandY),
-            end = Offset(userCoachScreenX, liftLandY),
-            strokeWidth = 3f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
-        )
-    }
-
-    // ── 5. FLOATING 3D BEACON PIN: "🎯 YOUR COACH" (Rendered on top!) ────────
-    if (userCoachScreenX > 0f) {
-        val pinX = userCoachScreenX
-        val pinY = userCoachScreenY - 32f
-
-        // Green Beacon Pill Background
-        val beaconW = 96f
-        val beaconH = 22f
-        drawRoundRect(
-            color = Color(0xFF10B981),
-            topLeft = Offset(pinX - beaconW / 2f, pinY - beaconH / 2f),
-            size = Size(beaconW, beaconH),
-            cornerRadius = CornerRadius(6f, 6f)
-        )
-        // Downward Triangle Pointer
-        val trianglePath = Path().apply {
-            moveTo(pinX - 6f, pinY + beaconH / 2f - 1f)
-            lineTo(pinX + 6f, pinY + beaconH / 2f - 1f)
-            lineTo(pinX, pinY + beaconH / 2f + 8f)
-            close()
-        }
-        drawPath(trianglePath, color = Color(0xFF10B981))
-
-        // Beacon Text
-        drawText(
-            textMeasurer = textMeasurer,
-            text = "YOUR COACH",
-            topLeft = Offset(pinX - 34f, pinY - 7f),
-            style = TextStyle(color = Color(0xFF022C22), fontSize = 9.sp, fontWeight = FontWeight.Black)
-        )
+        // Steel Rails (Pair)
+        val r1 = h * 0.32f
+        val r2 = h * 0.68f
+        drawLine(Color(0xFF64748B), Offset(0f, r1), Offset(w, r1), strokeWidth = 2.5f)
+        drawLine(Color(0xFF64748B), Offset(0f, r2), Offset(w, r2), strokeWidth = 2.5f)
     }
 }
 
-// ── Helper to draw realistic track ballast beds with sleepers and rails ───────
-private fun DrawScope.drawBallastTrackBed(y: Float, h: Float, canvasW: Float) {
-    // Crushed gravel ballast
-    drawRect(color = Color(0xFF111827), topLeft = Offset(0f, y), size = Size(canvasW, h))
+/**
+ * Individual Train Coach Card rendered with pure Compose components
+ */
+@Composable
+private fun CoachVisualCard(
+    coach: RakeCoach,
+    isUser: Boolean,
+    isInspected: Boolean,
+    pulse: Float,
+    onClick: () -> Unit
+) {
+    val coachW = (coach.widthDp * 0.95f).dp
+    val coachH = 46.dp
+    val bodyCol = Color(coach.bodyColor)
+    val classTag = TrainRakeDataService.classShortTag(coach.classType)
+    val badgeBgCol = Color(TrainRakeDataService.classBadgeColor(coach.classType))
 
-    // Wooden / Concrete Sleepers
-    var x = 0f
-    while (x < canvasW) {
-        drawLine(
-            color = Color(0xFF1F2937),
-            start = Offset(x, y + 4f),
-            end = Offset(x, y + h - 4f),
-            strokeWidth = 3f
-        )
-        x += 16f
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        // Floating Beacon Pin above user's coach
+        if (isUser) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF10B981), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "🎯 YOUR COACH",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF022C22),
+                    maxLines = 1
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+        } else {
+            Spacer(modifier = Modifier.height(18.dp))
+        }
+
+        // Coach Body
+        Box(
+            modifier = Modifier
+                .width(coachW)
+                .height(coachH)
+                .clip(RoundedCornerShape(if (coach.isAeroNose) 10.dp else 5.dp))
+                .background(bodyCol)
+                .then(
+                    if (isUser) {
+                        Modifier.border(
+                            width = (2f + 1.5f * pulse).dp,
+                            color = Color(0xFF10B981).copy(alpha = 0.7f + 0.3f * pulse),
+                            shape = RoundedCornerShape(5.dp)
+                        )
+                    } else if (isInspected) {
+                        Modifier.border(1.5.dp, Color(0xFF38BDF8), RoundedCornerShape(5.dp))
+                    } else {
+                        Modifier.border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(5.dp))
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Coach Code (e.g. B4, A1, GEN)
+                Text(
+                    text = coach.code,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isUser) Color.White else Color(0xFFF8FAFC),
+                    maxLines = 1
+                )
+
+                // Class Tag Badge (e.g. [3A], [2A], [SL])
+                Box(
+                    modifier = Modifier
+                        .background(badgeBgCol, RoundedCornerShape(3.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = classTag,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
     }
-
-    // Steel Rails (Pair)
-    val r1 = y + h * 0.30f
-    val r2 = y + h * 0.70f
-    drawLine(Color(0xFF64748B), Offset(0f, r1), Offset(canvasW, r1), strokeWidth = 2.5f)
-    drawLine(Color(0xFF64748B), Offset(0f, r2), Offset(canvasW, r2), strokeWidth = 2.5f)
 }

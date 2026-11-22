@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -1187,10 +1188,12 @@ fun DirectTrainSearchStrip(
     val borderColor = if (isDark) Color(0xFF0284C7).copy(alpha = 0.50f) else Color(0xFF38BDF8)
     val bgColor = if (isDark) Color(0xFF1E293B) else Color.White
 
+    var groupWidthPx by remember { mutableStateOf(0f) }
+
     val infiniteTransition = rememberInfiniteTransition()
     val tickerTranslationX by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = -750f,
+        targetValue = if (groupWidthPx > 0f) -groupWidthPx else -750f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 18000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
@@ -1224,7 +1227,7 @@ fun DirectTrainSearchStrip(
                 Text("🔍", fontSize = 12.sp)
             }
 
-            // Continuously moving search ticker strip with sample trains
+            // Continuously moving search ticker strip with sample trains (unbounded to prevent squishing/wrapping)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1232,18 +1235,25 @@ fun DirectTrainSearchStrip(
             ) {
                 Row(
                     modifier = Modifier
-                        .wrapContentWidth()
+                        .wrapContentWidth(align = Alignment.Start, unbounded = true)
                         .graphicsLayer {
                             translationX = tickerTranslationX
                         },
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    TrainSearchTickerSampleGroup(isDark)
-                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
-                    TrainSearchTickerSampleGroup(isDark)
-                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
-                    TrainSearchTickerSampleGroup(isDark)
+                    TrainSearchTickerSampleGroup(
+                        isDark = isDark,
+                        modifier = Modifier.onGloballyPositioned { coords ->
+                            if (groupWidthPx == 0f && coords.size.width > 0) {
+                                groupWidthPx = coords.size.width.toFloat() + 16f
+                            }
+                        }
+                    )
+                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), maxLines = 1, softWrap = false)
+                    TrainSearchTickerSampleGroup(isDark = isDark)
+                    Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), maxLines = 1, softWrap = false)
+                    TrainSearchTickerSampleGroup(isDark = isDark)
                 }
             }
         }
@@ -1251,8 +1261,12 @@ fun DirectTrainSearchStrip(
 }
 
 @Composable
-private fun TrainSearchTickerSampleGroup(isDark: Boolean) {
+private fun TrainSearchTickerSampleGroup(
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
     Row(
+        modifier = modifier.wrapContentWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -1260,7 +1274,9 @@ private fun TrainSearchTickerSampleGroup(isDark: Boolean) {
             text = "Search trains by name and number:",
             fontSize = 11.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+            color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1),
+            maxLines = 1,
+            softWrap = false
         )
 
         // Train 1: 20490 Barmer Superfast Express
@@ -1270,7 +1286,7 @@ private fun TrainSearchTickerSampleGroup(isDark: Boolean) {
             isDark = isDark
         )
 
-        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), maxLines = 1, softWrap = false)
 
         // Train 2: 12420 Gomti Express
         TrainSearchTickerPill(
@@ -1279,7 +1295,7 @@ private fun TrainSearchTickerSampleGroup(isDark: Boolean) {
             isDark = isDark
         )
 
-        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+        Text("•", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), maxLines = 1, softWrap = false)
 
         // Train 3: 22436 Vande Bharat
         TrainSearchTickerPill(
@@ -1297,6 +1313,7 @@ private fun TrainSearchTickerPill(
     isDark: Boolean
 ) {
     Row(
+        modifier = Modifier.wrapContentWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
@@ -1310,14 +1327,18 @@ private fun TrainSearchTickerPill(
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+                color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1),
+                maxLines = 1,
+                softWrap = false
             )
         }
         Text(
             text = name,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isDark) DarkTextPrimary else Color(0xFF1E293B)
+            color = if (isDark) DarkTextPrimary else Color(0xFF1E293B),
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
