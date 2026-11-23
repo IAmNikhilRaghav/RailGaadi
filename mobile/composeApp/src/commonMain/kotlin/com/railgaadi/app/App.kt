@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -46,6 +48,8 @@ import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.ui.components.PreferencesDrawer
 import com.railgaadi.app.ui.screens.*
+import com.railgaadi.app.util.clearFocusOnTap
+import kotlin.math.abs
 
 // ─── Shared scroll-collapse state exposed to child screens ───────────────────
 object BarsCollapseState {
@@ -71,6 +75,9 @@ fun App() {
     var showLanguageModal by remember { mutableStateOf(false) }
     var showPreferencesDrawer by remember { mutableStateOf(false) }
 
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     // Reset bars to visible whenever the user switches tabs
     LaunchedEffect(selectedTab) {
         BarsCollapseState.barsVisible = true
@@ -86,6 +93,12 @@ fun App() {
             private val THRESHOLD = 20f   // px before toggling — avoids flicker on tiny scrolls
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // Dismiss keyboard whenever any scrollable is scrolled
+                if (abs(available.y) > 1f || abs(available.x) > 1f) {
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                }
+
                 scrollAccum += available.y
                 when {
                     scrollAccum < -THRESHOLD -> { // scrolling DOWN → hide bars
@@ -151,6 +164,7 @@ fun App() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(if (isDarkMode) DarkBackground else LightBackground)
+                .clearFocusOnTap(focusManager, keyboardController)
         ) {
 
             // ── CONTENT — dynamically expands to full screen on scroll ────
@@ -159,6 +173,7 @@ fun App() {
                     .fillMaxSize()
                     .padding(top = topBarContentHeight, bottom = bottomBarContentHeight)
                     .nestedScroll(scrollConnection)
+                    .clearFocusOnTap(focusManager, keyboardController)
             ) {
                 when (selectedTab) {
                     TabItem.LIVE_MAP -> LiveMapScreen()
@@ -250,7 +265,11 @@ fun App() {
                                         .height(30.dp)
                                         .background(langBg, RoundedCornerShape(15.dp))
                                         .border(0.8.dp, langBorder, RoundedCornerShape(15.dp))
-                                        .clickable { showLanguageModal = true }
+                                        .clickable {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            showLanguageModal = true
+                                        }
                                         .padding(horizontal = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -270,13 +289,25 @@ fun App() {
                                 GlassCircleButton(
                                     isDarkMode = isDarkMode,
                                     borderColor = buttonBorder,
-                                    onClick = { TrainTrackerState.isDarkMode = !TrainTrackerState.isDarkMode }
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
+                                        TrainTrackerState.isDarkMode = !TrainTrackerState.isDarkMode
+                                    }
                                 ) {
                                     Text(if (isDarkMode) "☀️" else "🌙", fontSize = 15.sp)
                                 }
 
                                 // Menu
-                                GlassCircleButton(isDarkMode = isDarkMode, borderColor = buttonBorder, onClick = { showPreferencesDrawer = true }) {
+                                GlassCircleButton(
+                                    isDarkMode = isDarkMode,
+                                    borderColor = buttonBorder,
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
+                                        showPreferencesDrawer = true
+                                    }
+                                ) {
                                     Text("☰", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
                                 }
                             }
@@ -326,7 +357,11 @@ fun App() {
                                         .clickable(
                                             indication = null,
                                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                        ) { selectedTab = tab },
+                                        ) {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            selectedTab = tab
+                                        },
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,7 @@ import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.util.PlatformDate
 import com.railgaadi.app.util.PlatformShare
+import com.railgaadi.app.util.clearFocusOnTap
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,6 +59,7 @@ fun PnrScreen() {
     val coroutineScope = rememberCoroutineScope()
     val service = remember { RailRadarService() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val recentPnrs = TrainTrackerState.recentPnrs
 
     // ── PNR lookup ─────────────────────────────────────────────────────────────
@@ -66,6 +69,7 @@ fun PnrScreen() {
         errorMsg = null
         hasSearched = false
         isLoading = true
+        focusManager.clearFocus(force = true)
         keyboard?.hide()
         coroutineScope.launch {
             val result = service.getPnrStatus(trimmed)
@@ -113,10 +117,15 @@ fun PnrScreen() {
         return sb.toString()
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(background),
-        contentPadding = PaddingValues(bottom = 32.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clearFocusOnTap(focusManager, keyboard)
     ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().background(background),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
 
         // ── Header ─────────────────────────────────────────────────────────────
         item {
@@ -158,7 +167,14 @@ fun PnrScreen() {
 
             // ── Input Card ────────────────────────────────────────────────────
             item {
-                PnrGlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), surface, borderColor) {
+                PnrGlassCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clearFocusOnTap(focusManager, keyboard),
+                    surface,
+                    borderColor
+                ) {
                     Column(Modifier.padding(20.dp)) {
                         Text(
                             "🎟️  ${I18n.t("pnr_input_label")}",
@@ -397,6 +413,7 @@ fun PnrScreen() {
             }
         }
     }
+}
 }
 
 // ─── Glassmorphic Card ─────────────────────────────────────────────────────────

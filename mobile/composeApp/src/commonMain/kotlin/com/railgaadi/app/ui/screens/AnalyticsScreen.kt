@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +58,7 @@ import com.railgaadi.app.ui.components.VectorCoachIcon
 import com.railgaadi.app.ui.components.DestinationAlarmModal
 import com.railgaadi.app.ui.components.AlarmRingingDialog
 import com.railgaadi.app.ui.components.InTrainCockpitBanner
+import com.railgaadi.app.util.clearFocusOnTap
 import com.railgaadi.app.util.formatDelayDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -76,6 +79,8 @@ fun AnalyticsScreen(
     val activeTrain = TrainTrackerState.activeTrain
     val liveStatus = TrainTrackerState.liveStatus
     val isLoading = TrainTrackerState.isLoadingStatus
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // View switcher: Overview (WIMT vertical track) vs Description (Table timetable)
     var viewMode by remember { mutableStateOf(TimelineViewMode.WIMT) }
@@ -189,6 +194,7 @@ fun AnalyticsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(if (isDark) DarkBackground else LightBackground)
+            .clearFocusOnTap(focusManager, keyboardController)
     ) {
         if (activeTrain.number.isBlank()) {
             // =========================================================
@@ -1550,7 +1556,7 @@ fun AnalyticsScreen(
                 },
                 text = {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clearFocusOnTap(focusManager, keyboardController),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedTextField(

@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +42,7 @@ import com.railgaadi.app.model.Train
 import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
+import com.railgaadi.app.util.clearFocusOnTap
 import com.railgaadi.app.util.formatDelayDuration
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
@@ -56,6 +59,8 @@ fun StationBoardScreen(
     val scope = rememberCoroutineScope()
     val isDark = TrainTrackerState.isDarkMode
     val railRadarService = remember { RailRadarService() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // Popular railway junction suggestions for quick 1-tap switching
     val topJunctions = remember {
@@ -96,6 +101,8 @@ fun StationBoardScreen(
 
     // Function to load station board data
     fun loadBoardForStation(code: String, name: String) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
         currentStationCode = code
         currentStationName = name
         searchQuery = ""
@@ -170,6 +177,7 @@ fun StationBoardScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(if (isDark) DarkBackground else LightBackground)
+            .clearFocusOnTap(focusManager, keyboardController)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -186,7 +194,9 @@ fun StationBoardScreen(
                         containerColor = if (isDark) DarkSurface else LightSurface
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clearFocusOnTap(focusManager, keyboardController)
                 ) {
                     Column(
                         modifier = Modifier

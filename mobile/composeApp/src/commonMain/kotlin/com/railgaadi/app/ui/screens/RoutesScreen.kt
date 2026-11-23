@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -56,6 +57,7 @@ import com.railgaadi.app.network.RailRadarService
 import com.railgaadi.app.state.TrainTrackerState
 import com.railgaadi.app.theme.*
 import com.railgaadi.app.util.PlatformDate
+import com.railgaadi.app.util.clearFocusOnTap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -174,6 +176,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     val fromFocusRequester = remember { FocusRequester() }
     val toFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
 
     var swapRotation by remember { mutableStateOf(0f) }
     val animatedSwapRotation by animateFloatAsState(
@@ -219,6 +222,8 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     }
 
     fun triggerSearch(fromText: String, toText: String) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
         val cleanFrom = fromText.trim()
         val cleanTo = toText.trim()
 
@@ -261,6 +266,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
         )
         isToDropdownOpen = false
         validationError = null
+        focusManager.clearFocus(force = true)
         keyboardController?.hide()
     }
 
@@ -310,7 +316,11 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
     }
 
     // ── Root container: switches between Search UI and inline Analytics ──
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clearFocusOnTap(focusManager, keyboardController)
+    ) {
         if (showTrainDetail) {
             // ── Full Analytics screen embedded in Routes, no tab switch ──
             AnalyticsScreen(
@@ -460,7 +470,7 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clearFocusOnTap(focusManager, keyboardController),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
@@ -738,7 +748,9 @@ fun RoutesScreen(onTrackTrain: (Train, String) -> Unit = { _, _ -> }) {
                             1.dp,
                             if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clearFocusOnTap(focusManager, keyboardController)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             // Header: ROUTE JOURNEY + Station to Station badge
